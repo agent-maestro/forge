@@ -1,133 +1,197 @@
 # EML-lang — Language Specification
 
 **Version:** 0.0.1 (DRAFT)
-**Status:** SCAFFOLD — semantics to be finalized
+**Status:** SCAFFOLD — semantics finalized in `EML_LANG_DESIGN.md`
+
+> This file is the **technical reference** for syntax + semantics.
+> For the high-level vision, design principles, and rationale,
+> read `EML_LANG_DESIGN.md` first.
 
 ---
 
 ## Overview
 
-EML-lang is a small declarative language for expressing real-valued
-mathematical computations whose Pfaffian complexity is statically
-known. Its compiler can emit either software (C / Rust / Python /
-LLVM / WASM) or hardware (Verilog / VHDL / Chisel / SystemC) from
-the same source.
+EML-lang is a programming language for verified mathematical
+computation. Every expression compiles to an EML tree under the
+hood. The compiler:
 
-Core principles:
+1. **Parses** `.eml` source into a typed AST
+2. **Profiles** every expression automatically (chain order, cost
+   class, dynamics counter, FPGA estimate)
+3. **Type-checks** chain-order constraints declared in function
+   signatures
+4. **Optimizes** via SuperBEST routing (default, not opt-in)
+5. **Emits** to one or more targets (C / Rust / Python / LLVM /
+   WASM / Verilog / VHDL / Chisel / SystemC / Lean)
 
-1. **Math first.** The language reads like math: `sin(x) + erf(y)`,
-   not bit-twiddling.
-2. **Static chain-order types.** Every expression carries a
-   chain-order bound the type checker enforces.
-3. **One source, multiple targets.** A single `.eml` file compiles
-   to executable code AND synthesizable HDL.
-4. **Verifiable by construction.** `@verify` blocks emit Lean 4 /
-   Z3 / CBMC artifacts.
+The same source produces both **executable code** and
+**synthesizable HDL**, with **provable precision equivalence**
+between them (Patent #22).
 
 ---
 
-## Syntax (preview)
+## Syntax
+
+### Constants
 
 ```eml
-// Module declaration
-module pid_basic;
+const Kp: Real = 2.5
+const Ki: Real = 0.1
+const omega: Real = 60.0    // rad/s
+```
 
-// Constants
-const Kp: f64 = 0.5;
-const Ki: f64 = 0.1;
-const Kd: f64 = 0.05;
+### Type aliases with chain-order constraints
 
-// Function declaration with chain-order constraint
-fn pid(error: f64, integral: f64, derivative: f64) -> f64
-  where chain_order <= 0
+```eml
+type Polynomial   = Real where chain_order == 0
+type SingleExp    = Real where chain_order == 1
+type Stable       = Real where chain_order <= 1
+type StableSignal = Real where chain_order <= 2
+type Oscillatory  = Real where chain_order >= 2
+type OscSignal    = Real where chain_order >= 2
+```
+
+### Functions
+
+```eml
+fn pid_output(error: Real, integral: Real, deriv: Real) -> StableSignal {
+    Kp * error + Ki * integral + Kd * deriv
+}
+```
+
+The compiler infers `chain_order = 0` from the body; `0 <= 2`
+satisfies the `StableSignal` return type. ✓
+
+### Annotations
+
+```eml
+@target(fpga, clock_mhz = 100, precision = float32)
+fn realtime_control(sensor: Real) -> Real { ... }
+
+@verify(lean, theorem = "pid_bounded")
+fn safe_pid(error: Real) -> Real
+    requires abs(error) < 1000.0
+    ensures abs(result) < 50000.0
+{ ... }
+```
+
+`@target` directs the compiler to emit hardware (Verilog +
+synthesis-ready) with the given constraints. `@verify` emits a
+Lean 4 theorem template (the proof tail is auto-attempted; falls
+back to `sorry` if not closeable).
+
+### Built-in functions
+
+The grammar reserves these as keywords in addition to user-defined
+functions:
+
+| Keyword | Chain order contribution | Domain restriction |
+|---------|--------------------------|---------------------|
+| `exp(x)` | +1 | none |
+| `ln(x)` | +1 | `x > 0` |
+| `sin(x)` | +2 | none (real path via complex Euler) |
+| `cos(x)` | +2 | none |
+| `tan(x)` | +2 | `x != (n+1/2)*pi` |
+| `sqrt(x)` | +1 | `x >= 0` |
+| `pow(x, n)` (integer n) | 0 | none |
+| `pow(x, b)` (general b) | +1 | `x > 0` |
+| `eml(x, y)` | 1 (raw primitive) | `y > 0` |
+
+Higher towers (erf, J_0, Ai, Gamma, W, Si, K-elliptic, _2F_1) come
+in via `@target(import = "stdlib/special")` once the stdlib
+catches up — see `lang/spec/stdlib/STDLIB.md`.
+
+### Statements
+
+```eml
+fn example(x: Real) -> Real {
+    let y = exp(x)         // let binding
+    let z = sin(y * 2.0)
+    z + ln(x)              // last expression is the return value
+}
+```
+
+### Domain + precision constraints
+
+```eml
+fn arrhenius_rate(A: Real, Ea: Real, T: Real) -> Real
+    where chain_order <= 1,
+          domain: T > 0.0,
+          precision <= 1.0e-12
 {
-    Kp * error + Ki * integral + Kd * derivative
-}
-
-// Function with chain order > 0 (uses transcendentals)
-fn nonlinear_gain(error: f64) -> f64
-  where chain_order <= 2,
-        domain: error > 0
-{
-    let scale = exp(-error * error);
-    scale * sin(error)
-}
-
-// Verification block
-@verify {
-    forall e: f64 where 0 < e < 10 {
-        precision(nonlinear_gain(e)) <= 1e-12
-    }
+    A * exp(-Ea / (8.314 * T))
 }
 ```
 
----
-
-## Type system (preview)
-
-| Type | Meaning |
-|------|---------|
-| `f64`, `f32`, `f16`, `bf16` | Floating-point precisions |
-| `fixed<W,F>` | Fixed-point: W total bits, F fractional |
-| `chain_order <= N` | Pfaffian chain-order bound |
-| `domain: <pred>` | Input domain restriction |
-| `precision <= eps` | Output precision requirement |
-
-Chain-order types compose:
-- Add / sub / mul / div: `max(co(a), co(b))`
-- exp, ln (real-EML primitive): chain order 1 each
-- sin, cos: chain order 2 (via complex Euler)
-- erf, J_0, Ai, Gamma, W: chain order ≥ 2 (per tower census)
-
-See `types/chain_order_types.md` for the full inference rules.
+The `domain:` clause is a predicate inferred / guarded at call
+sites; `precision <=` is verified via `eml-cost.predict_precision_loss`
+(Patent #20) and any `@verify` block.
 
 ---
 
-## Standard library (preview)
+## Type system
 
-The `lang/spec/stdlib/` modules ship with Forge:
+Three layers, all enforced statically:
 
-| Module | Contents |
-|--------|----------|
-| `math` | exp, ln, sqrt, pow, abs, trig, hyp, log_b |
-| `control` | PID, state-space, observer (Kalman, Luenberger) |
-| `signal` | FFT, biquad, FIR, IIR, convolution |
-| `linalg` | matmul, transpose, inv, eigvals (small, fixed-size) |
-| `constants` | pi, e, c, h, k, G, ε₀, μ₀, etc. |
+1. **Numeric** — `f64`, `f32`, `f16`, `bf16`, `fixed<W,F>`, `int`,
+   `bool`. Default: `f64` (= `Real`).
+2. **Chain-order** — `chain_order <= N`, `>= N`, `== N`. The
+   inferred chain order of a function body must satisfy the
+   declared constraint.
+3. **Domain + precision** — `domain: <pred>`, `precision <= eps`.
+
+See `types/TYPES.md` for the full type-system overview and
+`types/chain_order_types.md` for the inference rules.
 
 ---
 
-## Compilation pipeline
+## Profiling output (always visible)
+
+For every function, the compiler emits a profile block:
 
 ```
-.eml source
-    │
-    ▼
-lexer → parser → AST → type_checker
-    │
-    ▼
-profiler (cost class, chain order, dynamics counter)
-    │
-    ▼
-optimizer (SuperBEST routing, fusion, CSE, constant folding)
-    │
-    ├──▶ software/backends/<target>.py  ──▶ C / Rust / Python / LLVM / WASM
-    │
-    └──▶ hardware/allocator + hdl_gen   ──▶ Verilog / VHDL / Chisel
-              │                              │
-              ▼                              ▼
-         FPGA targets                  Verilator simulation
-       (Xilinx / Intel / Lattice)     (golden vs hardware diff)
+PROFILE: example
+  chain_order: 3
+  max_path_r: 2
+  eml_depth: 7
+  cost_class: p3-d7-w2-c1
+  dynamics: 1 oscillation, 0 decays
+  nodes: 7 (SuperBEST optimal)
+  siblings: ["damped oscillator (physics)",
+             "FM carrier (audio)"]
+  stability: ln(x) undefined for x <= 0 — domain restriction
+  fpga_estimate: 2 exp + 1 ln + 1 cos + 3 MAC = 7 units
 ```
 
-`@verify` blocks branch out of the AST after the type checker and
-go to `software/verification/lean/` (or `smt/` or `cbmc/`) to emit
-their respective artifacts.
+This is NOT opt-in. Profiling is part of compilation.
+
+---
+
+## Compilation targets
+
+Software:
+- **C99** via `libmonogate.h` (see `software/runtime/c/`)
+- **Rust** via the `monogate-sys` crate
+- **Python/NumPy** via the eml-cost Tool 5 transpiler (already shipped)
+- **LLVM IR** for portability (x86, ARM, RISC-V, WASM)
+- **WebAssembly** for browser deployment
+
+Hardware:
+- **Verilog** for FPGA synthesis (Vivado, Quartus)
+- **VHDL** for alternative FPGA flows
+- **Chisel/FIRRTL** for parameterized hardware generation
+- **SystemC** for hardware simulation
+
+Verification:
+- **Lean 4** formal proofs of precision and correctness
+- **Z3 / SMT** for automated constraint checking
+- **CBMC** for bounded model checking of generated C
 
 ---
 
 ## What this spec does NOT yet cover (TODO)
 
+Everything in `EML_LANG_DESIGN.md`'s "TODO" list, plus:
 - Module imports / namespacing
 - Generic / parametric types
 - Effect system for I/O (HDL ports vs C function args)
@@ -135,7 +199,7 @@ their respective artifacts.
 - Unit-of-measure types (SI prefixes, dimensional analysis)
 - Macro / template system
 
-These are tracked in `roadmap/phases/phase1_language.md`.
+Tracked in `roadmap/phases/phase1_language.md`.
 
 ---
 
@@ -146,3 +210,4 @@ These are tracked in `roadmap/phases/phase1_language.md`.
 - The 578-expression cost-profile corpus: `data/corpus_profiles.json`
 - The chain-order additivity rule (Patent #15): see
   `monogate-research/exploration/9th-tower-promotion-2026-04-27/`
+- Full design vision: `EML_LANG_DESIGN.md` (this directory)
