@@ -1,92 +1,122 @@
 // ANTLR4 grammar for EML-lang.
-// Status: SCAFFOLD. Token + production rules to be finalized as
-// the spec stabilizes (lang/spec/SPEC.md).
+// Canonical reference: lang/spec/EML_LANG_DESIGN.md (Phase 1.1)
+// Companion file: lexer_rules.g4
 
-grammar eml_lang;
+grammar EMLLang;
 
 // ─── Top-level ────────────────────────────────────────────────
 
 program
-    : moduleDecl? (importDecl | declaration)* EOF
+    : (typeDecl | constDecl | functionDecl)* EOF
     ;
-
-moduleDecl  : 'module' IDENT ';' ;
-importDecl  : 'import' qualifiedName ';' ;
-qualifiedName : IDENT ('.' IDENT)* ;
 
 // ─── Declarations ─────────────────────────────────────────────
 
-declaration
-    : constDecl
-    | functionDecl
-    | verifyBlock
+typeDecl
+    : 'type' ID '=' type
     ;
 
 constDecl
-    : 'const' IDENT ':' type '=' expr ';'
+    : 'const' ID ':' type '=' expr
     ;
 
 functionDecl
-    : 'fn' IDENT '(' paramList? ')' ('->' type)?
-       whereClause? block
+    : annotation* 'fn' ID '(' params? ')' '->' type
+       requiresClause* ensuresClause? block
     ;
 
-paramList   : param (',' param)* ;
-param       : IDENT ':' type ;
-
-whereClause
-    : 'where' constraint (',' constraint)*
-    ;
-constraint
-    : 'chain_order' ('<=' | '<' | '==') INT
-    | 'domain' ':' expr
-    | 'precision' ('<=' | '<') NUMBER
+params
+    : param (',' param)*
     ;
 
-verifyBlock
-    : '@verify' block
+param
+    : ID ':' type
     ;
 
-// ─── Types (preview) ──────────────────────────────────────────
+annotation
+    : '@target' '(' targetSpec ')'
+    | '@verify' '(' verifySpec ')'
+    ;
+
+targetSpec
+    : ID (',' targetArg)*
+    ;
+
+targetArg
+    : ID '=' (NUMBER | ID)
+    ;
+
+verifySpec
+    : ID (',' ID '=' STRING)*
+    ;
+
+requiresClause
+    : 'requires' expr
+    ;
+
+ensuresClause
+    : 'ensures' expr
+    ;
+
+// ─── Types ────────────────────────────────────────────────────
 
 type
-    : 'f64' | 'f32' | 'f16' | 'bf16'
-    | 'fixed' '<' INT ',' INT '>'
-    | IDENT
+    : 'Real'                                #RealType
+    | 'Real' 'where' constraint             #ConstrainedType
+    | 'f64' | 'f32' | 'f16' | 'bf16'       #FloatType
+    | 'fixed' '<' INTEGER ',' INTEGER '>'   #FixedType
+    | ID                                    #NamedType
     ;
 
-// ─── Statements / expressions ─────────────────────────────────
-
-block       : '{' stmt* '}' ;
-stmt
-    : letStmt
-    | exprStmt
-    | returnStmt
+constraint
+    : 'chain_order' comparator INTEGER
     ;
 
-letStmt     : 'let' IDENT (':' type)? '=' expr ';' ;
-exprStmt    : expr ';' ;
-returnStmt  : expr ;  // last expression in block is return
+comparator
+    : '<=' | '>=' | '==' | '<' | '>' | '!='
+    ;
 
+// ─── Expressions ──────────────────────────────────────────────
+
+block
+    : '{' statement* expr '}'
+    ;
+
+statement
+    : 'let' ID (':' type)? '=' expr  #LetStmt
+    ;
+
+// Operator precedence (highest first): unary, * /, + -, comparison
 expr
-    : expr op=('*'|'/') expr   #BinaryMulDiv
-    | expr op=('+'|'-') expr   #BinaryAddSub
+    : '(' expr ')'                          #ParenExpr
+    | builtin '(' argList? ')'              #BuiltinCall
+    | ID '(' argList? ')'                   #FuncCall
+    | '-' expr                              #UnaryNeg
+    | expr op=('*'|'/') expr                #MulDiv
+    | expr op=('+'|'-') expr                #AddSub
     | expr op=('<'|'>'|'<='|'>='|'=='|'!=') expr  #Compare
-    | 'forall' IDENT ':' type 'where' expr block  #Quantifier
-    | IDENT '(' argList? ')'   #Call
-    | '(' expr ')'             #Paren
-    | NUMBER                   #Literal
-    | IDENT                    #Var
+    | NUMBER                                #LiteralNum
+    | ID                                    #VarRef
     ;
 
-argList     : expr (',' expr)* ;
+argList
+    : expr (',' expr)*
+    ;
+
+builtin
+    : 'exp' | 'ln' | 'sin' | 'cos' | 'tan'
+    | 'sqrt' | 'pow' | 'eml' | 'abs' | 'clamp'
+    | 'asin' | 'acos' | 'atan'
+    | 'sinh' | 'cosh' | 'tanh'
+    ;
 
 // ─── Lexer ────────────────────────────────────────────────────
 
-IDENT       : [a-zA-Z_][a-zA-Z0-9_]* ;
-NUMBER      : INT | FLOAT ;
-INT         : [0-9]+ ;
-FLOAT       : [0-9]+ '.' [0-9]+ ([eE] [+-]? [0-9]+)? ;
+ID            : [a-zA-Z_][a-zA-Z0-9_]* ;
+NUMBER        : INTEGER | FLOAT ;
+INTEGER       : [0-9]+ ;
+FLOAT         : [0-9]+ '.' [0-9]+ ([eE] [+-]? [0-9]+)? ;
+STRING        : '"' (~["\\] | '\\' .)* '"' ;
 
 LINE_COMMENT  : '//' ~[\r\n]* -> skip ;
 BLOCK_COMMENT : '/*' .*? '*/' -> skip ;

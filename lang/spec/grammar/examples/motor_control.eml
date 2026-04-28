@@ -1,0 +1,84 @@
+// motor_control.eml -- comprehensive demo from the EML-Lang design doc.
+// Spans: type aliases with chain-order constraints, plain functions,
+// hardware-targeted blocks, Lean-verified blocks, and a deliberately
+// dangerous function the compiler should warn about.
+
+// ── Constants ─────────────────────────────────────────────────
+const Kp:    Real = 2.5
+const Ki:    Real = 0.1
+const Kd:    Real = 0.05
+const omega: Real = 60.0    // motor speed rad/s
+const decay: Real = 0.02    // damping coefficient
+const Kv:    Real = 0.05    // back-EMF constant
+const Kt:    Real = 0.075   // torque constant
+const R:     Real = 0.8     // armature resistance, ohms
+
+// Setpoint + accumulator stand-ins (real implementation: state vars)
+const setpoint:   Real = 1.0
+const accumulator: Real = 0.0
+const last_error:  Real = 0.0
+
+// ── Type aliases with chain-order constraints ─────────────────
+type StableSignal = Real where chain_order <= 2
+type OscSignal    = Real where chain_order >= 2
+
+// ── Plain functions ───────────────────────────────────────────
+
+fn pid_output(error: Real, integral: Real, deriv: Real) -> StableSignal {
+    Kp * error + Ki * integral + Kd * deriv
+    // Compiler: chain_order = 0 (polynomial), 6 nodes
+    // Type check: 0 <= 2 OK (satisfies StableSignal)
+}
+
+fn damped_response(t: Real, amplitude: Real) -> OscSignal {
+    amplitude * exp(-decay * t) * cos(omega * t)
+    // Compiler: chain_order = 3 (1 osc + 1 decay), 9 nodes
+    // Type check: 3 >= 2 OK (satisfies OscSignal)
+}
+
+fn motor_torque(voltage: Real, speed: Real) -> Real {
+    let back_emf = voltage - speed * Kv
+    let current = back_emf / R
+    current * Kt
+    // Compiler: chain_order = 0, 7 nodes
+}
+
+// ── Compiler-warning case ─────────────────────────────────────
+
+fn unstable_gain(x: Real) -> Real {
+    1.0 / (1.0 + exp(-100.0 * x))
+    // Compiler WARNING:
+    //   chain_order = 2 (sigmoid)
+    //   fp16_drift_risk = HIGH (steep sigmoid, k=100)
+    //   SUGGEST: use stable_sigmoid form (8.6x better precision)
+    //   Patent #4: phantom attractor risk at float32
+}
+
+// ── Hardware-targeted block ───────────────────────────────────
+
+@target(fpga, clock_mhz = 100, precision = float32)
+fn realtime_control(sensor: Real) -> Real {
+    let error  = setpoint - sensor
+    let output = pid_output(error, accumulator, last_error - error)
+    clamp(output, -1.0, 1.0)
+    // FPGA synthesis:
+    //   6 MAC units allocated
+    //   0 transcendental units (chain 0)
+    //   Latency: 3 clock cycles at 100 MHz
+    //   Patent #14: workload profile -> hardware config
+}
+
+// ── Lean-verified block ───────────────────────────────────────
+
+@verify(lean, theorem = "pid_bounded")
+fn safe_pid(error: Real, integral: Real, deriv: Real) -> Real
+    requires abs(error) < 1000.0
+    requires abs(integral) < 10000.0
+    ensures abs(result) < 50000.0
+{
+    pid_output(error, integral, deriv)
+    // Lean generates and checks:
+    //   theorem pid_bounded : forall error integral deriv,
+    //     abs error < 1000 -> abs integral < 10000 ->
+    //     abs (pid_output error integral deriv) < 50000
+}

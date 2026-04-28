@@ -1,44 +1,80 @@
 # Monogate Forge
 
-> **Programming language and compiler for verified mathematical
-> computation, targeting both software (C / Rust / WASM / Python)
-> and hardware (Verilog / VHDL / FPGA / ASIC) from one source.**
+> **EML-Lang: a programming language for verified mathematical
+> computation. Every expression is an EML tree. The compiler
+> optimizes via SuperBEST routing, verifies via Lean, and targets
+> both software (C / Rust / Python / LLVM) AND hardware (FPGA /
+> ASIC) from one source.**
 
 **Status:** FOUNDATIONAL SCAFFOLD (v0.0.1) — under development
-**Repository:** https://github.com/agent-maestro/monogate-forge (planned)
+**Repository:** local only (private project)
 **License:** MIT for compiler, patents cover specific methods
 
 ---
 
-## What is Monogate Forge?
+## Why this exists
 
-A unified pipeline that takes a single `.eml` source file describing
-mathematical computation and compiles it to:
+Industrial automation today is stuck on ladder logic — Boolean rungs
+from the 1960s that can't express transcendental functions, can't
+prove correctness, can't optimize node count, and treat PID loops
+as black boxes. Structured Text is marginally better but still
+opaque. MATLAB/Simulink + HDL Coder will get you to FPGA but the
+math is hidden inside vendor library calls and you have no formal
+proof of precision.
 
-- **Software targets:** C99, Rust, Python/NumPy, LLVM IR, WebAssembly
-- **Hardware targets:** Verilog, VHDL, Chisel, SystemC — synthesized
-  for Xilinx, Intel, Lattice FPGAs or open-PDK ASICs (SkyWater 130nm,
-  GF180nm)
-- **Verification artifacts:** Lean 4 theorems for `@verify` blocks,
-  Z3 / SMT constraints, CBMC bounded model checks
+EML-Lang makes every mathematical operation visible, measurable,
+optimizable, and formally verifiable.
 
-The compiler enforces **chain-order types** (Patent #21) so the
-Pfaffian complexity of every expression is statically known — and
-the **FPGA resource allocator** (Patent #14) chooses precision,
-sharing, and pipelining per-unit to fit any hardware budget.
+```
+EML-LANG:
+  control pid(error: Real, integral: Real, derivative: Real) -> Real {
+    Kp * error + Ki * integral + Kd * derivative
+  }
 
-## Why one source for software AND hardware?
+  // Compiler tells you (always, not opt-in):
+  //   chain_order: 0 (purely polynomial — no transcendental risk)
+  //   total_nodes: 6 (SuperBEST optimal)
+  //   precision: bounded by Lean theorem pid_relerr_bound
+  //   FPGA: 6 MAC units, 0 transcendental units needed
+```
 
-Today, deploying a new control law to an FPGA means:
-1. Write it in MATLAB/Simulink
-2. Hand-translate to C for the simulator
-3. Hand-translate to HDL for the FPGA
-4. Hand-prove precision bounds for certification (DO-178C / ISO 26262)
-5. Three implementations to keep in sync forever
+vs.
 
-Monogate Forge collapses this to one source plus one compile
-invocation per target. The math is the same; the precision bounds
-are machine-checked once.
+```
+LADDER LOGIC:
+  |---[ EN ]---[ PID_BLOCK ]---( OUT )---|
+
+  What's inside PID_BLOCK? Nobody knows.
+  What precision does it use? Vendor-dependent.
+  Is it optimal? No way to measure.
+  Is it correct? Hope so.
+```
+
+See `tools/benchmarks/versus/vs_ladder_logic.md` for the full
+comparison and `lang/spec/EML_LANG_DESIGN.md` for the canonical
+language design document.
+
+## Compilation pipeline
+
+```
+.eml source
+    │
+    ▼
+PARSER → PROFILER → TYPE CHECK → OPTIMIZER (SuperBEST)
+    │
+    ├──▶ SOFTWARE: C99 / Rust / Python / LLVM IR / WebAssembly
+    │
+    ├──▶ HARDWARE: Verilog / VHDL / Chisel / SystemC
+    │           (FPGA allocator selects per-unit precision +
+    │            sharing + pipelining — Patent #14)
+    │
+    └──▶ VERIFY:  Lean 4 theorems / Z3 SMT / CBMC bounded model check
+```
+
+Profiling is **automatic** (every expression always carries its
+chain order, cost class, dynamics counter). The optimizer is
+SuperBEST routing by default. Chain-order types are enforced at
+compile time. The compiler never silently loses precision.
 
 ## Quick start (planned)
 
@@ -49,7 +85,7 @@ pip install monogate-forge
 # Compile a basic PID controller to C
 eml-compile lang/spec/grammar/examples/pid_basic.eml --target c -o pid.c
 
-# Profile any .eml expression
+# Profile any .eml expression (no compilation)
 eml-compile lang/spec/grammar/examples/sigmoid.eml --profile-only
 
 # Compile to Verilog and simulate against the C reference
@@ -64,13 +100,13 @@ eml-compile aerospace/flight_control/autopilot.eml --verify
 
 | Directory | Purpose |
 |-----------|---------|
-| `lang/` | Language spec, grammar, parser, profiler, optimizer |
-| `software/` | C / Rust / Python / LLVM / WASM backends + verification |
+| `lang/` | Language spec (`EML_LANG_DESIGN.md`), grammar, parser, profiler, optimizer |
+| `software/` | C / Rust / Python / LLVM / WASM backends + Lean / SMT / CBMC verification |
 | `hardware/` | FPGA allocator, HDL generators, module library, vendor targets |
 | `industries/` | 10 verticals: aerospace, automotive, robotics, manufacturing, energy, medical, defense, audio, ml, scientific |
 | `patents/` | Patent portfolio (17 filed + 5 pending + strategy) |
-| `roadmap/` | Phase plans, per-industry plans, business plans |
-| `tools/` | CLI (`eml-compile`), VS Code extension, benchmarks, audit |
+| `roadmap/` | Phase plans (4 phases × ~3 sub-sessions), per-industry plans, business plans |
+| `tools/` | CLI (`eml-compile`), VS Code extension, benchmarks (incl. vs-ladder-logic) |
 | `data/` | Canonical numbers — operators, tower registry, profiles |
 | `docs/` | Getting started, language guide, API reference, architecture |
 | `tests/` | Integration + regression + per-industry test suites |
@@ -80,24 +116,26 @@ sessions working in this repo.
 
 ## Status
 
-Currently SCAFFOLD — directory tree + key documentation files
-shipped, individual modules awaiting development.
+Currently SCAFFOLD — directory tree, language design document
+(`lang/spec/EML_LANG_DESIGN.md`), foundational files, and skeleton
+modules in place. No backend produces working output yet.
 
-See `roadmap/phases/` for the phase plan and `CHANGELOG.md` for
+13 sessions planned over 7 months (Phase 1: 3 sessions; Phase 2:
+4 sessions; Phase 3: 4 sessions; Phase 4: 2 sessions). See
+`roadmap/phases/` for the phase plan and `CHANGELOG.md` for
 version history.
 
 ## Contributing
 
 See `CONTRIBUTING.md`. The compiler is open source under MIT;
-specific methods (SuperBEST routing, fusion patterns, FPGA
-allocator, etc.) are patented and listed in `patents/index.md`.
+specific methods are patented and listed in `patents/index.md`.
 
 ## Related projects
 
-- [`monogate-research`](https://github.com/agent-maestro/monogate-research)
-  (private) — research notebooks, tooling, the structured memory
-  store, and the canonical data files this repo's `data/` mirrors.
+- [`monogate-research`](file:///D:/monogate-research) (private) —
+  research notebooks, tooling, the structured + auto memory store,
+  and the canonical data files this repo's `data/` mirrors.
 - [`eml-cost`](https://pypi.org/project/eml-cost/) — the Pfaffian
   cost analyzer that powers `lang/profiler/`.
-- [`monogate-lean`](https://github.com/agent-maestro/monogate-lean)
-  — the Lean 4 formalization that backs `software/verification/lean/`.
+- [`monogate-lean`](file:///D:/monogate-lean) — the Lean 4
+  formalization that backs `software/verification/lean/`.
