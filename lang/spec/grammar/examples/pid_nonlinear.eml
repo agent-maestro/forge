@@ -1,0 +1,22 @@
+// pid_nonlinear.eml -- PID with exp/cos gain scheduling. Chain order 2.
+
+module pid_nonlinear;
+
+const Kp: f64 = 0.5;
+const Ki: f64 = 0.1;
+const Kd: f64 = 0.05;
+
+fn nonlinear_gain(error: f64) -> f64
+  where chain_order <= 2,
+        domain: error > 0.0
+{
+    let scale = exp(-error * error);
+    scale * cos(error)
+}
+
+fn pid_scheduled(error: f64, integral: f64, derivative: f64) -> f64
+  where chain_order <= 2
+{
+    let g = nonlinear_gain(error);
+    g * (Kp * error + Ki * integral + Kd * derivative)
+}

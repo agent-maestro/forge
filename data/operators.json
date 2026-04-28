@@ -1,0 +1,71 @@
+{
+  "_comment": "23-operator EML family. Each entry: name, decomposition (in terms of exp/ln/+/-/*), domain restrictions. SCAFFOLD -- expand to full 23 as the canonical list stabilizes upstream.",
+  "_canonical_source": "monogate-research/data/operators.json (TBD)",
+  "version": "0.0.1",
+  "operators": [
+    {
+      "name": "eml",
+      "arity": 2,
+      "decomposition": "exp(x) - ln(y)",
+      "domain": "y > 0",
+      "chain_order": 1
+    },
+    {
+      "name": "eal",
+      "arity": 2,
+      "decomposition": "exp(x) + ln(y)",
+      "domain": "y > 0",
+      "chain_order": 1
+    },
+    {
+      "name": "exl",
+      "arity": 2,
+      "decomposition": "exp(x) * ln(y)",
+      "domain": "y > 0",
+      "chain_order": 1
+    },
+    {
+      "name": "edl",
+      "arity": 2,
+      "decomposition": "exp(x) / ln(y)",
+      "domain": "y > 0, y != 1",
+      "chain_order": 1
+    },
+    {
+      "name": "epl",
+      "arity": 2,
+      "decomposition": "exp(x) ^ ln(y)",
+      "domain": "y > 0",
+      "chain_order": 1
+    },
+    {
+      "name": "lediv",
+      "arity": 2,
+      "decomposition": "ln(exp(x) / y)",
+      "domain": "y > 0",
+      "chain_order": 1
+    },
+    {
+      "name": "elsb",
+      "arity": 2,
+      "decomposition": "exp(x - ln(y)) = exp(x) / y",
+      "domain": "y > 0",
+      "chain_order": 1
+    },
+    {
+      "name": "elad",
+      "arity": 2,
+      "decomposition": "exp(ln(x) + y) = x * exp(y)",
+      "domain": "x > 0",
+      "chain_order": 1
+    },
+    {
+      "name": "deml",
+      "arity": 2,
+      "decomposition": "exp(-x) - ln(y)",
+      "domain": "y > 0",
+      "chain_order": 1
+    }
+  ],
+  "_todo": "Add the remaining 14 operators once the canonical list is locked upstream."
+}

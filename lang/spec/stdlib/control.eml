@@ -1,0 +1,21 @@
+// stdlib/control -- PID, state-space, observer building blocks.
+//
+// SCAFFOLD -- functions sketched but bodies are TODO. Each must
+// be testable against a reference implementation in
+// tests/regression/.
+
+module control;
+
+// Plain PID controller. Chain order 0.
+fn pid(error: f64, integral: f64, derivative: f64,
+       Kp: f64, Ki: f64, Kd: f64) -> f64
+  where chain_order <= 0
+{
+    Kp * error + Ki * integral + Kd * derivative
+}
+
+// TODO: anti-windup PID
+// TODO: state-space update (A, B, C, D, x, u) -> (x_new, y)
+// TODO: Luenberger observer
+// TODO: Kalman update (1D)
+// TODO: extended Kalman (linearized around current x)

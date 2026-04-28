@@ -1,0 +1,19 @@
+// kalman.eml -- 1D Kalman filter scalar update. Chain order 0.
+
+module kalman;
+
+// Predict + update for a single scalar measurement.
+// Returns (x_new, P_new).
+fn kalman_update(
+    x: f64, P: f64,           // prior state + covariance
+    z: f64,                   // measurement
+    Q: f64, R: f64            // process + measurement noise
+) -> (f64, f64)
+  where chain_order <= 0
+{
+    let P_pred = P + Q;
+    let K = P_pred / (P_pred + R);
+    let x_new = x + K * (z - x);
+    let P_new = (1.0 - K) * P_pred;
+    (x_new, P_new)
+}
