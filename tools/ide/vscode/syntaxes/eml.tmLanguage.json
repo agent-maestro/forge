@@ -1,0 +1,40 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "EML-lang",
+  "scopeName": "source.eml",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#numbers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash.eml", "match": "//.*$" },
+        { "name": "comment.block.eml", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "keywords": {
+      "patterns": [{
+        "name": "keyword.control.eml",
+        "match": "\\b(module|import|const|fn|let|where|forall|domain|precision|chain_order|return|if|else|while|for)\\b"
+      }, {
+        "name": "keyword.other.eml",
+        "match": "@(verify|builtin)"
+      }]
+    },
+    "types": {
+      "patterns": [{
+        "name": "support.type.eml",
+        "match": "\\b(f64|f32|f16|bf16|fixed|i32|i64|u8|u32|u64|bool|void)\\b"
+      }]
+    },
+    "numbers": {
+      "patterns": [{
+        "name": "constant.numeric.eml",
+        "match": "\\b\\d+(\\.\\d+)?([eE][+-]?\\d+)?\\b"
+      }]
+    }
+  }
+}

@@ -1,0 +1,35 @@
+name: FPGA Simulation
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "hardware/**"
+      - "lang/**"
+      - "tests/integration/test_verilog_output.py"
+  pull_request:
+    paths:
+      - "hardware/**"
+
+jobs:
+  verilator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Verilator
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y verilator
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Compile + simulate golden examples
+        run: |
+          pytest tests/integration/test_verilog_output.py -v
+      - name: Compare hardware vs software outputs
+        run: |
+          pytest tests/integration/test_end_to_end.py -v -k hw_sw

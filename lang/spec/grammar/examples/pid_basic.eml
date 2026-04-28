@@ -1,0 +1,13 @@
+// pid_basic.eml -- linear PID controller. Chain order 0.
+
+module pid_basic;
+
+const Kp: f64 = 0.5;
+const Ki: f64 = 0.1;
+const Kd: f64 = 0.05;
+
+fn pid(error: f64, integral: f64, derivative: f64) -> f64
+  where chain_order <= 0
+{
+    Kp * error + Ki * integral + Kd * derivative
+}

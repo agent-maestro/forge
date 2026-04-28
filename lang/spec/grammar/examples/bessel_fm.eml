@@ -1,0 +1,18 @@
+// bessel_fm.eml -- DX7-style FM synthesis output. Chain order 3 (T_J).
+//
+// The carrier amplitude at side-band n is J_n(beta) where beta is the
+// modulation index. Single-side-band FM picks one carrier-modulator pair.
+
+module bessel_fm;
+
+// Single FM operator: out = A * sin(omega_c * t + beta * sin(omega_m * t))
+fn fm_voice(
+    t: f64,
+    A: f64, omega_c: f64,     // carrier amplitude + frequency
+    beta: f64, omega_m: f64   // modulation index + modulator frequency
+) -> f64
+  where chain_order <= 2  // sin nested in sin -- still order 2 trig
+{
+    let phase_mod = beta * sin(omega_m * t);
+    A * sin(omega_c * t + phase_mod)
+}

@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg
+
+# Rust
+target/
+Cargo.lock
+
+# Node / WASM
+node_modules/
+*.wasm
+.next/
+
+# C / hardware
+*.o
+*.so
+*.a
+*.dylib
+*.exe
+*.dll
+
+# HDL build artifacts
+*.bit
+*.bin
+*.mcs
+*.elf
+*.fst
+*.vcd
+*.ghw
+work/
+xsim.dir/
+.Xil/
+*.jou
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Temporary / scratch
+scratch/
+*.scratch.*
+
+# Local environment
+.env
+.env.local
+
+# OS
+Thumbs.db
+desktop.ini

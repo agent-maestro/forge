@@ -1,0 +1,18 @@
+// sigmoid.eml -- neural network activation. Chain order 2.
+
+module sigmoid;
+
+fn sigmoid(x: f64) -> f64
+  where chain_order <= 2,
+        precision <= 1.0e-12
+{
+    1.0 / (1.0 + exp(-x))
+}
+
+// SiLU / Swish: x * sigmoid(x)
+fn silu(x: f64) -> f64
+  where chain_order <= 2,
+        precision <= 1.0e-12
+{
+    x / (1.0 + exp(-x))
+}

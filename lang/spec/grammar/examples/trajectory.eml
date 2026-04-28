@@ -1,0 +1,16 @@
+// trajectory.eml -- 6-axis robot joint trajectory (quintic polynomial).
+// Chain order 0 -- pure polynomial.
+
+module trajectory;
+
+fn quintic(t: f64, q0: f64, qf: f64, T: f64) -> f64
+  where chain_order <= 0,
+        domain: 0.0 <= t && t <= T
+{
+    let s = t / T;
+    let s2 = s * s;
+    let s3 = s2 * s;
+    let s4 = s2 * s2;
+    let s5 = s2 * s3;
+    q0 + (qf - q0) * (10.0 * s3 - 15.0 * s4 + 6.0 * s5)
+}

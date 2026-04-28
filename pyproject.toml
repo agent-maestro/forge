@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "monogate-forge"
+version = "0.0.1"
+description = "Programming language and compiler for verified mathematical computation, targeting both software and hardware"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Monogate Research" },
+]
+requires-python = ">=3.11"
+dependencies = [
+    "eml-cost>=0.19.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "ruff>=0.5",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+eml-compile = "tools.cli.main:main"
+
+[tool.setuptools]
+packages = [
+    "lang", "lang.parser", "lang.profiler", "lang.optimizer",
+    "software", "software.backends", "software.verification",
+    "hardware", "hardware.allocator", "hardware.hdl_gen", "hardware.simulation",
+    "tools", "tools.cli", "tools.audit",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true

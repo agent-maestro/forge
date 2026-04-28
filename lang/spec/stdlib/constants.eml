@@ -1,0 +1,23 @@
+// stdlib/constants -- physical + mathematical constants.
+
+module constants;
+
+// Mathematical
+const PI:    f64 = 3.141592653589793;
+const E:     f64 = 2.718281828459045;
+const PHI:   f64 = 1.618033988749895;  // golden ratio
+const GAMMA: f64 = 0.577215664901533;  // Euler-Mascheroni
+
+// Physical (SI, CODATA 2018)
+const c:    f64 = 299792458.0;             // speed of light, m/s
+const h:    f64 = 6.62607015e-34;          // Planck, J s
+const hbar: f64 = 1.054571817e-34;         // reduced Planck, J s
+const k_B:  f64 = 1.380649e-23;            // Boltzmann, J/K
+const G:    f64 = 6.67430e-11;             // gravitational, m^3/(kg s^2)
+const e_C:  f64 = 1.602176634e-19;         // elementary charge, C
+const N_A:  f64 = 6.02214076e23;           // Avogadro, /mol
+const R_gas: f64 = 8.314462618;            // ideal gas, J/(mol K)
+const eps0: f64 = 8.8541878128e-12;        // vacuum permittivity, F/m
+const mu0:  f64 = 1.25663706212e-6;        // vacuum permeability, N/A^2
+const m_e:  f64 = 9.1093837015e-31;        // electron mass, kg
+const m_p:  f64 = 1.67262192369e-27;       // proton mass, kg

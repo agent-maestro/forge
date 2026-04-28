@@ -1,0 +1,9 @@
+// hello.eml -- minimal example. Should compile to a constant.
+
+module hello;
+
+fn answer() -> f64
+  where chain_order <= 0
+{
+    42.0
+}

@@ -1,0 +1,23 @@
+// orbit.eml -- Keplerian orbit propagation (eccentric anomaly).
+// Chain order 2 (sin/cos in iteration). Newton iteration is deterministic
+// here -- 5 iterations suffice for any e < 0.95 to ~1e-12.
+
+module orbit;
+
+// Solve Kepler's equation M = E - e * sin(E) for E given M, e.
+// Returns the eccentric anomaly after `n` Newton steps.
+fn kepler_solve(M: f64, e: f64, n: u8) -> f64
+  where chain_order <= 2,
+        domain: 0.0 <= e && e < 1.0
+{
+    // Initial guess: E_0 = M
+    let mut E = M;
+    let mut i: u8 = 0;
+    while i < n {
+        let f = E - e * sin(E) - M;
+        let fp = 1.0 - e * cos(E);
+        E = E - f / fp;
+        i = i + 1;
+    }
+    E
+}

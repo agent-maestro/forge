@@ -1,0 +1,31 @@
+{
+  "name": "monogate-forge-vscode",
+  "displayName": "Monogate Forge",
+  "description": "EML-lang syntax highlighting + inline profiling + chain-order diagnostics",
+  "version": "0.0.1",
+  "publisher": "monogate-research",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Programming Languages", "Linters"],
+  "contributes": {
+    "languages": [{
+      "id": "eml",
+      "aliases": ["EML", "eml-lang"],
+      "extensions": [".eml"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "eml",
+      "scopeName": "source.eml",
+      "path": "./syntaxes/eml.tmLanguage.json"
+    }]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,13 @@
+// stdlib/linalg -- small fixed-size linear algebra.
+//
+// SCAFFOLD -- bodies TODO. EML-lang's linalg targets EMBEDDED
+// fixed-size matrices (2x2, 3x3, 4x4, 6x6) common in control
+// and aerospace. General N is out of scope -- use NumPy/Eigen
+// for that.
+
+module linalg;
+
+// TODO: 3x3 matmul, transpose, det, inv
+// TODO: 4x4 (homogeneous transforms)
+// TODO: quaternion ops (mul, conj, normalize, slerp)
+// TODO: 6x6 (rigid body transforms)

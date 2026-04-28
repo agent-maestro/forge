@@ -1,0 +1,12 @@
+// stdlib/signal -- DSP primitives.
+//
+// SCAFFOLD -- bodies TODO.
+
+module signal;
+
+// TODO: biquad (Direct Form II Transposed)
+// TODO: FIR filter (parametric tap count)
+// TODO: IIR filter (Direct Form II)
+// TODO: FFT butterfly (radix-2, fixed N)
+// TODO: convolution (linear, circular)
+// TODO: resampling (polyphase)

@@ -1,0 +1,69 @@
+// stdlib/math -- core math primitives.
+// All functions here are guaranteed available on every backend.
+
+module math;
+
+// Exponential family (chain order 1)
+fn exp(x: f64) -> f64
+  where chain_order <= 1
+{
+    // Built-in via libmonogate.h on C backend.
+    // Compiled to CORDIC/poly on FPGA.
+    @builtin("exp")
+}
+
+fn ln(x: f64) -> f64
+  where chain_order <= 1,
+        domain: x > 0.0
+{
+    @builtin("ln")
+}
+
+// Trig (chain order 2)
+fn sin(x: f64) -> f64 where chain_order <= 2 { @builtin("sin") }
+fn cos(x: f64) -> f64 where chain_order <= 2 { @builtin("cos") }
+fn tan(x: f64) -> f64 where chain_order <= 2 { @builtin("tan") }
+
+// Inverse trig
+fn asin(x: f64) -> f64
+  where chain_order <= 2,
+        domain: -1.0 <= x && x <= 1.0
+{
+    @builtin("asin")
+}
+
+// Hyperbolic (chain order 1 -- pure exp combinations)
+fn sinh(x: f64) -> f64 where chain_order <= 1 { @builtin("sinh") }
+fn cosh(x: f64) -> f64 where chain_order <= 1 { @builtin("cosh") }
+fn tanh(x: f64) -> f64 where chain_order <= 1 { @builtin("tanh") }
+
+// Sqrt + powers
+fn sqrt(x: f64) -> f64
+  where chain_order <= 1,
+        domain: x >= 0.0
+{
+    @builtin("sqrt")
+}
+
+fn pow(x: f64, y: f64) -> f64
+  where chain_order <= 1,
+        domain: x > 0.0
+{
+    exp(y * ln(x))
+}
+
+fn abs(x: f64) -> f64
+  where chain_order <= 0
+{
+    @builtin("abs")
+}
+
+// log base b
+fn log(x: f64, base: f64) -> f64
+  where chain_order <= 1,
+        domain: x > 0.0 && base > 0.0 && base != 1.0
+{
+    ln(x) / ln(base)
+}
+
+// TODO: log10, log2, exp10, exp2, atan, acos, asinh, acosh, atanh

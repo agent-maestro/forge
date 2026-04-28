@@ -1,0 +1,16 @@
+// motor_foc.eml -- field-oriented control (PMSM). Chain order 2 (sin/cos).
+
+module motor_foc;
+
+// Park transform (a, b, c) -> (d, q) under rotor angle theta
+fn park(va: f64, vb: f64, vc: f64, theta: f64) -> (f64, f64)
+  where chain_order <= 2
+{
+    let cos_t = cos(theta);
+    let sin_t = sin(theta);
+    let v_alpha = va - 0.5 * (vb + vc);
+    let v_beta = 0.866025 * (vb - vc);
+    let v_d = v_alpha * cos_t + v_beta * sin_t;
+    let v_q = -v_alpha * sin_t + v_beta * cos_t;
+    (v_d, v_q)
+}

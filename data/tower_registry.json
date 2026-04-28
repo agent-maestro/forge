@@ -1,0 +1,169 @@
+[
+  {
+    "tower": "T_erf",
+    "covers_family": [
+      "erf",
+      "erfc",
+      "erfi",
+      "dawson",
+      "fresnels",
+      "fresnelc"
+    ],
+    "chain_order": 2,
+    "max_depth_from_generator": 4,
+    "independent": true,
+    "reason": "Defining integral has support [0, x] with kernel exp(-y t^2). C-198 Phase 4 verified that varying y rescales WITHIN the erf-tower but does not switch towers.",
+    "evidence": "C-198/integral_operator_results.md kernel 1",
+    "tier": "CONFIRMED"
+  },
+  {
+    "tower": "T_Si",
+    "covers_family": [
+      "Si",
+      "Ci",
+      "Shi",
+      "Chi",
+      "Ein",
+      "Ei",
+      "li"
+    ],
+    "chain_order": 3,
+    "max_depth_from_generator": 3,
+    "independent": true,
+    "reason": "Same support [0, x] as T_erf but kernel sin(y t)/t is structurally distinct: trigonometric vs Gaussian. C-198 Phase 2 stage B (with Si in the alphabet) found ZERO non-trivial elementary combinations yielding T_erf or vice versa.",
+    "evidence": "C-198/search_results.csv stage B Si row",
+    "tier": "CONFIRMED"
+  },
+  {
+    "tower": "T_J",
+    "covers_family": [
+      "J_n",
+      "Y_n",
+      "I_n",
+      "K_n",
+      "H_n^{(1,2)}"
+    ],
+    "chain_order": 3,
+    "max_depth_from_generator": 3,
+    "independent": true,
+    "reason": "Defining integral has support [0, π], structurally distinct from any [0, x]-bounded integral. C-198 Phase 4 kernel cos(y sin(t)) gives partial-Bessel but NOT the full family without the explicit [0, π] support.",
+    "evidence": "C-198/integral_operator_results.md kernel 5",
+    "tier": "CONFIRMED"
+  },
+  {
+    "tower": "T_Ai",
+    "covers_family": [
+      "Ai",
+      "Bi",
+      "Ai'",
+      "Bi'",
+      "Scorer"
+    ],
+    "chain_order": 3,
+    "max_depth_from_generator": 2,
+    "independent": true,
+    "reason": "Defining integral has support [0, ∞) with cubic-phase oscillator kernel cos(t³/3 + x t). C-198 Phase 4 kernel 4 confirmed the cubic phase is unique to Airy and unreachable from Bessel/erf integrals.",
+    "evidence": "C-198/integral_operator_results.md kernel 4",
+    "tier": "CONFIRMED"
+  },
+  {
+    "tower": "T_Gamma",
+    "covers_family": [
+      "Gamma",
+      "loggamma",
+      "digamma",
+      "polygamma",
+      "beta"
+    ],
+    "chain_order": 2,
+    "max_depth_from_generator": 4,
+    "independent": true,
+    "reason": "Defining integral has support [0, ∞) with kernel t^(x-1) exp(-y t). At integer/half-integer y this reduces to elementary or erf, but Gamma at general y is a 2-parameter Pfaffian function distinct from the erf tower.",
+    "evidence": "C-198/integral_operator_results.md kernel 2",
+    "tier": "CONFIRMED"
+  },
+  {
+    "tower": "T_W",
+    "covers_family": [
+      "W_0",
+      "W_{-1}"
+    ],
+    "chain_order": 2,
+    "max_depth_from_generator": 1,
+    "independent": true,
+    "reason": "Defined as inverse of x*exp(x). NOT an integral operator at all — implicit/inversion type. C-198 Phase 3 verified W cannot be reached from {EML, erf, Si, J, Ai, Gamma} at any finite depth.",
+    "evidence": "C-198/construction_results.md lambertw row",
+    "tier": "CONFIRMED"
+  },
+  {
+    "tower": "T_K",
+    "covers_family": [
+      "K(m)",
+      "E(m)",
+      "F(phi, m)",
+      "Pi(n; phi, m)"
+    ],
+    "chain_order": 3,
+    "max_depth_from_generator": 2,
+    "independent": true,
+    "reason": "Defining integral has support [0, π/2] with kernel 1/sqrt(1 - m sin²(t)). The elliptic-modular-form structure is non-Pfaffian for full elliptic functions but the K, E, F, Pi-integrals are Pfaffian and structurally distinct from Bessel.",
+    "evidence": "DLMF 19.2 + C-198 Phase 1 literature review",
+    "tier": "CONFIRMED"
+  },
+  {
+    "tower": "T_F",
+    "covers_family": [
+      "_2F_1",
+      "_1F_1",
+      "_0F_1",
+      "Legendre",
+      "Gegenbauer",
+      "Jacobi",
+      "Laguerre",
+      "Hermite"
+    ],
+    "chain_order": "varies (2-4)",
+    "max_depth_from_generator": 3,
+    "independent": true,
+    "reason": "SERIES generator (not integral). Many other towers are SPECIAL CASES of hypergeometric functions at specific parameters: erf as ₁F₁, Bessel as ₀F₁, Legendre/Jacobi as ₂F₁. But the GENERAL hypergeometric is not derivable from any single integral kernel at finite depth — different generator type.",
+    "evidence": "DLMF 16.2 + Andrews/Askey/Roy 1999 ch. 2",
+    "tier": "CONFIRMED"
+  },
+  {
+    "tower": "T_Lerch",
+    "tier": "CONFIRMED",
+    "covers_family": [
+      "polylog Li_s",
+      "Hurwitz zeta",
+      "Riemann zeta",
+      "Dirichlet eta",
+      "Lerch transcendent"
+    ],
+    "chain_order": 4,
+    "max_depth_from_generator": "TBD",
+    "independent": true,
+    "reason": "Lerch transcendent Phi(z, s, a) = Sum z^n / (n+a)^s generalizes polylog (a=1), Hurwitz zeta (z=1), Dirichlet eta (parametric specialization), and Lerch itself. eml_cost.analyze reports pfaffian_r=4 for zeta, Hurwitz zeta, Lerch, Dirichlet eta; pfaffian_r=3 for polylog (subsumed at chain 3). Mirrors the T_F supertower pattern.",
+    "evidence": "exploration/9th-tower-prediction-2026-04-27/candidate_results.json (eml-cost 0.12.0 analyze); DLMF 25.14",
+    "promotion_criteria": "Add 5+ Lerch-family rows to a C-207-like dataset; verify pfaffian_r matches chain_order=4 on all rows; document literature non-reduction to T_F or T_Gamma.",
+    "promoted_date": "2026-04-27",
+    "promotion_evidence": "exploration/9th-tower-promotion-2026-04-27/: 25/25 hits (11/11 single-primitive + 14/14 composite) under chain-order additivity rule; 10/10 addendum rows in dataset_addendum.csv. Combined PNE corpus now 28/28 exact under the rule."
+  },
+  {
+    "tower": "T_Mathieu",
+    "tier": "CONFIRMED",
+    "covers_family": [
+      "mathieuc",
+      "mathieus",
+      "mathieucprime",
+      "mathieusprime"
+    ],
+    "chain_order": 4,
+    "max_depth_from_generator": "TBD",
+    "independent": true,
+    "reason": "Solutions of Mathieu's ODE y'' + (a - 2q*cos(2x))*y = 0. Defining ODE has Pfaffian-chain-2 coefficient (cos(2x)) on top of order-2 ODE => combined chain order 4. eml_cost.analyze reports pfaffian_r=4 for mathieuc and mathieus. Independent of Lerch (parametric oscillation, not Dirichlet series).",
+    "evidence": "exploration/9th-tower-prediction-2026-04-27/candidate_results.json (eml-cost 0.12.0 analyze); DLMF 28",
+    "promotion_criteria": "Add Mathieu-family rows to C-207-like dataset; verify pfaffian_r=4; literature check that Mathieu is not a sub-case of Lerch or any of the existing 8.",
+    "promoted_date": "2026-04-27",
+    "promotion_evidence": "exploration/9th-tower-promotion-2026-04-27/: 25/25 hits (11/11 single-primitive + 14/14 composite) under chain-order additivity rule; 10/10 addendum rows in dataset_addendum.csv. Combined PNE corpus now 28/28 exact under the rule."
+  }
+]
