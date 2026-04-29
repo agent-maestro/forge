@@ -1,12 +1,118 @@
-// stdlib/signal -- DSP primitives.
+// stdlib/signal -- DSP primitives in pure-EML.
 //
-// SCAFFOLD -- bodies TODO.
+// All filters here are STATELESS: state is passed in, new state
+// is returned. The caller wires up the registers.
 
 module signal;
 
-// TODO: biquad (Direct Form II Transposed)
-// TODO: FIR filter (parametric tap count)
-// TODO: IIR filter (Direct Form II)
-// TODO: FFT butterfly (radix-2, fixed N)
-// TODO: convolution (linear, circular)
-// TODO: resampling (polyphase)
+const PI:     f64 = 3.141592653589793;
+const TWO_PI: f64 = 6.283185307179586;
+
+// ── Wave generators (chain order 2) ──────────────────────────
+
+// Sine wave generator -- evaluated at time t.
+//   y(t) = amplitude * sin(2*pi*frequency*t + phase)
+fn wave_sine(t: f64, frequency: f64, amplitude: f64, phase: f64) -> f64
+  where chain_order <= 2
+{
+    amplitude * sin(TWO_PI * frequency * t + phase)
+}
+
+// Cosine wave generator.
+fn wave_cosine(t: f64, frequency: f64, amplitude: f64, phase: f64) -> f64
+  where chain_order <= 2
+{
+    amplitude * cos(TWO_PI * frequency * t + phase)
+}
+
+// Triangle wave via stacked sine harmonics (3 terms). Three
+// independent transcendentals add through the chain-order
+// additivity rule -- inferred order is 6, not 2.
+fn wave_triangle(t: f64, frequency: f64, amplitude: f64) -> f64
+  where chain_order <= 6
+{
+    let w  = TWO_PI * frequency * t;
+    let s1 = sin(w);
+    let s3 = sin(3.0 * w) / 9.0;
+    let s5 = sin(5.0 * w) / 25.0;
+    amplitude * 0.81 * (s1 - s3 + s5)
+}
+
+// ── Direct-Form-I biquad ─────────────────────────────────────
+
+// One step of a Direct-Form-I biquad (IIR 2nd order).
+//   y[n] = b0*x + b1*x1 + b2*x2 - a1*y1 - a2*y2
+// Chain order 0 -- pure linear combination.
+fn biquad_step(x: f64, x1: f64, x2: f64, y1: f64, y2: f64,
+               b0: f64, b1: f64, b2: f64, a1: f64, a2: f64) -> f64
+  where chain_order <= 0
+{
+    b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+}
+
+// Update history buffers for a Direct-Form-I biquad. Returns
+// (new_x1, new_x2, new_y1, new_y2). Caller chains this with
+// biquad_step. Chain order 0.
+fn biquad_state_update(x: f64, x1: f64,
+                        y_now: f64, y1: f64) -> (f64, f64, f64, f64)
+  where chain_order <= 0
+{
+    (x, x1, y_now, y1)
+}
+
+// ── Small fixed FIR filters ──────────────────────────────────
+
+// 3-tap FIR. Chain order 0.
+fn fir3(x: f64, x1: f64, x2: f64,
+        h0: f64, h1: f64, h2: f64) -> f64
+  where chain_order <= 0
+{
+    h0 * x + h1 * x1 + h2 * x2
+}
+
+// 5-tap FIR. Chain order 0.
+fn fir5(x: f64, x1: f64, x2: f64, x3: f64, x4: f64,
+        h0: f64, h1: f64, h2: f64, h3: f64, h4: f64) -> f64
+  where chain_order <= 0
+{
+    h0 * x + h1 * x1 + h2 * x2 + h3 * x3 + h4 * x4
+}
+
+// ── Misc ─────────────────────────────────────────────────────
+
+// One Box-Muller sample: convert two uniform samples into one
+// Gaussian sample. Multiplies sqrt(-2*ln(u1)) (chain order 2)
+// by cos(...) (chain order 2) -- additivity puts the result at
+// chain order 4. The other Gaussian is sin-based -- use
+// box_muller_pair below if you need both.
+fn box_muller(u1: f64, u2: f64) -> f64
+  where chain_order <= 4,
+        domain: u1 > 0.0
+{
+    sqrt(-2.0 * ln(u1)) * cos(TWO_PI * u2)
+}
+
+fn box_muller_pair(u1: f64, u2: f64) -> (f64, f64)
+  where chain_order <= 4,
+        domain: u1 > 0.0
+{
+    let r = sqrt(-2.0 * ln(u1));
+    let theta = TWO_PI * u2;
+    (r * cos(theta), r * sin(theta))
+}
+
+// dB conversion -- SPL, audio gain, RF.
+const LN10: f64 = 2.302585092994046;
+
+fn linear_to_db(lin: f64) -> f64
+  where chain_order <= 1,
+        domain: lin > 0.0
+{
+    20.0 * ln(lin) / LN10
+}
+
+fn db_to_linear(db: f64) -> f64
+  where chain_order <= 1
+{
+    exp(db * LN10 / 20.0)
+}

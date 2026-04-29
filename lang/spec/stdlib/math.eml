@@ -1,69 +1,185 @@
-// stdlib/math -- core math primitives.
-// All functions here are guaranteed available on every backend.
+// stdlib/math -- composite math primitives.
+//
+// The base transcendentals (exp, ln, sin, cos, tan, sqrt, pow, abs,
+// clamp, asin, acos, atan, sinh, cosh, tanh) are LANGUAGE BUILTINS,
+// not stdlib functions -- the parser dispatches them straight to
+// dedicated AST nodes. This file only adds composite functions
+// built on top of those builtins.
+//
+// All functions in this module are pure (no state, no I/O), so
+// they are safe to use in @target(fpga, ...) blocks.
 
 module math;
 
-// Exponential family (chain order 1)
-fn exp(x: f64) -> f64
-  where chain_order <= 1
-{
-    // Built-in via libmonogate.h on C backend.
-    // Compiled to CORDIC/poly on FPGA.
-    @builtin("exp")
-}
+// ── Numeric utilities (chain order 0) ────────────────────────
 
-fn ln(x: f64) -> f64
-  where chain_order <= 1,
-        domain: x > 0.0
-{
-    @builtin("ln")
-}
-
-// Trig (chain order 2)
-fn sin(x: f64) -> f64 where chain_order <= 2 { @builtin("sin") }
-fn cos(x: f64) -> f64 where chain_order <= 2 { @builtin("cos") }
-fn tan(x: f64) -> f64 where chain_order <= 2 { @builtin("tan") }
-
-// Inverse trig
-fn asin(x: f64) -> f64
-  where chain_order <= 2,
-        domain: -1.0 <= x && x <= 1.0
-{
-    @builtin("asin")
-}
-
-// Hyperbolic (chain order 1 -- pure exp combinations)
-fn sinh(x: f64) -> f64 where chain_order <= 1 { @builtin("sinh") }
-fn cosh(x: f64) -> f64 where chain_order <= 1 { @builtin("cosh") }
-fn tanh(x: f64) -> f64 where chain_order <= 1 { @builtin("tanh") }
-
-// Sqrt + powers
-fn sqrt(x: f64) -> f64
-  where chain_order <= 1,
-        domain: x >= 0.0
-{
-    @builtin("sqrt")
-}
-
-fn pow(x: f64, y: f64) -> f64
-  where chain_order <= 1,
-        domain: x > 0.0
-{
-    exp(y * ln(x))
-}
-
-fn abs(x: f64) -> f64
+// Linear interpolation between a and b at parameter t in [0,1].
+fn lerp(a: f64, b: f64, t: f64) -> f64
   where chain_order <= 0
 {
-    @builtin("abs")
+    a + t * (b - a)
 }
 
-// log base b
-fn log(x: f64, base: f64) -> f64
-  where chain_order <= 1,
-        domain: x > 0.0 && base > 0.0 && base != 1.0
+// Smooth Hermite interpolation (3t^2 - 2t^3) used in graphics
+// and as a sigmoid-shaped clamp. Caller must pre-normalise t.
+fn smoothstep(t: f64) -> f64
+  where chain_order <= 0
 {
-    ln(x) / ln(base)
+    let t2 = t * t;
+    let t3 = t2 * t;
+    3.0 * t2 - 2.0 * t3
 }
 
-// TODO: log10, log2, exp10, exp2, atan, acos, asinh, acosh, atanh
+// Square / cube — common enough to merit dedicated names so the
+// profiler does not see two identical-looking sub-trees.
+fn sq(x: f64) -> f64
+  where chain_order <= 0
+{
+    x * x
+}
+
+fn cube(x: f64) -> f64
+  where chain_order <= 0
+{
+    x * x * x
+}
+
+// Sign function as 1.0 / 0.0 / -1.0. Caller responsible for the
+// branch-free implementation if needed (this scaffold uses clamp).
+fn sign01(x: f64) -> f64
+  where chain_order <= 0
+{
+    clamp(x, -1.0, 1.0)
+}
+
+// ── Logarithm family (chain order 1) ─────────────────────────
+
+// log base b. Domain: x > 0, b > 0, b != 1.
+// Chain order 2 because two `ln`s compose through the divide;
+// log2/log10 below avoid this by hard-coding the second ln.
+fn log_b(x: f64, b: f64) -> f64
+  where chain_order <= 2,
+        domain: x > 0.0
+{
+    ln(x) / ln(b)
+}
+
+// Natural log of 2 / 10 baked in so log2 and log10 stay 1 mul.
+const LN2:  f64 = 0.6931471805599453;
+const LN10: f64 = 2.302585092994046;
+
+fn log2(x: f64) -> f64
+  where chain_order <= 1,
+        domain: x > 0.0
+{
+    ln(x) / LN2
+}
+
+fn log10(x: f64) -> f64
+  where chain_order <= 1,
+        domain: x > 0.0
+{
+    ln(x) / LN10
+}
+
+// Base-2 / base-10 exponentials, mirror images of log2/log10.
+fn exp2(x: f64) -> f64
+  where chain_order <= 1
+{
+    exp(x * LN2)
+}
+
+fn exp10(x: f64) -> f64
+  where chain_order <= 1
+{
+    exp(x * LN10)
+}
+
+// ── Activation functions (chain order 1) ─────────────────────
+// The neural-network primitives. All single-exp -> chain order 1.
+
+fn sigmoid(x: f64) -> f64
+  where chain_order <= 1
+{
+    1.0 / (1.0 + exp(-x))
+}
+
+// softplus(x) = ln(1 + exp(x)). Chain order 2 because ln composes
+// through exp -- it is a more numerically-stable smooth ReLU but
+// it does cost one extra chain step compared to plain sigmoid.
+fn softplus(x: f64) -> f64
+  where chain_order <= 2
+{
+    ln(1.0 + exp(x))
+}
+
+// ReLU is chain order 0 (clamp is non-transcendental).
+fn relu(x: f64) -> f64
+  where chain_order <= 0
+{
+    clamp(x, 0.0, 1.0e30)
+}
+
+// Leaky ReLU. Slope below zero is `alpha`, typically 0.01.
+fn leaky_relu(x: f64, alpha: f64) -> f64
+  where chain_order <= 0
+{
+    clamp(x, alpha * x, 1.0e30)
+}
+
+// GELU (Gaussian-error-linear-unit) approximation -- the
+// tanh-based form used in BERT/GPT.
+fn gelu(x: f64) -> f64
+  where chain_order <= 1
+{
+    0.5 * x * (1.0 + tanh(0.7978845608 * (x + 0.044715 * x * x * x)))
+}
+
+// Swish / SiLU activation. Smoother than ReLU.
+fn swish(x: f64) -> f64
+  where chain_order <= 1
+{
+    x / (1.0 + exp(-x))
+}
+
+// ── Distance + angle (chain order 1) ─────────────────────────
+
+// 2D Euclidean distance.
+fn hypot2(x: f64, y: f64) -> f64
+  where chain_order <= 1
+{
+    sqrt(x * x + y * y)
+}
+
+// 3D Euclidean distance.
+fn hypot3(x: f64, y: f64, z: f64) -> f64
+  where chain_order <= 1
+{
+    sqrt(x * x + y * y + z * z)
+}
+
+// 4-quadrant atan2. Caller chooses the safe atan2 they need.
+// This stub uses atan(y/x) and is only correct for x > 0;
+// real atan2 needs branching by quadrant -- tracked as a TODO.
+fn atan2_pos_x(y: f64, x: f64) -> f64
+  where chain_order <= 2,
+        domain: x > 0.0
+{
+    atan(y / x)
+}
+
+// Convert degrees to radians and back -- pure linear scaling.
+const DEG_TO_RAD: f64 = 0.017453292519943295;
+const RAD_TO_DEG: f64 = 57.29577951308232;
+
+fn radians(deg: f64) -> f64
+  where chain_order <= 0
+{
+    deg * DEG_TO_RAD
+}
+
+fn degrees(rad: f64) -> f64
+  where chain_order <= 0
+{
+    rad * RAD_TO_DEG
+}

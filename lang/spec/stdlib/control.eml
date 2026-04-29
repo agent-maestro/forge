@@ -1,12 +1,15 @@
-// stdlib/control -- PID, state-space, observer building blocks.
+// stdlib/control -- PID, filters, saturation, slew limits.
 //
-// SCAFFOLD -- functions sketched but bodies are TODO. Each must
-// be testable against a reference implementation in
-// tests/regression/.
+// Every function in this module is STATELESS in the EML sense:
+// state is passed in as parameters and the new state is returned.
+// This keeps everything pure (so it compiles cleanly to Verilog
+// and Lean) at the cost of the caller wiring up the registers.
 
 module control;
 
-// Plain PID controller. Chain order 0.
+// ── PID controllers ──────────────────────────────────────────
+
+// Plain PID. Output u = Kp*e + Ki*int + Kd*deriv. Chain order 0.
 fn pid(error: f64, integral: f64, derivative: f64,
        Kp: f64, Ki: f64, Kd: f64) -> f64
   where chain_order <= 0
@@ -14,8 +17,118 @@ fn pid(error: f64, integral: f64, derivative: f64,
     Kp * error + Ki * integral + Kd * derivative
 }
 
-// TODO: anti-windup PID
-// TODO: state-space update (A, B, C, D, x, u) -> (x_new, y)
-// TODO: Luenberger observer
-// TODO: Kalman update (1D)
-// TODO: extended Kalman (linearized around current x)
+// Anti-windup PID via saturation. The integral term is clamped
+// to +/- i_limit before contributing, so the loop cannot wind
+// past the actuator's saturation. Chain order 0.
+fn pid_anti_windup(error: f64, integral: f64, derivative: f64,
+                   Kp: f64, Ki: f64, Kd: f64,
+                   i_limit: f64, u_limit: f64) -> f64
+  where chain_order <= 0
+{
+    let i_sat = clamp(integral, -i_limit, i_limit);
+    let raw   = Kp * error + Ki * i_sat + Kd * derivative;
+    clamp(raw, -u_limit, u_limit)
+}
+
+// Update step for the integral state of a PID, with built-in
+// trapezoid integration. Returns the new integral term.
+fn pid_integrate(integral: f64, error: f64, prev_error: f64,
+                 dt: f64) -> f64
+  where chain_order <= 0
+{
+    integral + 0.5 * (error + prev_error) * dt
+}
+
+// ── First-order filters ──────────────────────────────────────
+
+// Exponential moving average / 1st-order low-pass.
+//   y[n] = alpha*x[n] + (1-alpha)*y[n-1]
+// alpha in [0, 1]. alpha = dt / (RC + dt) for RC time constant RC.
+fn lpf1(x: f64, prev_y: f64, alpha: f64) -> f64
+  where chain_order <= 0
+{
+    alpha * x + (1.0 - alpha) * prev_y
+}
+
+// 1st-order high-pass:
+//   y[n] = alpha * (y[n-1] + x[n] - x[n-1])
+// alpha = RC / (RC + dt). Pass alpha close to 1 for low cutoff.
+fn hpf1(x: f64, prev_x: f64, prev_y: f64, alpha: f64) -> f64
+  where chain_order <= 0
+{
+    alpha * (prev_y + x - prev_x)
+}
+
+// Complementary filter -- blends a high-rate but drifting source
+// (e.g. gyro integration) with a slow but bias-free source
+// (e.g. accelerometer-derived angle).
+//   y = alpha * (prev_y + dx) + (1 - alpha) * z
+// Chain order 0.
+fn complementary(prev_y: f64, dx: f64, z: f64, alpha: f64) -> f64
+  where chain_order <= 0
+{
+    alpha * (prev_y + dx) + (1.0 - alpha) * z
+}
+
+// ── Saturation, dead-zone, slew rate ─────────────────────────
+
+// Symmetric saturation. Equivalent to clamp(x, -limit, limit)
+// but named for the control-systems convention.
+fn saturate(x: f64, limit: f64) -> f64
+  where chain_order <= 0
+{
+    clamp(x, -limit, limit)
+}
+
+// Two-sided dead-zone. If |x| <= threshold the output is 0,
+// otherwise the output is x shifted toward zero by `threshold`.
+// Note: this stub uses the smooth approximation
+//   y = x - clamp(x, -threshold, threshold)
+// which is exact for |x| > threshold and yields 0 inside.
+fn dead_zone(x: f64, threshold: f64) -> f64
+  where chain_order <= 0
+{
+    x - clamp(x, -threshold, threshold)
+}
+
+// Rate-limit: the output cannot move more than `max_step` from
+// `current` toward `target`. Chain order 0.
+fn rate_limit(target: f64, current: f64, max_step: f64) -> f64
+  where chain_order <= 0
+{
+    let delta = clamp(target - current, -max_step, max_step);
+    current + delta
+}
+
+// Slew rate limit per unit time: max_rate * dt is the largest
+// step the output can take per call.
+fn slew(target: f64, current: f64, max_rate: f64, dt: f64) -> f64
+  where chain_order <= 0
+{
+    let step = max_rate * dt;
+    rate_limit(target, current, step)
+}
+
+// ── Stateless observer step (1D Kalman) ──────────────────────
+
+// One Kalman filter update step for a 1-D position estimate
+// driven by noisy measurements z. Returns the new (estimate, P).
+//   K = P / (P + R)
+//   estimate' = estimate + K * (z - estimate)
+//   P' = (1 - K) * P
+// Chain order 0 -- just rational arithmetic.
+fn kalman1d_update(estimate: f64, P: f64, z: f64, R: f64) -> (f64, f64)
+  where chain_order <= 0
+{
+    let K = P / (P + R);
+    let new_est = estimate + K * (z - estimate);
+    let new_P   = (1.0 - K) * P;
+    (new_est, new_P)
+}
+
+// Predict step: advance the variance by process noise Q.
+fn kalman1d_predict(estimate: f64, P: f64, Q: f64) -> (f64, f64)
+  where chain_order <= 0
+{
+    (estimate, P + Q)
+}
