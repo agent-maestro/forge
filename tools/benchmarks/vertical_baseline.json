@@ -34,6 +34,13 @@
     "node_count": 13,
     "trig_units": 0
   },
+  "biquad_lowpass::biquad_lowpass_step": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 20,
+    "trig_units": 0
+  },
   "infusion_pump::motor_command": {
     "chain_order": 0,
     "fpga_cycles": 10,
@@ -95,6 +102,27 @@
     "fpga_cycles": 14,
     "mac_units": 7,
     "node_count": 18,
+    "trig_units": 0
+  },
+  "plc_setpoint::actuator_command": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 19,
+    "trig_units": 0
+  },
+  "schrodinger_step::laplacian": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "schrodinger_step::psi_real_step": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 16,
     "trig_units": 0
   },
   "three_phase::clarke": {

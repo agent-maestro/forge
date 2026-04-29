@@ -184,3 +184,104 @@ def test_backend_stats_off_by_default() -> None:
     Profiler().profile_module(mod)
     out = _format_module(mod)
     assert "backend codegen footprints" not in out
+
+
+# ── --json: machine-readable shape ───────────────────────────
+
+
+def test_build_explain_report_json_shape() -> None:
+    """The JSON shape includes module / source / module_passes /
+    functions sections, with per-function fields populated."""
+    from tools.cli.explain import build_explain_report
+    from lang.profiler.profiler import Profiler
+    src = (
+        "fn helper(x: f64) -> f64 { x * 2.0 }\n"
+        "fn caller(p: f64) -> f64 { helper(p) + 1.0 }\n"
+    )
+    mod = parse_source(src)
+    Profiler().profile_module(mod)
+    report = build_explain_report(mod)
+    # Top-level keys
+    for k in ("module", "source", "module_passes", "functions"):
+        assert k in report, f"missing top-level key {k!r}"
+    # module_passes shape
+    mp = report["module_passes"]
+    for k in ("imports_in", "imports_kept", "imports_dropped",
+              "calls_inlined", "superbest_hits",
+              "superbest_total_digits_saved",
+              "cse_bindings_total"):
+        assert k in mp, f"missing module_passes key {k!r}"
+    # caller -> helper(p) inlines exactly 1 call.
+    assert mp["calls_inlined"] == 1
+    # functions list shape
+    assert isinstance(report["functions"], list)
+    assert len(report["functions"]) == 2
+    for fn in report["functions"]:
+        for k in ("name", "dropped", "node_count_before",
+                  "node_count_after", "cse_bindings",
+                  "superbest_family", "superbest_digits_saved"):
+            assert k in fn, f"missing function key {k!r} in {fn['name']}"
+
+
+def test_build_explain_report_includes_superbest() -> None:
+    from tools.cli.explain import build_explain_report
+    from lang.profiler.profiler import Profiler
+    src = "fn s(x: f64) -> f64 { tanh(x / 2.0) / 2.0 + 0.5 }\n"
+    mod = parse_source(src)
+    Profiler().profile_module(mod)
+    r = build_explain_report(mod)
+    assert r["module_passes"]["superbest_hits"] == 1
+    assert r["module_passes"]["superbest_total_digits_saved"] > 1.0
+    s_fn = r["functions"][0]
+    assert s_fn["superbest_family"] == "sigmoid"
+    assert s_fn["superbest_digits_saved"] > 1.0
+
+
+def test_build_explain_report_with_backend_stats() -> None:
+    """When include_backend_stats=True, the report has a
+    `backend_stats` section with per-backend dicts."""
+    from tools.cli.explain import build_explain_report
+    from lang.profiler.profiler import Profiler
+    src = (
+        "@target(fpga, clock_mhz = 100)\n"
+        "fn t(x: f64) -> f64 { x * x }\n"
+    )
+    mod = parse_source(src)
+    Profiler().profile_module(mod)
+    r = build_explain_report(mod, include_backend_stats=True)
+    assert "backend_stats" in r
+    bs = r["backend_stats"]
+    for tgt in ("c", "rust", "lean", "verilog"):
+        assert tgt in bs, f"missing backend {tgt!r}"
+    # Lean has no @verify(lean) -> "skipped" key.
+    assert "skipped" in bs["lean"]
+    # Verilog has @target(fpga) -> loc/chars/modules.
+    assert "loc" in bs["verilog"]
+    assert "modules" in bs["verilog"]
+
+
+def test_print_explain_report_emits_valid_json(capsys) -> None:
+    """as_json=True emits parseable JSON to stdout."""
+    import json
+    from tools.cli.explain import print_explain_report
+    from lang.profiler.profiler import Profiler
+    src = "fn t(x: f64) -> f64 { x * x }\n"
+    mod = parse_source(src)
+    Profiler().profile_module(mod)
+    print_explain_report(mod, as_json=True)
+    captured = capsys.readouterr()
+    parsed = json.loads(captured.out)
+    assert parsed["module"] == ""
+    assert isinstance(parsed["functions"], list)
+
+
+def test_json_excludes_backend_stats_when_flag_off(capsys) -> None:
+    import json
+    from tools.cli.explain import print_explain_report
+    from lang.profiler.profiler import Profiler
+    src = "fn t(x: f64) -> f64 { x }\n"
+    mod = parse_source(src)
+    Profiler().profile_module(mod)
+    print_explain_report(mod, as_json=True, include_backend_stats=False)
+    parsed = json.loads(capsys.readouterr().out)
+    assert "backend_stats" not in parsed

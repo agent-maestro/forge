@@ -36,16 +36,233 @@ def print_explain_report(
     mod: EMLModule,
     *,
     include_backend_stats: bool = False,
+    as_json: bool = False,
 ) -> None:
     """Print the explain report for `mod` to stdout.
 
     `include_backend_stats=True` adds a section that compiles to
     each available backend (C / Rust / Verilog when an FPGA
     function exists) and reports the emitted-source LOC + struct
-    counts. Useful for comparing codegen footprint across targets."""
+    counts. Useful for comparing codegen footprint across targets.
+
+    `as_json=True` emits a stable machine-readable shape instead of
+    the human-readable text. CI dashboards and agents should prefer
+    this -- the text format may evolve, the JSON shape is held
+    backwards-compatible."""
+    if as_json:
+        import json
+        report = build_explain_report(
+            mod, include_backend_stats=include_backend_stats,
+        )
+        sys.stdout.write(json.dumps(report, indent=2, sort_keys=True))
+        sys.stdout.write("\n")
+        return
     sys.stdout.write(_format_module(mod))
     if include_backend_stats:
         sys.stdout.write(_format_backend_stats(mod))
+
+
+def build_explain_report(
+    mod: EMLModule,
+    *,
+    include_backend_stats: bool = False,
+) -> dict:
+    """Return the report as a dict for JSON / programmatic use.
+
+    Stable schema:
+
+      {
+        "module": str,
+        "source": str,
+        "module_passes": {
+          "imports_in":         int,
+          "imports_kept":       int,
+          "imports_dropped":    int,
+          "calls_inlined":      int,
+          "superbest_hits":     int,
+          "superbest_total_digits_saved": float,
+          "cse_bindings_total": int
+        },
+        "functions": [
+          {
+            "name":         str,
+            "dropped":      bool,
+            "node_count_before": int,
+            "node_count_after":  int,
+            "cse_bindings":      list[str],
+            "superbest_family":  str | null,
+            "superbest_digits_saved": float | null
+          },
+          ...
+        ],
+        "backend_stats": {  // present iff include_backend_stats
+          "c":       {"loc": int, "chars": int}  | {"error": str},
+          "rust":    {"loc": int, "chars": int}  | {"error": str},
+          "lean":    {"loc": int, "chars": int}  | {"skipped": str},
+          "verilog": {"loc": int, "chars": int, "modules": int}
+                       | {"skipped": str} | {"error": str}
+        }
+      }
+    """
+    after_inline = inline_calls(mod)
+    after_fold_cse = _fold_then_cse_module(after_inline)
+    after_superbest = superbest_module(after_fold_cse)
+    after_shake = shake_imports(after_superbest)
+
+    n_imported_in = sum(
+        1 for f in mod.functions if f.imported_from is not None
+    )
+    n_imported_after = sum(
+        1 for f in after_shake.functions if f.imported_from is not None
+    )
+    n_inline = _count_inlined_calls(mod, after_inline)
+    n_sb_hits = sum(
+        1 for f in after_shake.functions
+        if (f.profile or {}).get("superbest_family")
+    )
+    sb_digits = sum(
+        (f.profile or {}).get("superbest_digits_saved", 0.0)
+        for f in after_shake.functions
+    )
+    n_cse_total = 0
+    for fn in after_shake.functions:
+        if fn.body and fn.body.kind == NodeKind.BLOCK:
+            n_cse_total += sum(
+                1 for c in fn.body.children
+                if c.kind == NodeKind.LET
+                and isinstance(c.value, str)
+                and c.value.startswith("_cse_")
+            )
+
+    fns_report: list[dict] = []
+    for fn_in in mod.functions:
+        if fn_in.imported_from is not None:
+            continue
+        fn_out = next(
+            (f for f in after_shake.functions if f.name == fn_in.name),
+            None,
+        )
+        if fn_out is None:
+            fns_report.append({
+                "name": fn_in.name,
+                "dropped": True,
+                "node_count_before": (
+                    _node_count(fn_in.body) if fn_in.body else 0
+                ),
+                "node_count_after": 0,
+                "cse_bindings": [],
+                "superbest_family": None,
+                "superbest_digits_saved": None,
+            })
+            continue
+        cse_lets: list[str] = []
+        if fn_out.body and fn_out.body.kind == NodeKind.BLOCK:
+            cse_lets = [
+                c.value for c in fn_out.body.children
+                if c.kind == NodeKind.LET
+                and isinstance(c.value, str)
+                and c.value.startswith("_cse_")
+            ]
+        prof = fn_out.profile or {}
+        fns_report.append({
+            "name": fn_in.name,
+            "dropped": False,
+            "node_count_before": (
+                _node_count(fn_in.body) if fn_in.body else 0
+            ),
+            "node_count_after": (
+                _node_count(fn_out.body) if fn_out.body else 0
+            ),
+            "cse_bindings": cse_lets,
+            "superbest_family": prof.get("superbest_family"),
+            "superbest_digits_saved": (
+                float(prof["superbest_digits_saved"])
+                if prof.get("superbest_digits_saved") is not None
+                else None
+            ),
+        })
+
+    report: dict = {
+        "module": mod.name or "",
+        "source": mod.source_file,
+        "module_passes": {
+            "imports_in":      n_imported_in,
+            "imports_kept":    n_imported_after,
+            "imports_dropped": n_imported_in - n_imported_after,
+            "calls_inlined":   n_inline,
+            "superbest_hits":  n_sb_hits,
+            "superbest_total_digits_saved": float(sb_digits),
+            "cse_bindings_total": n_cse_total,
+        },
+        "functions": fns_report,
+    }
+
+    if include_backend_stats:
+        report["backend_stats"] = _build_backend_stats_dict(mod)
+
+    return report
+
+
+def _build_backend_stats_dict(mod: EMLModule) -> dict:
+    """Same logic as _format_backend_stats but returns a dict."""
+    stats: dict = {}
+
+    def _src_dict(src: str) -> dict:
+        return {
+            "loc": src.count("\n") + (
+                0 if src.endswith("\n") else 1
+            ),
+            "chars": len(src),
+        }
+
+    try:
+        from software.backends.c_backend import CBackend
+        stats["c"] = _src_dict(CBackend().compile(mod))
+    except Exception as e:
+        stats["c"] = {"error": str(e)}
+
+    try:
+        from software.backends.rust_backend import RustBackend
+        stats["rust"] = _src_dict(RustBackend().compile(mod))
+    except Exception as e:
+        stats["rust"] = {"error": str(e)}
+
+    try:
+        from software.verification.lean.LeanBackend import LeanBackend
+        lean_src = LeanBackend().compile_module(mod)
+        if lean_src:
+            stats["lean"] = _src_dict(lean_src)
+        else:
+            stats["lean"] = {"skipped": "no @verify(lean) blocks"}
+    except Exception as e:
+        stats["lean"] = {"error": str(e)}
+
+    fpga_fns = [
+        f for f in mod.functions
+        if any(
+            a.kind == "target"
+            and (a.args.get(0) == "fpga" or a.args.get("0") == "fpga")
+            for a in f.annotations
+        )
+    ]
+    if fpga_fns:
+        try:
+            from hardware.allocator import FPGAAllocator
+            from hardware.hdl_gen.verilog_backend import VerilogBackend
+            plan = FPGAAllocator().allocate(mod)
+            v_src = VerilogBackend().compile(mod, plan)
+            n_modules = v_src.count("\nmodule ") + (
+                1 if v_src.startswith("module ") else 0
+            )
+            d = _src_dict(v_src)
+            d["modules"] = n_modules
+            stats["verilog"] = d
+        except Exception as e:
+            stats["verilog"] = {"error": str(e)}
+    else:
+        stats["verilog"] = {"skipped": "no @target(fpga) blocks"}
+
+    return stats
 
 
 def _format_backend_stats(mod: EMLModule) -> str:

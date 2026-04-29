@@ -176,7 +176,7 @@ def test_stdlib_function_count_documented() -> None:
     forces a deliberate update."""
     expected = {
         "math.eml":      15,   # was 21; 6 activations moved to ml.eml in 2026-04
-        "ml.eml":         6,   # sigmoid, softplus, swish, gelu, relu, leaky_relu
+        "ml.eml":         7,   # sigmoid, sigmoid_alt, softplus, swish, gelu, relu, leaky_relu
         "control.eml":   12,
         "signal.eml":    11,
         "linalg.eml":    13,

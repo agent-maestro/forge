@@ -1,0 +1,36 @@
+// biquad_lowpass.eml -- audio DSP vertical: 2nd-order IIR
+// low-pass filter (Direct-Form-I biquad).
+//
+// Used in pro-audio + telephony + hearing-aid signal chains.
+// Real implementations cascade biquads (4-8 stages typical) for
+// steeper rolloff; this is the unit verified for the demo.
+//
+// Coefficients (b0/b1/b2/a1/a2) come from the host as runtime
+// inputs, so the same compiled module handles any user-tunable
+// EQ band. State (x1/x2/y1/y2) is passed through, the
+// stateless-EML idiom: caller stores the registers.
+
+module biquad_lowpass;
+
+// Imports the canonical biquad_step from stdlib::signal so the
+// math is identical to the reference implementation -- the
+// inliner substitutes its body before any backend emits code.
+use stdlib::signal::{biquad_step};
+
+type StableSignal = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 96, precision = float32)
+@verify(lean, theorem = "biquad_step_bounded_under_normalized_coeffs")
+fn biquad_lowpass_step(
+    x: Real, x1: Real, x2: Real, y1: Real, y2: Real,
+    b0: Real, b1: Real, b2: Real, a1: Real, a2: Real,
+) -> Real
+    requires (abs(x) <= 1.0)        // normalised audio sample
+    requires (abs(x1) <= 1.0)
+    requires (abs(x2) <= 1.0)
+    requires (abs(y1) <= 4.0)       // headroom for transient peaks
+    requires (abs(y2) <= 4.0)
+    ensures  (abs(result) <= 8.0)
+{
+    biquad_step(x, x1, x2, y1, y2, b0, b1, b2, a1, a2)
+}

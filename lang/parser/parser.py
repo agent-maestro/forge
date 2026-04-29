@@ -143,13 +143,27 @@ class Parser:
         return mod
 
     def _parse_use(self) -> EMLImport:
-        """Parse `use IDENT (:: IDENT)+ ;`. The path must have at
-        least two components -- a single name like `use math;` is
-        rejected so we always know which root namespace to search."""
+        """Parse `use IDENT (:: IDENT)+ (:: { NAMES })? ;`.
+
+        Path forms accepted:
+          use stdlib::math;                  // import all
+          use stdlib::math::{lerp, hypot2};  // selective import
+          use local::helpers;                // local sibling
+
+        Selective-import names list must contain at least one name
+        and use commas (trailing comma allowed).
+        """
         kw = self._eat("KEYWORD", "use")
         first = self._eat("IDENT")
         path: list[str] = [first.value]
+        only: list[str] | None = None
         while self._accept("DCOLON"):
+            # `::{` opens the selective-import block.
+            if self._check("LBRACE"):
+                self._advance()
+                only = self._parse_selective_names()
+                self._eat("RBRACE")
+                break
             seg = self._eat("IDENT")
             path.append(seg.value)
         if len(path) < 2:
@@ -159,7 +173,27 @@ class Parser:
                 kw, self.source_file,
             )
         self._eat("SEMI")
-        return EMLImport(path=path, line=kw.line, col=kw.col)
+        return EMLImport(
+            path=path, only=only, line=kw.line, col=kw.col,
+        )
+
+    def _parse_selective_names(self) -> list[str]:
+        """Parse the body of a `use ::{a, b, c}` selective import."""
+        names: list[str] = []
+        if self._check("RBRACE"):
+            raise ParseError(
+                "selective import block must contain at least one name",
+                self._peek(), self.source_file,
+            )
+        while True:
+            name_tok = self._eat("IDENT")
+            names.append(name_tok.value)
+            if not self._accept("COMMA"):
+                break
+            # Allow trailing comma: `{a, b,}` parses as `[a, b]`.
+            if self._check("RBRACE"):
+                break
+        return names
 
     # ── Declarations ──────────────────────────────────────────
 

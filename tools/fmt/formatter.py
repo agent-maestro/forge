@@ -98,10 +98,16 @@ class _Formatter:
         if mod.name:
             out.append(f"module {mod.name};\n")
 
-        # `use stdlib::name;` block.
+        # `use stdlib::name;` block. Selective imports render as
+        # `use root::name::{a, b, c};` with the names in
+        # declaration order.
         if mod.imports:
             for imp in mod.imports:
-                out.append(f"use {imp.joined};")
+                if imp.only:
+                    names = ", ".join(imp.only)
+                    out.append(f"use {imp.joined}::{{{names}}};")
+                else:
+                    out.append(f"use {imp.joined};")
             out.append("")
 
         # Constants block
