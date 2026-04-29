@@ -7,7 +7,131 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased] — 2026-04-28 (Phase 1 SHIPPED)
+## [Unreleased] — 2026-04-29 (Phase 2 SHIPPED -- import system + optimizer + 7 verticals)
+
+The full marathon push from 2026-04-28 evening through 2026-04-29
+morning. **525+ tests passing**, 24 skipped (Verilator-dependent).
+
+### Added
+
+- **`use stdlib::name;` import system** with selective imports
+  (`{a, b}`), aliases (`{lerp as interp}`), and `local::sibling`
+  resolution. Loader caches by resolved file path so symlinks
+  + duplicate spellings dedupe. Tree-shaker drops imported fns
+  no local code reaches.
+  Commits: `46adca6`, `016feb0`, `3f74c43`, `86e6254`, `956003d`
+- **Real 5-pass optimizer pipeline** wired into all backends:
+  inline → constant_folding → CSE → SuperBEST → tree_shake.
+  Backends + FPGAAllocator default to `optimize=True`; pass
+  `optimize=False` to bypass.
+  - Constant folding: 51 tests, idempotent + non-mutating
+  - CSE: hoists duplicate sub-trees into `let _cse_N`
+  - SuperBEST: real `eml_cost.recommend_form` integration with
+    pre-filters (no-exp/tanh, n_atoms > 10, irrational floats)
+    so a full stdlib snapshot runs in 0.7s instead of minutes
+  - Tree-shaker: drops imported fns nothing local calls
+  - Inliner: substitutes single-expr same-module CALLs
+  Commits: `1a51dec`, `4abe703`, `016feb0`
+- **Cross-target equivalence harness** (`tools/equivalence/`) --
+  operational proof of Patent #22. Runs every backend on the same
+  `.eml` source + asserts ULP agreement against a SymPy reference.
+  Lean target verifies structural shape + optionally `lean
+  --no-deps` when toolchain present.
+  Commits: `d2a4f43`, `016feb0`
+- **`eml-fmt` canonical formatter** (`tools/fmt/`). Idempotent
+  + AST-preserving; round-trips `use ... as alias`. CLI:
+  `--fmt` / `--fmt --check` / `--fmt --write`. 31 tests.
+  Commit: `4abe703`
+- **`--explain` CLI** with text + JSON output + multi-target
+  backend stats. Per-fn diff showing inliner / fold / CSE /
+  SuperBEST effects + node-count delta + digits-saved.
+  Commits: `3f74c43`, `cdd3e63`, `86e6254`
+- **stdlib (6 modules, 64 fns)** -- math (15) + ml (7) + control
+  (12) + signal (11) + linalg (13) + constants (16). Every
+  function chain-order verified against the profiler.
+  Commits: `a7ef7a4`, `cdd3e63`, `86e6254`
+- **11 industry verticals** (was 6). Production-shape `.eml`
+  designs spanning aerospace, automotive, defense, energy,
+  medical, robotics, ML inference, audio (DSP + synthesis),
+  scientific (physics), manufacturing (process control). Three
+  refactored to `use stdlib::control::pid` (autopilot, motor_foc,
+  infusion_pump); motor_foc additionally uses
+  `use local::three_phase` for the Park + Clarke transforms.
+  Commits: `46adca6`, `016feb0`, `3f74c43`, `86e6254`, `956003d`
+- **Patent #14 demo** (`industries/audio/synthesis/additive_voice.eml`)
+  -- 4 sin call sites + 1 exp = 5 transcendentals. FPGA allocator's
+  sharing decision lights up: `sin: count=4, sharing=shared`,
+  `exp: count=1, sharing=dedicated`. 7 tests pin the behaviour.
+  Commit: `956003d`
+- **VS Code extension** (`tools/ide/vscode/`) with inline profile
+  CodeLens + chain-order diagnostics on save. Shells out to the
+  Python CLI -- no parsing reimplemented in TypeScript.
+  Commit: `307d077`
+- **Hardware module library** (`hardware/modules/transcendental/`)
+  -- 12 SCAFFOLD Verilog modules (eml_exp/ln/sin/cos/tan/sqrt/
+  sinh/cosh/tanh/asin/acos/atan) with shared interface, range
+  documentation, structural lint tests + Verilator hooks.
+  Commit: `8b2c3c1`
+- **Vertical + stdlib regression gates** (`tools/benchmarks/`).
+  Per-fn baselines pin chain_order, node_count, fpga_cycles,
+  mac_units, trig_units. Any optimizer change that grows a
+  metric fails the test loudly. 23 vertical fns + 58 stdlib fns
+  baselined. Markdown dashboard at
+  `tools/benchmarks/DASHBOARD.md`.
+  Commits: `cdd3e63`, `956003d`
+- **CI workflow** (`.github/workflows/forge.yml`) -- ubuntu +
+  windows × py3.11 + py3.12 matrix; cargo cached; separate
+  Linux Verilator job runs the HW-simulation paths.
+  Commit: `4abe703`
+- **`getting_started.md` tutorial** walking the autopilot.eml
+  vertical end to end (parse → profile → backend emits).
+  Commit: `b9abf37`
+
+### Changed
+
+- **Stdlib `math.eml` shrunk from 21 to 15 fns**. The 6
+  activation functions (sigmoid, softplus, swish, gelu, relu,
+  leaky_relu) moved to a new `stdlib::ml` module. New
+  `stdlib::ml::sigmoid_alt` is the SuperBEST trigger demo.
+  Commit: `cdd3e63`
+- **Rust backend mangles param names** that collide with
+  module-level consts (Rust 2021 const-pattern shadowing
+  E0005). E.g. imported `pid_integrate(... dt: f64)` no longer
+  conflicts with a vertical's `const dt = ...`.
+  Commit: `46adca6`
+- **FPGA allocator runs `optimize_module` first** by default
+  (matches backends). Without it, helper CALLs would hide the
+  transcendentals from the allocator's count.
+  Commit: `956003d`
+
+### Tests
+
+- 525+ passing across the whole suite (was 220 at session start)
+- New test directories this push:
+  `lang/loader/tests/`, `lang/optimizer/tests/`,
+  `tests/equivalence/`, `tests/benchmarks/`,
+  `tests/stdlib/`, `tools/fmt/tests/`, `tools/cli/tests/`,
+  `tools/benchmarks/`
+
+### Known papercuts
+
+- Windows pytest stdout buffering hides the summary line in
+  background-task output; exit codes still reliable
+- Defender scanning adds ~90s to subprocess Python spawn; CLI
+  test timeouts bumped to 240s
+
+### Patent demos operational today
+
+- **#22 (dual-target compilation)** -- `cross_target_check()`
+  proves Rust-vs-Python ULP agreement on every stdlib + vertical fn
+- **#14 (FPGA resource allocator)** -- `additive_voice.eml`
+  shows sharing-vs-dedicated decision visible in plan
+- **#01 (SuperBEST routing)** -- `ml::sigmoid_alt` rewrites to
+  canonical sigmoid, saves 1.08 decimal digits of precision
+
+---
+
+## [0.1.0-pre] — 2026-04-28 (Phase 1 SHIPPED)
 
 ### Added (commits `1df5090` parser + `0099bdd` profiler)
 
