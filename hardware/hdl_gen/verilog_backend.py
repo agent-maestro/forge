@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from hardware.allocator import AllocationPlan
+from hardware.hdl_gen.qformat import QFormat, default_q, format_verilog_literal
 from lang.parser.ast_nodes import (
     ASTNode,
     EMLFunction,
@@ -68,6 +69,7 @@ class _ModuleScope:
     """Per-function emission scope -- accumulates wire decls,
     assigns, instances as we walk the AST."""
     width: int
+    qformat: QFormat
     instance_counter: int = 0
     wire_counter: int = 0
     wire_decls: list[str] = field(default_factory=list)
@@ -175,7 +177,8 @@ class VerilogBackend:
         # WIDTH from the plan's design precision (worst case across
         # the design; safe upper bound for any single function).
         width = self._design_precision(fn, plan)
-        scope = _ModuleScope(width=width)
+        qfmt = default_q(width)
+        scope = _ModuleScope(width=width, qformat=qfmt)
 
         # Walk the AST; final wire is the output.
         try:
@@ -377,24 +380,24 @@ class VerilogBackend:
     def _literal(
         self, node: ASTNode, scope: _ModuleScope,
     ) -> str:
+        """Emit a numeric literal. Floats + ints get Q-format encoded
+        per the function's WIDTH/FRAC; the Verilog literal is a
+        sized signed-decimal integer with the original value in a
+        comment for traceability."""
         v = node.value
         out = scope.fresh_wire()
         if isinstance(v, bool):
             scope.assigns.append(
                 f"    assign {out} = {1 if v else 0};"
             )
-        elif isinstance(v, int):
-            scope.assigns.append(f"    assign {out} = {v};")
-        elif isinstance(v, float):
-            # Q-format-ish encoding placeholder. Phase 3.2 needs
-            # a real fixed-point conversion based on the WIDTH/FRAC
-            # parameter; here we emit a comment + zero placeholder.
+            return out
+        if isinstance(v, (int, float)):
+            literal = format_verilog_literal(v, scope.qformat)
             scope.assigns.append(
-                f"    assign {out} = '0;  // TODO Q-format encode {v}"
+                f"    assign {out} = {literal};  // {v}"
             )
-        else:
-            raise CompileError(f"literal {v!r}")
-        return out
+            return out
+        raise CompileError(f"literal {v!r}")
 
     def _instance(
         self, module_name: str, arg_nodes: list[ASTNode],
