@@ -51,11 +51,13 @@ class RustRunner:
         module: EMLModule,
         *,
         timeout_s: float = 120.0,
+        optimize: bool = True,
     ) -> None:
         if not cargo_available():
             raise RustRunnerError("cargo / rustc not on PATH")
         self.module = module
         self.timeout_s = timeout_s
+        self.optimize = optimize
         self._tmp = tempfile.TemporaryDirectory(prefix="forge_rust_")
         self.crate_dir = Path(self._tmp.name)
         self._binary: Path | None = None
@@ -77,7 +79,7 @@ class RustRunner:
     # ── Build ─────────────────────────────────────────────────
 
     def _build_crate(self) -> None:
-        rust_src = RustBackend().compile(self.module)
+        rust_src = RustBackend(optimize=self.optimize).compile(self.module)
         # Strip the `use monogate_sys::*;` line and re-add inside
         # `lib.rs`. We create both lib.rs (the generated code) and
         # main.rs (the dispatcher).

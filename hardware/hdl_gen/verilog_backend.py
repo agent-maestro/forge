@@ -103,6 +103,9 @@ class VerilogBackend:
 
     name = "verilog"
 
+    def __init__(self, *, optimize: bool = True) -> None:
+        self.optimize = optimize
+
     # ── Public API ────────────────────────────────────────────
 
     def compile(
@@ -112,6 +115,9 @@ class VerilogBackend:
     ) -> str:
         """Emit Verilog source covering every @target(fpga) function
         plus a header comment with the allocation summary."""
+        if self.optimize:
+            from lang.optimizer import optimize_module
+            mod = optimize_module(mod)
         fpga_funcs = self._collect_fpga_functions(mod)
 
         chunks: list[str] = [self._header(mod, plan)]

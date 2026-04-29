@@ -76,12 +76,18 @@ class LeanBackend:
 
     name = "lean"
 
+    def __init__(self, *, optimize: bool = True) -> None:
+        self.optimize = optimize
+
     # ── Public API ────────────────────────────────────────────
 
     def compile_module(self, mod: EMLModule) -> str:
         """Emit a full .lean file for every @verify-annotated
         function in the module. Returns the empty string if no
         function carries a Lean verification annotation."""
+        if self.optimize:
+            from lang.optimizer import optimize_module
+            mod = optimize_module(mod)
         verified = [
             f for f in mod.functions
             if any(self._is_lean_verify(a) for a in f.annotations)

@@ -42,11 +42,13 @@ class CRunner:
         module: EMLModule,
         *,
         timeout_s: float = 60.0,
+        optimize: bool = True,
     ) -> None:
         if not gcc_available():
             raise CRunnerError("gcc not on PATH")
         self.module = module
         self.timeout_s = timeout_s
+        self.optimize = optimize
         self._tmp = tempfile.TemporaryDirectory(prefix="forge_c_")
         self.work_dir = Path(self._tmp.name)
         self._binary: Path | None = None
@@ -67,7 +69,7 @@ class CRunner:
     # ── Build ─────────────────────────────────────────────────
 
     def _build(self) -> None:
-        c_src = CBackend().compile(self.module)
+        c_src = CBackend(optimize=self.optimize).compile(self.module)
         # The generated header includes "libmonogate.h" -- we point
         # the include path at the runtime dir.
         gen_c = self.work_dir / "gen.c"
