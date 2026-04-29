@@ -40,16 +40,15 @@ for stream in (sys.stdout, sys.stderr):
 
 
 # Backends that are wired today.
-_LIVE_TARGETS = {"c", "rust", "lean"}
+_LIVE_TARGETS = {"c", "rust", "lean", "verilog"}
 
 # Backends that print "not built yet" with a phase pointer.
 _PLANNED_TARGETS = {
     "python":  "Phase 2.4 (eml-cost transpile reuse)",
     "llvm":    "Phase 2.3",
     "wasm":    "Phase 2.3 (via LLVM)",
-    "verilog": "Phase 3.2",
-    "vhdl":    "Phase 3.2",
-    "chisel":  "Phase 3.2",
+    "vhdl":    "Phase 3.2 (Verilog already shipped; VHDL is a syntax port)",
+    "chisel":  "Phase 3.2 (Verilog already shipped; Chisel is FIRRTL emit)",
 }
 
 
@@ -205,6 +204,32 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
         else:
             print(rust_source, end="")
+        return 0
+
+    if args.target == "verilog":
+        from hardware.allocator import FPGAAllocator
+        from hardware.allocator import CompileError as AllocErr
+        from hardware.hdl_gen.verilog_backend import (
+            VerilogBackend,
+            CompileError as VerilogErr,
+        )
+        try:
+            plan = FPGAAllocator().allocate(
+                mod, constraints={"target": args.fpga_target},
+            )
+            verilog_source = VerilogBackend().compile(mod, plan)
+        except (AllocErr, VerilogErr) as e:
+            print(f"compile error (verilog backend): {e}",
+                  file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(verilog_source, encoding="utf-8")
+            print(f"wrote {args.output} "
+                  f"({len(verilog_source)} bytes, "
+                  f"{verilog_source.count(chr(10))} lines)",
+                  file=sys.stderr)
+        else:
+            print(verilog_source, end="")
         return 0
 
     if args.target == "lean":

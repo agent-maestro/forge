@@ -1,100 +1,439 @@
 """Verilog backend -- emits parametric synthesizable Verilog.
 
-Each EML operator maps to a hardware module:
-  exp(x)    -> CORDIC or polynomial approximation
-  ln(x)     -> CORDIC or series expansion
-  +/-/*//   -> standard arithmetic units
-  SuperBEST -> combinational logic selecting the optimal path
+Consumes (EMLModule + AllocationPlan) from Phase 3.1's allocator
+and produces a Verilog source file suitable for `verilator
+--lint-only` and Vivado/yosys synthesis.
+
+Approach
+========
+
+Combinational AST translation (no manual pipelining for the first
+cut). Each function becomes one module with:
+
+  - clk, rst, valid_in inputs
+  - one input port per parameter (signed [WIDTH-1:0])
+  - intermediate `wire` declarations for every binop / call result
+  - `assign` chain expressing the function body
+  - registered output (one cycle latency)
+
+Transcendental ops (exp/ln/sin/cos/tan/sqrt) become instantiations
+of `eml_<op>` modules from `hardware/modules/transcendental/`.
+Those module bodies (CORDIC implementations) live in the runtime
+HDL library; Phase 3.3 wires them in and Verilator simulates the
+combination.
 
 Reference: lang/spec/EML_LANG_DESIGN.md section 3.2.
-SCAFFOLD.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Optional
 
-from lang.parser.ast_nodes import EMLFunction
+from hardware.allocator import AllocationPlan
+from lang.parser.ast_nodes import (
+    ASTNode,
+    EMLFunction,
+    EMLModule,
+    NodeKind,
+)
+
+
+# Verilog operator string per BINOP value.
+_BINOP_TO_VERILOG: dict[str, str] = {
+    "+": "+", "-": "-", "*": "*", "/": "/",
+    "<": "<", ">": ">", "<=": "<=", ">=": ">=",
+    "==": "==", "!=": "!=",
+    "&&": "&&", "||": "||",
+}
+
+
+# NodeKind -> module name in hardware/modules/transcendental/
+_TRANSCENDENTAL_TO_MODULE: dict[NodeKind, str] = {
+    NodeKind.EXP:  "eml_exp",
+    NodeKind.LN:   "eml_ln",
+    NodeKind.SIN:  "eml_sin",
+    NodeKind.COS:  "eml_cos",
+    NodeKind.TAN:  "eml_tan",
+    NodeKind.SQRT: "eml_sqrt",
+}
+
+
+class CompileError(Exception):
+    """Raised on a NodeKind the Verilog backend doesn't recognize."""
+
+
+@dataclass
+class _ModuleScope:
+    """Per-function emission scope -- accumulates wire decls,
+    assigns, instances as we walk the AST."""
+    width: int
+    instance_counter: int = 0
+    wire_counter: int = 0
+    wire_decls: list[str] = field(default_factory=list)
+    assigns: list[str] = field(default_factory=list)
+    instances: list[str] = field(default_factory=list)
+    # Map AST node id -> wire name (so we can reuse intermediate
+    # results when the same subexpression appears multiple times).
+    node_wires: dict[int, str] = field(default_factory=dict)
+
+    def fresh_wire(self) -> str:
+        self.wire_counter += 1
+        name = f"_w{self.wire_counter}"
+        self.wire_decls.append(
+            f"    wire signed [WIDTH-1:0] {name};"
+        )
+        return name
+
+    def fresh_instance(self, prefix: str) -> str:
+        self.instance_counter += 1
+        return f"{prefix}_{self.instance_counter}"
 
 
 class VerilogBackend:
-    """Generate synthesizable Verilog from a program + allocation."""
+    """Generate synthesizable Verilog from a module + allocation plan."""
 
     name = "verilog"
 
+    # ── Public API ────────────────────────────────────────────
+
     def compile(
         self,
-        program: list[EMLFunction],
-        allocation: dict[str, Any],
+        mod: EMLModule,
+        plan: AllocationPlan,
     ) -> str:
-        """Returns full Verilog source covering top-level + per-function
-        pipelines + transcendental unit instantiations."""
-        modules = []
-        if allocation.get("exp_units", 0) > 0:
-            modules.append(self._generate_exp_module(allocation["exp_units"]))
-        if allocation.get("ln_units", 0) > 0:
-            modules.append(self._generate_ln_module(allocation["ln_units"]))
+        """Emit Verilog source covering every @target(fpga) function
+        plus a header comment with the allocation summary."""
+        fpga_funcs = self._collect_fpga_functions(mod)
 
-        for func in program:
-            if any(
-                a.get("kind") == "target" and
-                a.get("args", {}).get("0") == "fpga"
-                for a in func.annotations
-            ):
-                modules.append(self._generate_pipeline(func))
+        chunks: list[str] = [self._header(mod, plan)]
 
-        modules.append(self._generate_top(program, allocation))
-        return "\n\n".join(modules)
+        # Emit a forward declaration for every transcendental module
+        # the design references. Bodies live in
+        # hardware/modules/transcendental/.
+        decls = self._transcendental_decls(plan)
+        if decls:
+            chunks.append(decls)
 
-    # ── Module generators (SCAFFOLD) ──────────────────────────
+        # Per-function pipeline modules.
+        for fn in fpga_funcs:
+            chunks.append(self._emit_function(fn, plan))
 
-    def _generate_exp_module(self, n_units: int) -> str:
-        """CORDIC exp(x) module. See
-        hardware/modules/transcendental/cordic_exp.v for the real
-        implementation; this method instantiates N copies as
-        needed."""
+        return "\n\n".join(chunks).rstrip() + "\n"
+
+    # ── Helpers ───────────────────────────────────────────────
+
+    def _collect_fpga_functions(
+        self, mod: EMLModule,
+    ) -> list[EMLFunction]:
+        out: list[EMLFunction] = []
+        for fn in mod.functions:
+            for a in fn.annotations:
+                if a.kind == "target" and a.args.get(0) == "fpga":
+                    out.append(fn)
+                    break
+        return out
+
+    def _header(self, mod: EMLModule, plan: AllocationPlan) -> str:
         return (
-            f"// {n_units} eml_exp instance(s) -- see\n"
-            f"// hardware/modules/transcendental/cordic_exp.v\n"
+            f"// Generated by EML-lang Verilog backend\n"
+            f"// Source module: {mod.name or '(unnamed)'}\n"
+            f"// Source file:   {mod.source_file}\n"
+            f"//\n"
+            f"// Target device: {plan.target_device}\n"
+            f"// Pipeline depth: {plan.pipeline_depth} stages\n"
+            f"// Estimated:    {plan.estimated_luts} LUTs, "
+            f"{plan.estimated_dsps} DSPs, "
+            f"{plan.estimated_bram_kb} KB BRAM\n"
+            f"// Throughput:   {plan.throughput_msps:.1f} Msamples/s "
+            f"@ {plan.clock_mhz} MHz\n"
+            f"\n"
+            f"`default_nettype none"
         )
 
-    def _generate_ln_module(self, n_units: int) -> str:
-        return (
-            f"// {n_units} eml_ln instance(s) -- see\n"
-            f"// hardware/modules/transcendental/cordic_ln.v\n"
-        )
+    def _transcendental_decls(self, plan: AllocationPlan) -> str:
+        """Emit a comment block listing the transcendental modules
+        the design references. Real bodies live in
+        hardware/modules/transcendental/<module>.v."""
+        if not plan.transcendental_units:
+            return ""
+        lines = [
+            "// Transcendental modules referenced by this design",
+            "// (bodies live in hardware/modules/transcendental/):",
+        ]
+        for u in plan.transcendental_units:
+            lines.append(
+                f"//   {u.op:<5}  count={u.count}  sharing={u.sharing}  "
+                f"precision={u.precision_bits}-bit"
+            )
+        return "\n".join(lines)
 
-    def _generate_pipeline(self, func: EMLFunction) -> str:
+    def _emit_function(
+        self, fn: EMLFunction, plan: AllocationPlan,
+    ) -> str:
         """One pipeline module per @target(fpga) function."""
-        depth = (func.profile or {}).get("eml_depth", 1)
-        co = (func.profile or {}).get("chain_order", 0)
-        width = 64 if co >= 3 else 32
-        params = ",\n    ".join(
-            f"input  wire signed [WIDTH-1:0] {p['name']}"
-            for p in func.params
+        # WIDTH from the plan's design precision (worst case across
+        # the design; safe upper bound for any single function).
+        width = self._design_precision(fn, plan)
+        scope = _ModuleScope(width=width)
+
+        # Walk the AST; final wire is the output.
+        try:
+            output_wire = self._emit_expr(self._final_expr(fn), scope)
+        except CompileError as e:
+            return (
+                f"// {fn.name}: emission failed ({e})\n"
+                f"// (function body has constructs the Verilog "
+                f"backend doesn't yet support)"
+            )
+
+        # Build the parameter port list.
+        param_ports = ",\n    ".join(
+            f"input  wire signed [WIDTH-1:0] {p.name}"
+            for p in fn.params
         )
+
+        # Stitch the module.
+        co = (fn.profile or {}).get("chain_order", "?")
+        cc = (fn.profile or {}).get("cost_class", "?")
+        depth = (fn.profile or {}).get("eml_depth", "?")
+
+        decls = "\n".join(scope.wire_decls)
+        instances = "\n".join(scope.instances)
+        assigns = "\n".join(scope.assigns)
+
+        body_sections = [s for s in (decls, instances, assigns) if s]
+        body_block = "\n\n".join(body_sections) if body_sections else (
+            "    // (constant body -- no intermediates)"
+        )
+
         return (
-            f"// Pipeline: {func.name}\n"
-            f"// Chain order: {co}, depth: {depth}, width: {width} bits\n"
-            f"module {func.name}_pipeline #(\n"
+            f"// Pipeline: {fn.name}\n"
+            f"// Chain order: {co}     Cost class: {cc}\n"
+            f"// EML depth:   {depth}  Width: {width} bits\n"
+            f"module {fn.name}_pipeline #(\n"
             f"    parameter WIDTH = {width}\n"
             f") (\n"
             f"    input  wire             clk,\n"
             f"    input  wire             rst,\n"
             f"    input  wire             valid_in,\n"
-            f"    {params},\n"
+            f"    {param_ports},\n"
             f"    output reg              valid_out,\n"
             f"    output reg signed [WIDTH-1:0] result\n"
             f");\n"
-            f"    // SCAFFOLD: pipeline body lands in Phase 3.2\n"
+            f"\n"
+            f"{body_block}\n"
+            f"\n"
+            f"    // Registered output: one cycle latency between\n"
+            f"    // valid_in and valid_out (combinational body).\n"
+            f"    always @(posedge clk) begin\n"
+            f"        if (rst) begin\n"
+            f"            valid_out <= 1'b0;\n"
+            f"            result    <= '0;\n"
+            f"        end else begin\n"
+            f"            valid_out <= valid_in;\n"
+            f"            result    <= {output_wire};\n"
+            f"        end\n"
+            f"    end\n"
+            f"\n"
             f"endmodule\n"
         )
 
-    def _generate_top(
-        self, program: list[EMLFunction], allocation: dict[str, Any],
+    @staticmethod
+    def _final_expr(fn: EMLFunction) -> ASTNode:
+        """Reduce the function body to its return expression. For
+        single-expression bodies (no let/while), this is just the
+        last child of the BLOCK node."""
+        if fn.body is None or fn.body.kind != NodeKind.BLOCK:
+            raise CompileError(f"function {fn.name} has no parsed body")
+        # Walk children in order, inlining LETs into a substitution
+        # map (so the final expression sees the let-bound names).
+        # WHILE / ASSIGN / EXPR_STMT are silently dropped; this
+        # backend doesn't yet handle iterative bodies.
+        bindings: dict[str, ASTNode] = {}
+        final: ASTNode | None = None
+        for stmt in fn.body.children:
+            if stmt.kind == NodeKind.LET:
+                bindings[stmt.value] = stmt.children[0]
+            elif stmt.kind in (NodeKind.LET_MUT, NodeKind.WHILE,
+                               NodeKind.ASSIGN, NodeKind.EXPR_STMT):
+                continue
+            else:
+                final = stmt
+        if final is None:
+            raise CompileError(
+                f"function {fn.name} has no final expression "
+                f"(maybe it's a complex iterative body?)"
+            )
+        if bindings:
+            final = _inline(final, bindings)
+        return final
+
+    def _design_precision(
+        self, fn: EMLFunction, plan: AllocationPlan,
+    ) -> int:
+        """Use the plan's per-unit precision when available, else
+        fall back to the function's chain-order rule."""
+        if plan.transcendental_units:
+            return max(u.precision_bits for u in plan.transcendental_units)
+        co = (fn.profile or {}).get("chain_order", 0)
+        if co >= 3:
+            return 64
+        if co >= 1:
+            return 32
+        return 32  # default for polynomial bodies
+
+    # ── Expression emission to wire chains ────────────────────
+
+    def _emit_expr(
+        self, node: ASTNode, scope: _ModuleScope,
     ) -> str:
-        """Top-level wiring of the per-function pipelines."""
-        return (
-            f"// top.v -- top-level wiring (SCAFFOLD)\n"
-            f"// allocation: {allocation}\n"
+        """Walk an AST expression bottom-up; emit `wire` decls and
+        `assign` statements; return the wire name carrying the
+        expression's value. Caches results so a subexpression
+        appearing twice only computes once."""
+        cache_key = id(node)
+        if cache_key in scope.node_wires:
+            return scope.node_wires[cache_key]
+
+        kind = node.kind
+        out_name: str
+
+        if kind == NodeKind.LITERAL:
+            out_name = self._literal(node, scope)
+        elif kind == NodeKind.VAR:
+            out_name = str(node.value)
+        elif kind == NodeKind.UNARYOP:
+            sub = self._emit_expr(node.children[0], scope)
+            out_name = scope.fresh_wire()
+            if node.value == "-":
+                scope.assigns.append(f"    assign {out_name} = -{sub};")
+            elif node.value == "!":
+                scope.assigns.append(f"    assign {out_name} = !{sub};")
+            else:
+                raise CompileError(f"unary {node.value!r}")
+        elif kind == NodeKind.BINOP:
+            left = self._emit_expr(node.children[0], scope)
+            right = self._emit_expr(node.children[1], scope)
+            op = _BINOP_TO_VERILOG.get(node.value)
+            if op is None:
+                raise CompileError(f"binop {node.value!r}")
+            out_name = scope.fresh_wire()
+            scope.assigns.append(
+                f"    assign {out_name} = {left} {op} {right};"
+            )
+        elif kind in _TRANSCENDENTAL_TO_MODULE:
+            out_name = self._instance(
+                _TRANSCENDENTAL_TO_MODULE[kind],
+                node.children, scope,
+            )
+        elif kind == NodeKind.EML:
+            # EML(x, y) = exp(x) - ln(y)
+            x_in = self._emit_expr(node.children[0], scope)
+            y_in = self._emit_expr(node.children[1], scope)
+            exp_out = self._instance_raw("eml_exp", [x_in], scope)
+            ln_out = self._instance_raw("eml_ln", [y_in], scope)
+            out_name = scope.fresh_wire()
+            scope.assigns.append(
+                f"    assign {out_name} = {exp_out} - {ln_out};"
+            )
+        elif kind == NodeKind.CLAMP:
+            # clamp(x, lo, hi) -> (x < lo) ? lo : (x > hi) ? hi : x
+            x_w = self._emit_expr(node.children[0], scope)
+            lo_w = self._emit_expr(node.children[1], scope)
+            hi_w = self._emit_expr(node.children[2], scope)
+            out_name = scope.fresh_wire()
+            scope.assigns.append(
+                f"    assign {out_name} = "
+                f"({x_w} < {lo_w}) ? {lo_w} : "
+                f"(({x_w} > {hi_w}) ? {hi_w} : {x_w});"
+            )
+        elif kind == NodeKind.ABS:
+            sub = self._emit_expr(node.children[0], scope)
+            out_name = scope.fresh_wire()
+            scope.assigns.append(
+                f"    assign {out_name} = ({sub} < 0) ? -{sub} : {sub};"
+            )
+        elif kind == NodeKind.POW:
+            # POW lowers to a sub-instance like other transcendentals.
+            out_name = self._instance("eml_pow", node.children, scope)
+        elif kind == NodeKind.CALL:
+            # User function calls -- emit as a sub-pipeline
+            # instance. Phase 3.3 hooks the actual interconnect.
+            arg_wires = [
+                self._emit_expr(c, scope) for c in node.children
+            ]
+            out_name = self._instance_raw(
+                f"{node.value}_pipeline", arg_wires, scope,
+            )
+        else:
+            raise CompileError(
+                f"NodeKind {kind} (line {node.line}:{node.col})"
+            )
+
+        scope.node_wires[cache_key] = out_name
+        return out_name
+
+    def _literal(
+        self, node: ASTNode, scope: _ModuleScope,
+    ) -> str:
+        v = node.value
+        out = scope.fresh_wire()
+        if isinstance(v, bool):
+            scope.assigns.append(
+                f"    assign {out} = {1 if v else 0};"
+            )
+        elif isinstance(v, int):
+            scope.assigns.append(f"    assign {out} = {v};")
+        elif isinstance(v, float):
+            # Q-format-ish encoding placeholder. Phase 3.2 needs
+            # a real fixed-point conversion based on the WIDTH/FRAC
+            # parameter; here we emit a comment + zero placeholder.
+            scope.assigns.append(
+                f"    assign {out} = '0;  // TODO Q-format encode {v}"
+            )
+        else:
+            raise CompileError(f"literal {v!r}")
+        return out
+
+    def _instance(
+        self, module_name: str, arg_nodes: list[ASTNode],
+        scope: _ModuleScope,
+    ) -> str:
+        arg_wires = [self._emit_expr(c, scope) for c in arg_nodes]
+        return self._instance_raw(module_name, arg_wires, scope)
+
+    def _instance_raw(
+        self, module_name: str, arg_wires: list[str],
+        scope: _ModuleScope,
+    ) -> str:
+        """Emit a sub-module instantiation; return the result wire."""
+        out = scope.fresh_wire()
+        inst_name = scope.fresh_instance(module_name)
+        # Standard port convention: clk, rst, valid_in, then arg
+        # wires by position, then valid_out + result.
+        ports = ", ".join(f".x{i}({w})" for i, w in enumerate(arg_wires))
+        scope.instances.append(
+            f"    {module_name} #(.WIDTH(WIDTH)) {inst_name} (\n"
+            f"        .clk(clk), .rst(rst), .valid_in(valid_in),\n"
+            f"        {ports},\n"
+            f"        .valid_out(/* unused */), .result({out})\n"
+            f"    );"
         )
+        return out
+
+
+def _inline(node: ASTNode, bindings: dict[str, ASTNode]) -> ASTNode:
+    """Substitute let-bound vars with their RHS subtrees."""
+    if node.kind == NodeKind.VAR and node.value in bindings:
+        return _inline(bindings[node.value], bindings)
+    new_children = [_inline(c, bindings) for c in node.children]
+    return ASTNode(
+        kind=node.kind,
+        value=node.value,
+        children=new_children,
+        type_annotation=node.type_annotation,
+        chain_constraint=node.chain_constraint,
+        line=node.line,
+        col=node.col,
+    )
