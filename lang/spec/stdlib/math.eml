@@ -95,52 +95,16 @@ fn exp10(x: f64) -> f64
     exp(x * LN10)
 }
 
-// ── Activation functions (chain order 1) ─────────────────────
-// The neural-network primitives. All single-exp -> chain order 1.
-
-fn sigmoid(x: f64) -> f64
-  where chain_order <= 1
-{
-    1.0 / (1.0 + exp(-x))
-}
-
-// softplus(x) = ln(1 + exp(x)). Chain order 2 because ln composes
-// through exp -- it is a more numerically-stable smooth ReLU but
-// it does cost one extra chain step compared to plain sigmoid.
-fn softplus(x: f64) -> f64
-  where chain_order <= 2
-{
-    ln(1.0 + exp(x))
-}
-
-// ReLU is chain order 0 (clamp is non-transcendental).
-fn relu(x: f64) -> f64
-  where chain_order <= 0
-{
-    clamp(x, 0.0, 1.0e30)
-}
-
-// Leaky ReLU. Slope below zero is `alpha`, typically 0.01.
-fn leaky_relu(x: f64, alpha: f64) -> f64
-  where chain_order <= 0
-{
-    clamp(x, alpha * x, 1.0e30)
-}
-
-// GELU (Gaussian-error-linear-unit) approximation -- the
-// tanh-based form used in BERT/GPT.
-fn gelu(x: f64) -> f64
-  where chain_order <= 1
-{
-    0.5 * x * (1.0 + tanh(0.7978845608 * (x + 0.044715 * x * x * x)))
-}
-
-// Swish / SiLU activation. Smoother than ReLU.
-fn swish(x: f64) -> f64
-  where chain_order <= 1
-{
-    x / (1.0 + exp(-x))
-}
+// ── Activation functions ─────────────────────────────────────
+//
+// As of 2026-04, the activation functions (sigmoid / softplus /
+// relu / leaky_relu / gelu / swish) live in stdlib::ml. Code
+// that needs them should write
+//
+//     use stdlib::ml;
+//
+// and pull the activations into scope from there. This keeps
+// the math module focused on numerical primitives.
 
 // ── Distance + angle (chain order 1) ─────────────────────────
 

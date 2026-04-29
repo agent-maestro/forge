@@ -1,0 +1,63 @@
+// stdlib/ml -- neural-network activation primitives.
+//
+// Split out of stdlib::math as of 2026-04 so ML code can write
+// `use stdlib::ml;` and discover sigmoid / softplus / relu /
+// leaky_relu / gelu / swish without pulling in the rest of math.
+//
+// Domain bounds + chain orders match the original definitions.
+// Every function is pure (no state, no I/O) -- safe for
+// @target(fpga, ...) blocks.
+
+module ml;
+
+// ── Sigmoid family (chain order 1) ───────────────────────────
+
+// Standard logistic sigmoid. SuperBEST will recognise the
+// alternative `tanh(x/2)/2 + 1/2` form and rewrite it to this
+// one; calling sigmoid() directly avoids the rewrite cost.
+fn sigmoid(x: f64) -> f64
+    where chain_order <= 1
+{
+    1.0 / (1.0 + exp(-x))
+}
+
+// softplus(x) = ln(1 + exp(x)). Chain order 2 because ln
+// composes through exp -- a more numerically-stable smooth
+// ReLU, costing one extra chain step.
+fn softplus(x: f64) -> f64
+    where chain_order <= 2
+{
+    ln(1.0 + exp(x))
+}
+
+// Swish / SiLU: x * sigmoid(x). Smoother than ReLU + retains
+// gradient signal at large negative inputs.
+fn swish(x: f64) -> f64
+    where chain_order <= 1
+{
+    x / (1.0 + exp(-x))
+}
+
+// GELU (Gaussian-error-linear-unit), tanh-based approximation
+// from the BERT / GPT papers. Chain order 1 because there's a
+// single tanh call (the polynomial inside is chain-0).
+fn gelu(x: f64) -> f64
+    where chain_order <= 1
+{
+    0.5 * x * (1.0 + tanh(0.7978845608 * (x + 0.044715 * x * x * x)))
+}
+
+// ── ReLU family (chain order 0 -- clamp is non-transcendental) ──
+
+fn relu(x: f64) -> f64
+    where chain_order <= 0
+{
+    clamp(x, 0.0, 1.0e30)
+}
+
+// Leaky ReLU. Slope below zero is `alpha`, typically 0.01.
+fn leaky_relu(x: f64, alpha: f64) -> f64
+    where chain_order <= 0
+{
+    clamp(x, alpha * x, 1.0e30)
+}
