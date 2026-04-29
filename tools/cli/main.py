@@ -40,7 +40,7 @@ for stream in (sys.stdout, sys.stderr):
 
 
 # Backends that are wired today.
-_LIVE_TARGETS = {"c"}
+_LIVE_TARGETS = {"c", "lean"}
 
 # Backends that print "not built yet" with a phase pointer.
 _PLANNED_TARGETS = {
@@ -51,7 +51,6 @@ _PLANNED_TARGETS = {
     "verilog": "Phase 3.2",
     "vhdl":    "Phase 3.2",
     "chisel":  "Phase 3.2",
-    "lean":    "Phase 2.4",
 }
 
 
@@ -167,6 +166,24 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
         else:
             print(c_source, end="")
+        return 0
+
+    if args.target == "lean":
+        from software.verification.lean.LeanBackend import LeanBackend
+        lean_source = LeanBackend().compile_module(mod)
+        if not lean_source:
+            print(f"lean backend: no `@verify(lean, ...)` blocks "
+                  f"found in {args.source} -- nothing to emit",
+                  file=sys.stderr)
+            return 0
+        if args.output:
+            args.output.write_text(lean_source, encoding="utf-8")
+            print(f"wrote {args.output} "
+                  f"({len(lean_source)} bytes, "
+                  f"{lean_source.count(chr(10))} lines)",
+                  file=sys.stderr)
+        else:
+            print(lean_source, end="")
         return 0
 
     # ── Planned-but-not-built targets ─────────────────────────
