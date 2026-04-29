@@ -1,0 +1,33 @@
+-- Domain-safety theorem template (DO-178C verification evidence).
+--
+-- Use case: prove that under the function's `requires` clauses,
+-- every internal operation stays within its mathematical domain
+-- (e.g. ln(arg) only applied where arg > 0; sqrt only where >= 0;
+-- div only where denominator != 0).
+--
+-- This is the "no NaN / no inf at runtime" proof obligation for
+-- safety-critical code.
+--
+-- Jinja variables:
+--   {{ theorem_name }}
+--   {{ fn_name }}
+--   {{ params }}
+--   {{ requires }}      -- conjunction of preconditions
+--   {{ safety_goal }}   -- the "no domain violation" expression
+--                          e.g. "0 < (gravity_compensation_arg x)"
+
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
+import MonogateEML.Tactics
+
+open Real
+
+theorem {{ theorem_name }} {{ params }}
+    (h : {{ requires }}) :
+    {{ safety_goal }} := by
+  -- Domain safety usually reduces to interval arithmetic; eml_auto
+  -- handles the standard cases, falls through to a sketched proof
+  -- humans complete for cert submission.
+  first
+  | exact MonogateEML.Tactics.eml_auto
+  | (unfold {{ fn_name }}; positivity)
+  | sorry

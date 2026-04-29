@@ -538,12 +538,17 @@ class Parser:
         )
 
     def _parse_call_args(self) -> list[ASTNode]:
+        """Parse a comma-separated argument list. Trailing commas
+        are tolerated (Rust / modern-language convention)."""
         args: list[ASTNode] = []
         if self._check("RPAREN"):
             return args
         while True:
             args.append(self._parse_expr())
             if not self._accept("COMMA"):
+                break
+            # Allow trailing comma: `f(a, b,)` parses the same as `f(a, b)`.
+            if self._check("RPAREN"):
                 break
         return args
 

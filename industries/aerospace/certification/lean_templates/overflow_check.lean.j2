@@ -1,0 +1,40 @@
+-- Overflow-check theorem template (DO-178C verification evidence).
+--
+-- Use case: prove that the function's output stays within the
+-- representable range of the deployment target (f32 / f64 /
+-- fixed<W,F> / etc.). On FPGA targets this is the actuator-limit
+-- proof that protects the physical plant.
+--
+-- Jinja variables:
+--   {{ theorem_name }}
+--   {{ fn_name }}
+--   {{ params }}
+--   {{ requires }}      -- preconditions
+--   {{ min_bound }}     -- lower bound on output
+--   {{ max_bound }}     -- upper bound on output
+--
+-- Example produced by `autopilot.eml`:
+--   theorem autopilot_command_within_limits
+--       (pitch_setpoint : Real) (pitch_measured : Real) (pitch_integral : Real)
+--       (h1 : abs pitch_setpoint < 1.5708)
+--       (h2 : abs pitch_measured < 1.5708)
+--       (h3 : abs pitch_integral < INTEGRAL_LIMIT) :
+--       abs (autopilot_step pitch_setpoint pitch_measured pitch_integral)
+--         < ELEVATOR_MAX := by ...
+
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
+import MonogateEML.Tactics
+
+open Real
+
+theorem {{ theorem_name }} {{ params }}
+    (h : {{ requires }}) :
+    {{ min_bound }} <= ({{ fn_name }} {{ params_pos }})
+      ∧ ({{ fn_name }} {{ params_pos }}) <= {{ max_bound }} := by
+  -- Overflow proofs reduce to clamp() + interval arithmetic on
+  -- the chained operations. eml_auto handles trivial clamp cases;
+  -- transcendental-bounded outputs need manual interval reasoning.
+  first
+  | exact MonogateEML.Tactics.eml_auto
+  | (unfold {{ fn_name }}; constructor <;> [linarith; linarith])
+  | sorry
