@@ -20,6 +20,7 @@ from lang.parser.parser import parse_file
 from lang.profiler.profiler import Profiler
 from tools.equivalence.python_runner import (
     PythonReferenceError,
+    constants_from_module,
     run_python_reference,
 )
 from tools.equivalence.rust_runner import (
@@ -93,9 +94,13 @@ def cross_target_check(
     Profiler().profile_module(mod)
     fn = _find_function(mod, function_name)
 
-    # Always compute the Python reference first.
+    # Always compute the Python reference first. Pull module-level
+    # const values into the bridge so they substitute into the
+    # lambdified body (without this, vertical functions that
+    # reference e.g. GRAVITY_GAIN would leak as free symbols).
+    consts = constants_from_module(mod)
     try:
-        ref_outputs = run_python_reference(fn, vectors)
+        ref_outputs = run_python_reference(fn, vectors, constants=consts)
     except PythonReferenceError as e:
         # No reference -> can't compare anything. Mark Python as
         # unavailable + return early.

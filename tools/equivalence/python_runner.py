@@ -19,7 +19,8 @@ from typing import Iterable
 
 import sympy as sp
 
-from lang.parser.ast_nodes import EMLFunction
+from lang.optimizer.constant_folding import fold_constants
+from lang.parser.ast_nodes import EMLConstant, EMLFunction, EMLModule, NodeKind
 from lang.profiler.ast_to_sympy import convert_function_body
 
 
@@ -27,13 +28,40 @@ class PythonReferenceError(RuntimeError):
     """Raised when the function's body can't be lambdified."""
 
 
-def lambdify_function(func: EMLFunction):
+def constants_from_module(mod: EMLModule) -> dict[str, float | int | bool]:
+    """Extract every literal-valued module-level `const NAME = X;`
+    so the SymPy bridge can inline them when lambdifying. Each
+    initialiser is constant-folded first so negative literals
+    (`-100.0`, parsed as UNARYOP over a positive LITERAL) are
+    recovered as a single literal value. Initialisers that don't
+    fold to a literal are skipped (the bridge keeps them symbolic)."""
+    out: dict[str, float | int | bool] = {}
+    for c in mod.constants:
+        if not isinstance(c, EMLConstant):
+            continue
+        folded = fold_constants(c.value)
+        if folded.kind == NodeKind.LITERAL:
+            v = folded.value
+            if isinstance(v, (bool, int, float)):
+                out[c.name] = v
+    return out
+
+
+def lambdify_function(
+    func: EMLFunction,
+    *,
+    constants: dict[str, float | int | bool] | None = None,
+):
     """Return a callable `(*args) -> float | tuple[float, ...]`.
+
+    `constants` -- optional mapping of module-level const names to
+    their literal values; passed through to the SymPy bridge so
+    they inline as numeric literals rather than free symbols.
 
     Raises PythonReferenceError on functions whose body lies outside
     the SymPy-bridge's supported subset.
     """
-    cr = convert_function_body(func)
+    cr = convert_function_body(func, constants=constants)
     if cr.status == "complex_body":
         raise PythonReferenceError(
             f"function {func.name!r} has complex_body (mut/while)"
@@ -66,9 +94,11 @@ def lambdify_function(func: EMLFunction):
 def run_python_reference(
     func: EMLFunction,
     vectors: Iterable[tuple[float, ...]],
+    *,
+    constants: dict[str, float | int | bool] | None = None,
 ) -> list[float | tuple[float, ...]]:
     """Evaluate `func` at every input vector via the SymPy reference."""
-    f = lambdify_function(func)
+    f = lambdify_function(func, constants=constants)
     out: list = []
     for vec in vectors:
         out.append(f(*vec))

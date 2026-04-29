@@ -55,13 +55,31 @@ class _Converter:
         NodeKind.TANH:  sp.tanh,
     }
 
-    def __init__(self, params: list[str]):
+    def __init__(
+        self,
+        params: list[str],
+        constants: dict[str, Any] | None = None,
+    ):
         # Each param becomes a real-valued SymPy symbol.
         self.symbols: dict[str, sp.Symbol] = {
             name: sp.Symbol(name, real=True) for name in params
         }
         # Let-bindings inline as we walk; values are SymPy expressions.
         self.bindings: dict[str, Any] = dict(self.symbols)
+        # Module-level constants get substituted with their literal
+        # values when supplied. Without this map, free names become
+        # symbolic (right for the profiler, wrong for the harness's
+        # lambdify path).
+        if constants:
+            for name, value in constants.items():
+                if name in self.bindings:
+                    continue  # don't shadow a parameter
+                if isinstance(value, bool):
+                    self.bindings[name] = sp.Integer(1 if value else 0)
+                elif isinstance(value, int):
+                    self.bindings[name] = sp.Integer(value)
+                elif isinstance(value, float):
+                    self.bindings[name] = sp.Float(value)
 
     # ── Public entry ──────────────────────────────────────────
 
@@ -220,8 +238,17 @@ class _Converter:
 
 # ── Public entrypoint ────────────────────────────────────────────────
 
-def convert_function_body(func: EMLFunction) -> ConvertResult:
+def convert_function_body(
+    func: EMLFunction,
+    *,
+    constants: dict[str, Any] | None = None,
+) -> ConvertResult:
     """Public entry: convert one EMLFunction's body into a SymPy
-    expression (or report complex_body / tuple)."""
+    expression (or report complex_body / tuple).
+
+    `constants` is an optional mapping of module-level constant
+    names to their literal values. When supplied, references to
+    those names are inlined as SymPy literals; without it the
+    profiler's symbolic-only behaviour is preserved."""
     param_names = [p.name for p in func.params]
-    return _Converter(param_names).convert_function(func)
+    return _Converter(param_names, constants).convert_function(func)
