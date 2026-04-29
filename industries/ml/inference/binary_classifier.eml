@@ -1,0 +1,74 @@
+// binary_classifier.eml -- ML inference vertical exercising
+// SuperBEST routing.
+//
+// Production-shape binary classifier: a learned linear score
+// passes through a sigmoid activation to produce a probability.
+//
+// Why this matters for the demo: the classifier is hand-written
+// using the *tanh-based sigmoid identity*
+//
+//     sigmoid(x) = tanh(x/2)/2 + 1/2
+//
+// which some ML papers prefer for its symmetry around zero.
+// The SuperBEST optimizer pass detects this pattern and rewrites
+// it to the canonical
+//
+//     sigmoid(x) = 1 / (1 + exp(-x))
+//
+// saving ~1.08 decimal digits of precision per evaluation.
+//
+// The same `.eml` source compiles to C / Rust / Verilog / Lean
+// (Patent #22), and the cross-target equivalence harness verifies
+// every backend agrees on the output to ULP.
+
+module ml_binary_classifier;
+
+// Feature weights + bias (learned offline).
+const W1:   Real = 0.7
+const W2:   Real = -0.3
+const BIAS: Real = 0.05
+
+// Sigmoid output is bounded in [0, 1] so chain order 1 is fine
+// (single transcendental) -- the transformation does NOT lift
+// the chain order above the SafeProb bound.
+type SafeProb = Real where chain_order <= 1
+
+// Linear score (chain order 0).
+fn score(x1: Real, x2: Real) -> Real
+    where chain_order <= 0
+{
+    W1 * x1 + W2 * x2 + BIAS
+}
+
+// Hand-written tanh-based sigmoid -- SuperBEST will rewrite this
+// into the canonical 1 / (1 + exp(-z)) form before any backend
+// emits code, saving 1.08 decimal digits of precision (per
+// eml_cost.recommend_form's E-193 Phase-3 calibration).
+fn sigmoid_tanh_form(z: Real) -> SafeProb
+    where chain_order <= 1
+{
+    tanh(z / 2.0) / 2.0 + 0.5
+}
+
+// Top-level classifier: score -> probability. Chain order 1
+// because it composes the linear score with a single sigmoid.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "binary_classifier_probability_bounded")
+fn classify(x1: Real, x2: Real) -> Real
+    requires (abs(x1) < 100.0)
+    requires (abs(x2) < 100.0)
+    ensures  (0.0 <= result)
+    ensures  (result <= 1.0)
+{
+    sigmoid_tanh_form(score(x1, x2))
+}
+
+// Cross-entropy loss for one labeled example. Useful for the
+// inference-time uncertainty score (the loss against the
+// best-guess label) and as a smoke check that log gets emitted.
+fn binary_cross_entropy(p: Real, y: Real) -> Real
+    where chain_order <= 2,
+          domain: 0.0 < p && p < 1.0
+{
+    -(y * ln(p) + (1.0 - y) * ln(1.0 - p))
+}

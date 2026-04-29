@@ -285,3 +285,118 @@ def test_local_import_missing_file_errors(tmp_path: Path) -> None:
     )
     with pytest.raises(LoaderError, match="not found"):
         parse_file(main)
+
+
+# ── 9. Hardening: case + dedup ───────────────────────────────
+
+
+def test_case_handling_matches_filesystem(tmp_path: Path) -> None:
+    """Loader doesn't case-normalise -- it leaves case handling to
+    the underlying filesystem. So the behaviour of
+    `use stdlib::MATH;` (vs `math.eml`) is platform-dependent:
+
+    - Case-sensitive (Linux, default macOS APFS): file not found
+    - Case-insensitive (Windows NTFS, default macOS HFS+): match
+
+    Either is acceptable; what we DO require is that two
+    different-cased spellings that resolve to the same on-disk
+    file deduplicate via the cache (covered by the dedup test
+    below). This test simply documents the FS-driven behaviour
+    rather than enforcing one stance."""
+    helpers = tmp_path / "math.eml"
+    helpers.write_text(
+        "fn marker_lower(x: f64) -> f64 { x }\n",
+        encoding="utf-8",
+    )
+    fs_is_case_insensitive = (tmp_path / "MATH.EML").exists()
+
+    from lang.loader import ModuleLoader
+    loader = ModuleLoader(search_paths={"x": tmp_path})
+    if fs_is_case_insensitive:
+        # The lookup should succeed regardless of spelling.
+        mod = loader.load("x::MATH")
+        assert any(f.name == "marker_lower" for f in mod.functions)
+    else:
+        with pytest.raises(LoaderError, match="not found"):
+            loader.load("x::MATH")
+
+
+def test_two_paths_to_same_file_share_one_cache_entry(
+    tmp_path: Path,
+) -> None:
+    """Two `use` paths that resolve to the same on-disk file must
+    end up as a single cache entry. The cache key is the resolved
+    file path, so even quirky path spellings -- e.g. via a
+    symlink (POSIX), or via pathlib normalisation -- collapse."""
+    helpers = tmp_path / "helpers.eml"
+    helpers.write_text(
+        "fn double(x: f64) -> f64 { 2.0 * x }\n",
+        encoding="utf-8",
+    )
+
+    from lang.loader import ModuleLoader
+
+    loader = ModuleLoader(search_paths={"a": tmp_path, "b": tmp_path})
+    mod_a = loader.load("a::helpers")
+    mod_b = loader.load("b::helpers")
+    # Same on-disk file -> same cached EMLModule object.
+    assert mod_a is mod_b
+
+
+def test_symlink_dedups_across_aliases(tmp_path: Path) -> None:
+    """A symlink to the same file goes to the same cache entry.
+    Skipped on platforms / accounts that can't create symlinks
+    (Windows non-admin, restricted CI runners)."""
+    real = tmp_path / "real.eml"
+    real.write_text(
+        "fn marker(x: f64) -> f64 { x }\n",
+        encoding="utf-8",
+    )
+    link = tmp_path / "alias.eml"
+    try:
+        link.symlink_to(real)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not available on this platform/account")
+
+    from lang.loader import ModuleLoader
+    loader = ModuleLoader(search_paths={"x": tmp_path})
+    a = loader.load("x::real")
+    b = loader.load("x::alias")
+    assert a is b, "symlink alias should share the cache entry"
+
+
+def test_loader_cache_independent_per_instance(
+    tmp_path: Path,
+) -> None:
+    """Two ModuleLoader instances have independent caches (so
+    test isolation works)."""
+    helpers = tmp_path / "helpers.eml"
+    helpers.write_text(
+        "fn one(x: f64) -> f64 { x }\n", encoding="utf-8",
+    )
+    from lang.loader import ModuleLoader
+    a = ModuleLoader(search_paths={"x": tmp_path})
+    b = ModuleLoader(search_paths={"x": tmp_path})
+    mod_a = a.load("x::helpers")
+    mod_b = b.load("x::helpers")
+    # Different loader instances -> distinct EMLModule objects
+    # even though the on-disk file is the same.
+    assert mod_a is not mod_b
+
+
+def test_loader_path_with_unusual_segments_resolved(
+    tmp_path: Path,
+) -> None:
+    """`use root::foo::bar::baz;` should look up
+    `<root>/foo/bar/baz.eml`. Verify the multi-segment recursion
+    actually descends into subdirectories."""
+    deep = tmp_path / "foo" / "bar"
+    deep.mkdir(parents=True)
+    (deep / "baz.eml").write_text(
+        "fn deep_fn(x: f64) -> f64 { x }\n", encoding="utf-8",
+    )
+    from lang.loader import ModuleLoader
+    loader = ModuleLoader(search_paths={"x": tmp_path})
+    mod = loader.load("x::foo::bar::baz")
+    fnames = {f.name for f in mod.functions}
+    assert "deep_fn" in fnames

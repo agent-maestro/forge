@@ -101,6 +101,23 @@ VERTICAL_CASES: list[tuple[str, str, list[tuple[float, ...]], float]] = [
         ],
         1e-12,
     ),
+    # ML -- classify(x1, x2). Inside the body sigmoid_tanh_form
+    # gets SuperBEST-rewritten to the canonical sigmoid; the
+    # rewrite is inside the optimizer's tolerance budget so output
+    # agreement to ~1e-9 is the realistic bar (the rewrite saves
+    # ~1.08 digits of precision, but introduces a different
+    # rounding signature).
+    (
+        "ml/inference/binary_classifier.eml",
+        "classify",
+        [
+            (0.0, 0.0),     # bias-only input
+            (1.0, 1.0),
+            (2.0, -1.0),
+            (-3.0, 4.0),
+        ],
+        1e-9,
+    ),
 ]
 
 

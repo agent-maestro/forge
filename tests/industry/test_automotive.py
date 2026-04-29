@@ -45,17 +45,21 @@ def test_motor_foc_source_exists():
 def test_motor_foc_parses_and_profiles(foc_module):
     """Module parses cleanly with the expected LOCAL function set.
 
-    Since the 2026-04 stdlib refactor, this module also imports
-    `stdlib::control` -- the parser auto-resolves imports so the
-    full function list now includes 12 stdlib functions. We
-    filter to just the locally-defined ones (imported_from is
-    None) for this regression check."""
+    Since the 2026-04 stdlib + local-import refactor, this module
+    pulls `pid` / `saturate` from `stdlib::control` and `park` /
+    `clarke` from `local::three_phase` (sibling file). The
+    parser auto-resolves both, so the full function list now
+    includes 14 imported functions. We filter to just the
+    locally-defined ones for this regression check."""
     assert foc_module.name == "motor_foc_automotive"
     local_names = {
         f.name for f in foc_module.functions
         if f.imported_from is None
     }
-    assert {"park", "clarke", "pi_step", "foc_d_axis"} == local_names
+    assert {"pi_step", "foc_d_axis"} == local_names
+    # park + clarke are now LOCAL imports, not module-locals.
+    park = next(f for f in foc_module.functions if f.name == "park")
+    assert park.imported_from == "local::three_phase"
     for fn in foc_module.functions:
         assert fn.profile is not None
 
@@ -102,15 +106,19 @@ def test_foc_d_axis_has_safety_clauses(foc_module):
 
 
 def test_compiles_to_c(foc_module):
-    src = CBackend().compile(foc_module)
+    """With the optimizer OFF, park / clarke survive (tree-shaker
+    would otherwise drop them since foc_d_axis doesn't call them)
+    and the tuple-return struct shows up."""
+    src = CBackend(optimize=False).compile(foc_module)
     assert "double foc_d_axis(" in src
-    # The Park transform shows up as a tuple-return struct
     assert "park_result_t" in src
     assert "mg_clamp(" in src
 
 
 def test_compiles_to_rust(foc_module):
-    src = RustBackend().compile(foc_module)
+    """Same as test_compiles_to_c -- optimize=False keeps the
+    imported tuple-returning helper visible in the emit."""
+    src = RustBackend(optimize=False).compile(foc_module)
     assert "pub fn foc_d_axis(" in src
     assert "ParkResult" in src
     assert "mg_clamp(" in src
