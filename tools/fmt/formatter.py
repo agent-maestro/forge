@@ -100,12 +100,21 @@ class _Formatter:
 
         # `use stdlib::name;` block. Selective imports render as
         # `use root::name::{a, b, c};` with the names in
-        # declaration order.
+        # declaration order. Aliased names render as `name as alias`.
         if mod.imports:
+            aliases_for = lambda imp: imp.aliases or {}
             for imp in mod.imports:
                 if imp.only:
-                    names = ", ".join(imp.only)
-                    out.append(f"use {imp.joined}::{{{names}}};")
+                    am = aliases_for(imp)
+                    parts: list[str] = []
+                    for n in imp.only:
+                        if n in am:
+                            parts.append(f"{n} as {am[n]}")
+                        else:
+                            parts.append(n)
+                    out.append(
+                        f"use {imp.joined}::{{{', '.join(parts)}}};"
+                    )
                 else:
                     out.append(f"use {imp.joined};")
             out.append("")

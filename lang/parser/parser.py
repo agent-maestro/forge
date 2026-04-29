@@ -146,22 +146,25 @@ class Parser:
         """Parse `use IDENT (:: IDENT)+ (:: { NAMES })? ;`.
 
         Path forms accepted:
-          use stdlib::math;                  // import all
-          use stdlib::math::{lerp, hypot2};  // selective import
-          use local::helpers;                // local sibling
+          use stdlib::math;                       // import all
+          use stdlib::math::{lerp, hypot2};       // selective
+          use stdlib::math::{lerp as interp};     // selective + alias
+          use local::helpers;                     // local sibling
 
         Selective-import names list must contain at least one name
-        and use commas (trailing comma allowed).
+        and use commas (trailing comma allowed). Each name may
+        optionally have an `as <alias>` rename.
         """
         kw = self._eat("KEYWORD", "use")
         first = self._eat("IDENT")
         path: list[str] = [first.value]
         only: list[str] | None = None
+        aliases: dict[str, str] | None = None
         while self._accept("DCOLON"):
             # `::{` opens the selective-import block.
             if self._check("LBRACE"):
                 self._advance()
-                only = self._parse_selective_names()
+                only, aliases = self._parse_selective_names()
                 self._eat("RBRACE")
                 break
             seg = self._eat("IDENT")
@@ -174,12 +177,17 @@ class Parser:
             )
         self._eat("SEMI")
         return EMLImport(
-            path=path, only=only, line=kw.line, col=kw.col,
+            path=path, only=only, aliases=aliases,
+            line=kw.line, col=kw.col,
         )
 
-    def _parse_selective_names(self) -> list[str]:
-        """Parse the body of a `use ::{a, b, c}` selective import."""
+    def _parse_selective_names(
+        self,
+    ) -> tuple[list[str], dict[str, str] | None]:
+        """Parse `{name (as alias)?, ...}`. Returns the (only, aliases)
+        pair. `aliases` is None when no `as` was used."""
         names: list[str] = []
+        aliases: dict[str, str] = {}
         if self._check("RBRACE"):
             raise ParseError(
                 "selective import block must contain at least one name",
@@ -187,13 +195,18 @@ class Parser:
             )
         while True:
             name_tok = self._eat("IDENT")
-            names.append(name_tok.value)
+            name = name_tok.value
+            names.append(name)
+            # Optional `as <alias>`.
+            if self._accept("KEYWORD", "as"):
+                alias_tok = self._eat("IDENT")
+                aliases[name] = alias_tok.value
             if not self._accept("COMMA"):
                 break
-            # Allow trailing comma: `{a, b,}` parses as `[a, b]`.
+            # Allow trailing comma.
             if self._check("RBRACE"):
                 break
-        return names
+        return names, (aliases or None)
 
     # ── Declarations ──────────────────────────────────────────
 

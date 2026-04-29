@@ -200,6 +200,11 @@ def resolve_imports(
         # later sees them as unreached.
         wanted = set(imp.only) if imp.only is not None else None
 
+        # Alias map (None -> empty dict). Key is the original
+        # name in the imported module; value is what it should be
+        # called in the importing module's namespace.
+        alias_map: dict[str, str] = imp.aliases or {}
+
         # Validate the selective-import allowlist against what the
         # imported module actually exports -- a typo in the user's
         # `use ::{misspelled}` should surface as a clear error
@@ -221,34 +226,42 @@ def resolve_imports(
         for c in sub.constants:
             if wanted is not None and c.name not in wanted:
                 continue
-            _check_clash(c.name, "constant", imp, provided_by,
+            local_name = alias_map.get(c.name, c.name)
+            _check_clash(local_name, "constant", imp, provided_by,
                          local_names=const_names)
-            out.constants.append(deepcopy(c))
-            const_names.add(c.name)
-            provided_by[c.name] = imp.joined
+            new_c = deepcopy(c)
+            new_c.name = local_name
+            out.constants.append(new_c)
+            const_names.add(local_name)
+            provided_by[local_name] = imp.joined
 
         for t in sub.types:
             if wanted is not None and t.name not in wanted:
                 continue
-            _check_clash(t.name, "type alias", imp, provided_by,
+            local_name = alias_map.get(t.name, t.name)
+            _check_clash(local_name, "type alias", imp, provided_by,
                          local_names=type_names)
-            out.types.append(deepcopy(t))
-            type_names.add(t.name)
-            provided_by[t.name] = imp.joined
+            new_t = deepcopy(t)
+            new_t.name = local_name
+            out.types.append(new_t)
+            type_names.add(local_name)
+            provided_by[local_name] = imp.joined
 
         for f in sub.functions:
             if wanted is not None and f.name not in wanted:
                 continue
-            _check_clash(f.name, "function", imp, provided_by,
+            local_name = alias_map.get(f.name, f.name)
+            _check_clash(local_name, "function", imp, provided_by,
                          local_names=func_names)
             new_fn = deepcopy(f)
+            new_fn.name = local_name
             # Tag for the tree-shaker: this function arrived via
             # `use ...;` and is droppable if no local function
             # ends up calling it.
             new_fn.imported_from = imp.joined
             out.functions.append(new_fn)
-            func_names.add(f.name)
-            provided_by[f.name] = imp.joined
+            func_names.add(local_name)
+            provided_by[local_name] = imp.joined
 
     return out
 
