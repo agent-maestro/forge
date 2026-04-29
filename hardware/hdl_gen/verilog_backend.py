@@ -51,12 +51,18 @@ _BINOP_TO_VERILOG: dict[str, str] = {
 
 # NodeKind -> module name in hardware/modules/transcendental/
 _TRANSCENDENTAL_TO_MODULE: dict[NodeKind, str] = {
-    NodeKind.EXP:  "eml_exp",
-    NodeKind.LN:   "eml_ln",
-    NodeKind.SIN:  "eml_sin",
-    NodeKind.COS:  "eml_cos",
-    NodeKind.TAN:  "eml_tan",
-    NodeKind.SQRT: "eml_sqrt",
+    NodeKind.EXP:   "eml_exp",
+    NodeKind.LN:    "eml_ln",
+    NodeKind.SIN:   "eml_sin",
+    NodeKind.COS:   "eml_cos",
+    NodeKind.TAN:   "eml_tan",
+    NodeKind.SQRT:  "eml_sqrt",
+    NodeKind.SINH:  "eml_sinh",
+    NodeKind.COSH:  "eml_cosh",
+    NodeKind.TANH:  "eml_tanh",
+    NodeKind.ASIN:  "eml_asin",
+    NodeKind.ACOS:  "eml_acos",
+    NodeKind.ATAN:  "eml_atan",
 }
 
 
