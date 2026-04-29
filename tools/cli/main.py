@@ -139,6 +139,12 @@ def main(argv: list[str] | None = None) -> int:
                              "(constant folding + CSE + SuperBEST). "
                              "Useful when comparing optimized vs "
                              "unoptimized output.")
+    parser.add_argument("--explain", action="store_true",
+                        help="Print a per-function diff showing which "
+                             "optimizer passes fired, before/after "
+                             "node counts, SuperBEST family + digits "
+                             "saved, and CSE bindings introduced. "
+                             "Doesn't emit any backend code.")
     parser.add_argument("--version", action="version",
                         version="eml-compile 0.1.0 (Phase 1 + 2.1)")
     args = parser.parse_args(argv)
@@ -194,6 +200,12 @@ def main(argv: list[str] | None = None) -> int:
 
     profiler = Profiler()
     profiler.profile_module(mod)
+
+    # ── --explain -> per-function optimizer diff ─────────────
+    if args.explain:
+        from tools.cli.explain import print_explain_report
+        print_explain_report(mod)
+        return 0
 
     # ── --allocate -> run FPGA allocator + print plan ──────────
     if args.allocate:

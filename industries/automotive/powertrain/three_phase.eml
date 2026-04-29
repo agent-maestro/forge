@@ -1,0 +1,34 @@
+// three_phase.eml -- shared 3-phase / 2-phase coordinate transforms.
+//
+// Imported by motor_foc.eml via `use local::three_phase;`. Could
+// equally be imported by any sibling file (q-axis controller,
+// regenerative-brake estimator, etc.) -- demonstrating the
+// local-import pattern for vertical-internal helpers.
+//
+// Standalone module (no @target / @verify): the importing file
+// is the one that wires these into FPGA / Lean targets.
+
+module three_phase;
+
+// Common type alias used by both transforms.
+type StableSignal = Real where chain_order <= 2
+
+// ── Park transform: stationary alpha-beta -> rotor d-q ───────
+// (chain order 2 via sin/cos)
+fn park(
+    v_alpha: Real, v_beta: Real, theta: Real,
+) -> (StableSignal, StableSignal) {
+    let cos_t = cos(theta);
+    let sin_t = sin(theta);
+    let v_d =  v_alpha * cos_t + v_beta * sin_t;
+    let v_q = -v_alpha * sin_t + v_beta * cos_t;
+    (v_d, v_q)
+}
+
+// ── Clarke transform: 3-phase a-b-c -> stationary alpha-beta ─
+// (chain order 0 -- pure linear combination)
+fn clarke(i_a: Real, i_b: Real, i_c: Real) -> (StableSignal, StableSignal) {
+    let i_alpha = i_a - 0.5 * (i_b + i_c);
+    let i_beta  = 0.866025 * (i_b - i_c);
+    (i_alpha, i_beta)
+}

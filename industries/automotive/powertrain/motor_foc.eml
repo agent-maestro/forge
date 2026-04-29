@@ -20,12 +20,15 @@
 
 module motor_foc_automotive;
 
-// ── Stdlib imports ───────────────────────────────────────────
-// `pid` and `saturate` come from stdlib::control. The inliner
-// will substitute their bodies before the FPGA backend emits
-// Verilog, so there's zero call-overhead vs the previous
-// inline-everything style.
+// ── Imports ──────────────────────────────────────────────────
+// `pid` and `saturate` come from stdlib::control.
+// `park` and `clarke` come from a sibling file via local::,
+// which demonstrates the in-vertical helper-sharing pattern
+// (could be imported by a q-axis controller in the same dir).
+// The inliner substitutes both stdlib + local bodies before
+// the FPGA backend emits Verilog.
 use stdlib::control;
+use local::three_phase;
 
 // ── Tunings (per-motor; calibrated values) ────────────────────
 const Kp_d:      Real = 0.8       // d-axis current-loop P gain
@@ -36,26 +39,9 @@ const dt:        Real = 0.0001    // 10 kHz control loop
 const V_DC:      Real = 400.0     // DC-bus voltage, V (typical EV)
 const V_LIMIT:   Real = 230.94    // = V_DC / sqrt(3), max phase voltage
 
-// ── Type aliases ─────────────────────────────────────────────
-type StableSignal  = Real where chain_order <= 2
-
-// ── Park transform (chain order 2 via sin/cos) ────────────────
-fn park(
-    v_alpha: Real, v_beta: Real, theta: Real,
-) -> (StableSignal, StableSignal) {
-    let cos_t = cos(theta);
-    let sin_t = sin(theta);
-    let v_d =  v_alpha * cos_t + v_beta * sin_t;
-    let v_q = -v_alpha * sin_t + v_beta * cos_t;
-    (v_d, v_q)
-}
-
-// ── Clarke transform (chain order 0) ──────────────────────────
-fn clarke(i_a: Real, i_b: Real, i_c: Real) -> (StableSignal, StableSignal) {
-    let i_alpha = i_a - 0.5 * (i_b + i_c);
-    let i_beta  = 0.866025 * (i_b - i_c);
-    (i_alpha, i_beta)
-}
+// `park` and `clarke` are now imported from local::three_phase
+// (see the `use` block at the top). Their StableSignal type alias
+// arrives with them and is reused below.
 
 // ── Per-axis PI controller (PI is the no-D special case of PID) ──
 // Uses stdlib::control::pid with the derivative term zeroed out.
