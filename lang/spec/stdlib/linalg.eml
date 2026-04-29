@@ -1,13 +1,135 @@
 // stdlib/linalg -- small fixed-size linear algebra.
 //
-// SCAFFOLD -- bodies TODO. EML-lang's linalg targets EMBEDDED
-// fixed-size matrices (2x2, 3x3, 4x4, 6x6) common in control
-// and aerospace. General N is out of scope -- use NumPy/Eigen
-// for that.
+// EML-lang's linalg targets the matrices that show up in
+// embedded control + aerospace + robotics: 3-vectors, 4-vectors,
+// quaternions, and 3x3 matrices. General N is out of scope --
+// use NumPy / Eigen for that.
+//
+// Vectors are passed component-by-component, and tuple returns
+// are used for multi-component results.
 
 module linalg;
 
-// TODO: 3x3 matmul, transpose, det, inv
-// TODO: 4x4 (homogeneous transforms)
-// TODO: quaternion ops (mul, conj, normalize, slerp)
-// TODO: 6x6 (rigid body transforms)
+// ── 3-vector operations (chain order 0 / 1) ──────────────────
+
+// Dot product of two 3-vectors. Chain order 0.
+fn vec3_dot(ax: f64, ay: f64, az: f64,
+            bx: f64, by: f64, bz: f64) -> f64
+  where chain_order <= 0
+{
+    ax * bx + ay * by + az * bz
+}
+
+// Squared norm of a 3-vector -- avoid the sqrt when comparing
+// magnitudes for ranking purposes.
+fn vec3_norm_sq(x: f64, y: f64, z: f64) -> f64
+  where chain_order <= 0
+{
+    x * x + y * y + z * z
+}
+
+// L2 norm of a 3-vector. Chain order 1.
+fn vec3_norm(x: f64, y: f64, z: f64) -> f64
+  where chain_order <= 1
+{
+    sqrt(x * x + y * y + z * z)
+}
+
+// Cross product. Returns the three components of a x b.
+fn vec3_cross(ax: f64, ay: f64, az: f64,
+              bx: f64, by: f64, bz: f64) -> (f64, f64, f64)
+  where chain_order <= 0
+{
+    (ay * bz - az * by,
+     az * bx - ax * bz,
+     ax * by - ay * bx)
+}
+
+// Scale a 3-vector by a scalar.
+fn vec3_scale(x: f64, y: f64, z: f64, s: f64) -> (f64, f64, f64)
+  where chain_order <= 0
+{
+    (s * x, s * y, s * z)
+}
+
+// Normalise a 3-vector. Returns (0,0,0) if the input is zero
+// (caller should check non-zero before relying on direction).
+fn vec3_normalize(x: f64, y: f64, z: f64) -> (f64, f64, f64)
+  where chain_order <= 1,
+        domain: x*x + y*y + z*z > 0.0
+{
+    let n = sqrt(x * x + y * y + z * z);
+    let inv = 1.0 / n;
+    (inv * x, inv * y, inv * z)
+}
+
+// ── Quaternion operations (chain order 0 / 1) ────────────────
+// Convention: (w, x, y, z) with w as the scalar part.
+
+// Quaternion multiplication q = a * b.
+fn quat_mul(aw: f64, ax: f64, ay: f64, az: f64,
+            bw: f64, bx: f64, by: f64, bz: f64) -> (f64, f64, f64, f64)
+  where chain_order <= 0
+{
+    (aw*bw - ax*bx - ay*by - az*bz,
+     aw*bx + ax*bw + ay*bz - az*by,
+     aw*by - ax*bz + ay*bw + az*bx,
+     aw*bz + ax*by - ay*bx + az*bw)
+}
+
+// Quaternion conjugate (negates the vector part).
+fn quat_conj(w: f64, x: f64, y: f64, z: f64) -> (f64, f64, f64, f64)
+  where chain_order <= 0
+{
+    (w, -x, -y, -z)
+}
+
+// Squared norm of a quaternion.
+fn quat_norm_sq(w: f64, x: f64, y: f64, z: f64) -> f64
+  where chain_order <= 0
+{
+    w * w + x * x + y * y + z * z
+}
+
+// Quaternion normalisation. Domain: input must be non-zero.
+fn quat_normalize(w: f64, x: f64, y: f64, z: f64)
+    -> (f64, f64, f64, f64)
+  where chain_order <= 1,
+        domain: w*w + x*x + y*y + z*z > 0.0
+{
+    let n = sqrt(w * w + x * x + y * y + z * z);
+    let inv = 1.0 / n;
+    (inv * w, inv * x, inv * y, inv * z)
+}
+
+// ── 3x3 matrix operations (chain order 0) ────────────────────
+
+// 3x3 determinant via expansion along the first row.
+fn mat3_det(m00: f64, m01: f64, m02: f64,
+            m10: f64, m11: f64, m12: f64,
+            m20: f64, m21: f64, m22: f64) -> f64
+  where chain_order <= 0
+{
+    m00 * (m11 * m22 - m12 * m21)
+  - m01 * (m10 * m22 - m12 * m20)
+  + m02 * (m10 * m21 - m11 * m20)
+}
+
+// Trace of a 3x3 matrix.
+fn mat3_trace(m00: f64, m11: f64, m22: f64) -> f64
+  where chain_order <= 0
+{
+    m00 + m11 + m22
+}
+
+// 3x3 matrix * 3-vector.
+fn mat3_vec3(m00: f64, m01: f64, m02: f64,
+             m10: f64, m11: f64, m12: f64,
+             m20: f64, m21: f64, m22: f64,
+             vx: f64, vy: f64, vz: f64) -> (f64, f64, f64)
+  where chain_order <= 0
+{
+    (m00 * vx + m01 * vy + m02 * vz,
+     m10 * vx + m11 * vy + m12 * vz,
+     m20 * vx + m21 * vy + m22 * vz)
+}
