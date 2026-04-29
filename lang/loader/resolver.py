@@ -193,7 +193,34 @@ def resolve_imports(
     for imp in mod.imports:
         sub = loader.load(imp.joined, source_dir=source_dir)
 
+        # Selective-import filter. When `imp.only` is set, only
+        # names in that allowlist are merged. Names outside it are
+        # NOT brought into the importing module's namespace; they
+        # remain in the imported sub-module and the tree-shaker
+        # later sees them as unreached.
+        wanted = set(imp.only) if imp.only is not None else None
+
+        # Validate the selective-import allowlist against what the
+        # imported module actually exports -- a typo in the user's
+        # `use ::{misspelled}` should surface as a clear error
+        # rather than silently importing nothing.
+        if wanted is not None:
+            exported_names = (
+                {c.name for c in sub.constants}
+                | {t.name for t in sub.types}
+                | {f.name for f in sub.functions}
+            )
+            unknown = sorted(wanted - exported_names)
+            if unknown:
+                raise LoaderError(
+                    f"`use {imp.joined}::{{...}};` requested name(s) "
+                    f"{unknown} not exported by {imp.joined!r} "
+                    f"(available: {sorted(exported_names)[:20]})"
+                )
+
         for c in sub.constants:
+            if wanted is not None and c.name not in wanted:
+                continue
             _check_clash(c.name, "constant", imp, provided_by,
                          local_names=const_names)
             out.constants.append(deepcopy(c))
@@ -201,6 +228,8 @@ def resolve_imports(
             provided_by[c.name] = imp.joined
 
         for t in sub.types:
+            if wanted is not None and t.name not in wanted:
+                continue
             _check_clash(t.name, "type alias", imp, provided_by,
                          local_names=type_names)
             out.types.append(deepcopy(t))
@@ -208,6 +237,8 @@ def resolve_imports(
             provided_by[t.name] = imp.joined
 
         for f in sub.functions:
+            if wanted is not None and f.name not in wanted:
+                continue
             _check_clash(f.name, "function", imp, provided_by,
                          local_names=func_names)
             new_fn = deepcopy(f)

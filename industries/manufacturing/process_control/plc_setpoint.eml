@@ -1,0 +1,54 @@
+// plc_setpoint.eml -- manufacturing vertical: PLC-style setpoint
+// tracking for a process-control loop (heating chamber, mixing
+// vat, conveyor speed, etc.).
+//
+// Real PLC code chains a sequence of these per actuator. The
+// pattern is:
+//
+//   error    = setpoint - measured
+//   integral = clamp(integral + error * dt, -anti_windup, anti_windup)
+//   output   = clamp(Kp * error + Ki * integral,
+//                    actuator_min, actuator_max)
+//
+// IEC 61131-3 (the PLC standard) doesn't dictate FP precision,
+// but ISO 13849 SIL-2 process equipment mandates bounded output.
+// Both encoded as `requires` / `ensures` clauses.
+
+module plc_setpoint;
+
+// `pid_anti_windup` does the saturation-clamped PI math.
+// `saturate` does the symmetric actuator clamp.
+use stdlib::control::{pid_anti_windup};
+
+const Kp:            Real = 1.5
+const Ki:            Real = 0.3
+const Kd:            Real = 0.0      // pure PI loop (no derivative)
+const dt:            Real = 0.05     // 20 Hz scan cycle
+const I_LIMIT:       Real = 50.0     // anti-windup cap
+const ACTUATOR_MIN:  Real = 0.0      // 0 % command (off)
+const ACTUATOR_MAX:  Real = 100.0    // 100 % command (full power)
+const U_LIMIT:       Real = 100.0    // pre-clamp safety bound
+
+type StableSignal = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 50, precision = float32)
+@verify(lean, theorem = "plc_actuator_command_safe")
+fn actuator_command(
+    setpoint: Real, measured: Real, integral: Real,
+) -> Real
+    requires (ACTUATOR_MIN <= setpoint)
+    requires (setpoint <= ACTUATOR_MAX)
+    requires (abs(measured) < 1.0e6)
+    requires (abs(integral) < 1.0e3)
+    ensures  (ACTUATOR_MIN - 1.0 <= result)
+    ensures  (result <= ACTUATOR_MAX + 1.0)
+{
+    let error = setpoint - measured;
+    // Built-in PID anti-windup with derivative term zeroed out
+    // (we're a pure PI controller). Then asymmetric clamp to
+    // the actuator's physical 0..100 % range.
+    let raw = pid_anti_windup(
+        error, integral, 0.0, Kp, Ki, Kd, I_LIMIT, U_LIMIT,
+    );
+    clamp(raw, ACTUATOR_MIN, ACTUATOR_MAX)
+}

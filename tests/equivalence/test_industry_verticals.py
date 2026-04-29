@@ -118,6 +118,48 @@ VERTICAL_CASES: list[tuple[str, str, list[tuple[float, ...]], float]] = [
         ],
         1e-9,
     ),
+    # Audio -- biquad_lowpass_step(x, x1, x2, y1, y2,
+    #                              b0, b1, b2, a1, a2)
+    # 10 args; chain order 0 (pure linear combination via the
+    # inlined stdlib::signal::biquad_step body).
+    (
+        "audio/dsp/biquad_lowpass.eml",
+        "biquad_lowpass_step",
+        [
+            (0.5, 0.0, 0.0, 0.0, 0.0,
+             0.25, 0.5, 0.25, -0.5, 0.25),
+            (0.0, 0.5, 0.0, 0.0, 0.0,
+             0.25, 0.5, 0.25, -0.5, 0.25),
+            (1.0, 1.0, 1.0, 1.0, 1.0,
+             0.0, 1.0, 0.0, 0.0, 0.0),
+        ],
+        1e-12,
+    ),
+    # Scientific -- psi_real_step (one explicit-Euler step of the
+    # 1-D Schrödinger equation; pure linear combo).
+    (
+        "scientific/physics/schrodinger_step.eml",
+        "psi_real_step",
+        [
+            (0.0, 0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.5, 0.0),
+            (0.5, 0.1, 0.2, 0.3),
+            (-0.5, -0.1, 0.0, 0.1),
+        ],
+        1e-12,
+    ),
+    # Manufacturing -- actuator_command (PI loop with
+    # anti-windup + actuator clamp).
+    (
+        "manufacturing/process_control/plc_setpoint.eml",
+        "actuator_command",
+        [
+            (50.0, 50.0, 0.0),    # at setpoint, zero integral
+            (75.0, 50.0, 5.0),    # below setpoint, modest integral
+            (25.0, 50.0, -2.0),   # above setpoint, slight wind-down
+        ],
+        1e-12,
+    ),
 ]
 
 

@@ -85,12 +85,14 @@ def test_resolve_imports_merges_functions() -> None:
     mod = parse_source(src)
     assert len(mod.functions) == 1
     merged = resolve_imports(mod)
-    # math has 21 functions in the stdlib snapshot
+    # math has 15 functions after the 2026-04 split (the 6
+    # activations moved to stdlib::ml).
     fnames = {f.name for f in merged.functions}
     assert "t" in fnames
     assert "lerp" in fnames
-    assert "sigmoid" in fnames
-    assert len(merged.functions) == 1 + 21
+    assert "hypot2" in fnames
+    assert "sigmoid" not in fnames  # moved to stdlib::ml
+    assert len(merged.functions) == 1 + 15
 
 
 def test_resolve_imports_merges_constants() -> None:
@@ -400,3 +402,117 @@ def test_loader_path_with_unusual_segments_resolved(
     mod = loader.load("x::foo::bar::baz")
     fnames = {f.name for f in mod.functions}
     assert "deep_fn" in fnames
+
+
+# ── 10. Selective imports `::{a, b, c}` ──────────────────────
+
+
+def test_selective_import_brings_only_named_functions() -> None:
+    """`use stdlib::math::{lerp, hypot2};` imports exactly those
+    two functions (not all 15)."""
+    src = (
+        "use stdlib::math::{lerp, hypot2};\n"
+        "fn t(a: f64, b: f64) -> f64 { lerp(a, b, 0.5) }\n"
+    )
+    mod = parse_source(src, resolve=True)
+    fnames = {f.name for f in mod.functions}
+    assert fnames == {"t", "lerp", "hypot2"}
+
+
+def test_selective_import_brings_only_named_constants() -> None:
+    """When the allowlist names a constant, only that constant
+    arrives (none of the others)."""
+    src = (
+        "use stdlib::math::{LN2};\n"
+        "fn t() -> f64 { LN2 }\n"
+    )
+    mod = parse_source(src, resolve=True)
+    cnames = {c.name for c in mod.constants}
+    assert cnames == {"LN2"}
+
+
+def test_selective_import_unknown_name_errors() -> None:
+    """A typo in the allowlist surfaces as a clear LoaderError."""
+    src = (
+        "use stdlib::math::{misspelled_function};\n"
+        "fn t() -> f64 { 1.0 }\n"
+    )
+    with pytest.raises(LoaderError, match="not exported"):
+        parse_source(src, resolve=True)
+
+
+def test_selective_import_empty_allowlist_parser_error() -> None:
+    """Empty `use ::{}` is a parse error."""
+    from lang.parser.parser import ParseError
+    src = (
+        "use stdlib::math::{};\n"
+        "fn t() -> f64 { 1.0 }\n"
+    )
+    with pytest.raises(ParseError, match="at least one name"):
+        parse_source(src, resolve=False)
+
+
+def test_selective_import_trailing_comma_ok() -> None:
+    """`{a, b,}` parses identically to `{a, b}` (Rust convention)."""
+    src = (
+        "use stdlib::math::{lerp, hypot2,};\n"
+        "fn t(a: f64, b: f64) -> f64 { lerp(a, b, 0.5) }\n"
+    )
+    mod = parse_source(src, resolve=True)
+    fnames = {f.name for f in mod.functions}
+    assert "lerp" in fnames and "hypot2" in fnames
+
+
+def test_selective_import_stacking_two_modules() -> None:
+    """Two selective imports merge cleanly when their allowlists
+    are disjoint."""
+    src = (
+        "use stdlib::math::{lerp};\n"
+        "use stdlib::control::{pid};\n"
+        "fn t(e: f64, i: f64, kp: f64, ki: f64) -> f64 {\n"
+        "    pid(e, i, 0.0, kp, ki, 0.0)\n"
+        "}\n"
+    )
+    mod = parse_source(src, resolve=True)
+    fnames = {f.name for f in mod.functions}
+    # `lerp` came in via the first import, `pid` via the second.
+    assert "lerp" in fnames and "pid" in fnames
+    # And NEITHER `sigmoid` (math, not allowlisted) nor `saturate`
+    # (control, not allowlisted) snuck in.
+    assert "sigmoid" not in fnames
+    assert "saturate" not in fnames
+
+
+def test_formatter_round_trips_selective_imports() -> None:
+    """`use stdlib::math::{lerp, hypot2};` round-trips through
+    parse -> format -> parse to the same selective shape."""
+    from tools.fmt import format_source
+    src = (
+        "use stdlib::math::{lerp, hypot2};\n"
+        "fn t() -> f64 { 1.0 }\n"
+    )
+    once = format_source(src)
+    assert "use stdlib::math::{lerp, hypot2};" in once
+    twice = format_source(once)
+    assert once == twice
+
+
+def test_explicitly_imported_function_call_inlines() -> None:
+    """End-to-end: selective import + inliner + cross-target.
+    The optimizer should still inline the imported function's
+    body into the local caller."""
+    from lang.optimizer import optimize_module
+    src = (
+        "use stdlib::math::{lerp};\n"
+        "fn midpoint(a: f64, b: f64) -> f64 { lerp(a, b, 0.5) }\n"
+    )
+    mod = parse_source(src, resolve=True)
+    out = optimize_module(mod)
+    midpoint = next(f for f in out.functions if f.name == "midpoint")
+    # No CALL node remains; lerp's body got inlined.
+    from lang.parser.ast_nodes import NodeKind
+    def has_call(n):
+        if n.kind == NodeKind.CALL:
+            return True
+        return any(has_call(c) for c in n.children)
+    assert not has_call(midpoint.body)

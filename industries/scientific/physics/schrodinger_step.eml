@@ -1,0 +1,53 @@
+// schrodinger_step.eml -- scientific computing vertical:
+// one explicit-Euler step of the 1-D time-dependent Schrödinger
+// equation for a free particle.
+//
+// In atomic units (hbar = 1, m = 1), the Schrödinger equation is
+//
+//   i d/dt psi = -(1/2) d^2/dx^2 psi
+//
+// Discretising with explicit Euler at lattice site x_i:
+//
+//   psi_real_new = psi_real - dt * (1/2) * laplacian(psi_imag)
+//   psi_imag_new = psi_imag + dt * (1/2) * laplacian(psi_real)
+//
+// where laplacian(psi)_i = (psi[i+1] - 2*psi[i] + psi[i-1]) / dx^2.
+//
+// The function below computes one update for the *real* part at
+// site i (the imaginary part is symmetric -- same code with the
+// inputs swapped). Production simulations use Crank-Nicolson; this
+// is the explicit step that gates the unit's verification.
+
+module schrodinger_step;
+
+const DT:        Real = 0.01      // time step (atomic units)
+const DX_SQ_INV: Real = 100.0     // 1 / dx^2 for dx = 0.1
+const HALF_DT:   Real = 0.005     // = DT / 2 -- folded constant
+
+type StableSignal = Real where chain_order <= 0
+
+// Discrete Laplacian at site `i` -- pure linear combination of
+// the three nearest neighbours.
+fn laplacian(psi_left: Real, psi_center: Real, psi_right: Real) -> Real
+    where chain_order <= 0
+{
+    (psi_right - 2.0 * psi_center + psi_left) * DX_SQ_INV
+}
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "schrodinger_step_amplitude_bounded")
+fn psi_real_step(
+    psi_real:        Real,
+    psi_imag_left:   Real,
+    psi_imag_center: Real,
+    psi_imag_right:  Real,
+) -> Real
+    requires (abs(psi_real) < 10.0)
+    requires (abs(psi_imag_left)   < 10.0)
+    requires (abs(psi_imag_center) < 10.0)
+    requires (abs(psi_imag_right)  < 10.0)
+    ensures  (abs(result) < 100.0)
+{
+    let lap = laplacian(psi_imag_left, psi_imag_center, psi_imag_right);
+    psi_real - HALF_DT * lap
+}

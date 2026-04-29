@@ -188,8 +188,16 @@ class EMLImport:
     `path` is the dotted path components in declaration order, e.g.
     ["stdlib", "math"] for `use stdlib::math;`. The loader resolves
     this to a file path via its search-path table.
+
+    `only` is the optional selective-import list:
+      `use stdlib::math;`                 -> only=None    (import all)
+      `use stdlib::math::{lerp, hypot2};` -> only=["lerp", "hypot2"]
+    The resolver uses this to filter merged constants / types /
+    functions; names not in `only` stay in the imported module
+    but don't enter the importing module's namespace.
     """
     path: list[str]
+    only: list[str] | None = None
     line: int = 0
     col: int = 0
 

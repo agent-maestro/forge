@@ -10,7 +10,7 @@ idiomatic in EML-lang.
 | Module | File | Functions | Constants |
 |--------|------|----------:|----------:|
 | `math`     | `math.eml`     | 15 |  4 |
-| `ml`       | `ml.eml`       |  6 |  0 |
+| `ml`       | `ml.eml`       |  7 |  0 |
 | `control`  | `control.eml`  | 12 |  0 |
 | `signal`   | `signal.eml`   | 11 |  3 |
 | `linalg`   | `linalg.eml`   | 13 |  0 |
@@ -47,6 +47,7 @@ without pulling in the rest of the math module.
 | Function | Chain order | Notes |
 |----------|------------:|-------|
 | `sigmoid(x)`                  | 1 | `1 / (1 + exp(-x))` |
+| `sigmoid_alt(x)`              | 2 | `tanh(x/2)/2 + 1/2` -- SuperBEST rewrites to canonical |
 | `softplus(x)`                 | 2 | `ln(1 + exp(x))` |
 | `swish(x)`                    | 1 | `x * sigmoid(x)` |
 | `gelu(x)`                     | 1 | tanh-based BERT/GPT form |
