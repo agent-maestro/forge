@@ -1,11 +1,11 @@
 {
   "name": "monogate-forge-vscode",
   "displayName": "Monogate Forge",
-  "description": "EML-lang syntax highlighting + inline profiling + chain-order diagnostics",
-  "version": "0.1.0",
+  "description": "EML-lang syntax highlighting + inline profiling + chain-order diagnostics + 9-target compile",
+  "version": "0.2.0",
   "publisher": "monogate-research",
   "engines": { "vscode": "^1.85.0" },
-  "categories": ["Programming Languages", "Linters"],
+  "categories": ["Programming Languages", "Linters", "Formatters"],
   "main": "./out/extension.js",
   "activationEvents": [
     "onLanguage:eml"
@@ -29,6 +29,11 @@
         "category": "Monogate Forge"
       },
       {
+        "command": "monogate-forge.compile.pick",
+        "title": "Monogate Forge: Compile to...",
+        "category": "Monogate Forge"
+      },
+      {
         "command": "monogate-forge.compile.c",
         "title": "Monogate Forge: Compile to C",
         "category": "Monogate Forge"
@@ -39,13 +44,38 @@
         "category": "Monogate Forge"
       },
       {
-        "command": "monogate-forge.compile.lean",
-        "title": "Monogate Forge: Compile to Lean",
+        "command": "monogate-forge.compile.python",
+        "title": "Monogate Forge: Compile to Python",
+        "category": "Monogate Forge"
+      },
+      {
+        "command": "monogate-forge.compile.llvm",
+        "title": "Monogate Forge: Compile to LLVM IR",
+        "category": "Monogate Forge"
+      },
+      {
+        "command": "monogate-forge.compile.wasm",
+        "title": "Monogate Forge: Compile to WebAssembly",
         "category": "Monogate Forge"
       },
       {
         "command": "monogate-forge.compile.verilog",
         "title": "Monogate Forge: Compile to Verilog",
+        "category": "Monogate Forge"
+      },
+      {
+        "command": "monogate-forge.compile.vhdl",
+        "title": "Monogate Forge: Compile to VHDL",
+        "category": "Monogate Forge"
+      },
+      {
+        "command": "monogate-forge.compile.chisel",
+        "title": "Monogate Forge: Compile to Chisel",
+        "category": "Monogate Forge"
+      },
+      {
+        "command": "monogate-forge.compile.lean",
+        "title": "Monogate Forge: Compile to Lean",
         "category": "Monogate Forge"
       },
       {
@@ -58,15 +88,42 @@
       "editor/context": [
         {
           "when": "resourceLangId == eml",
-          "command": "monogate-forge.compile.all",
+          "command": "monogate-forge.compile.pick",
           "group": "monogate-forge@1"
         },
         {
           "when": "resourceLangId == eml",
-          "command": "monogate-forge.profile",
+          "command": "monogate-forge.compile.all",
           "group": "monogate-forge@2"
+        },
+        {
+          "when": "resourceLangId == eml",
+          "command": "monogate-forge.profile",
+          "group": "monogate-forge@3"
         }
       ]
+    },
+    "configuration": {
+      "title": "Monogate Forge",
+      "properties": {
+        "eml.compile.python": {
+          "type": "string",
+          "default": "python",
+          "description": "Python interpreter used to invoke tools/cli/main.py."
+        },
+        "eml.fpga.target": {
+          "type": "string",
+          "default": "xilinx.artix7",
+          "enum": [
+            "xilinx.artix7",
+            "lattice.ice40",
+            "lattice.ecp5",
+            "intel.cyclone10",
+            "asic.sky130"
+          ],
+          "description": "FPGA / ASIC target identifier passed to --fpga-target."
+        }
+      }
     }
   },
   "scripts": {

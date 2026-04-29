@@ -7,7 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased] — 2026-04-29 (Phase 2 SHIPPED -- import system + optimizer + 7 verticals)
+## [Unreleased] — 2026-04-29 (Phase 2 + 3 + 4 BATON HANDOFF SHIP)
+
+The pre-Blackwell push that closes every non-GPU-gated deliverable
+across phases 2, 3, and 4. Buildout 45% → 56%; docs 7% → 87%.
+
+### Added
+
+- **5 new live backends** (every target the parser advertises is now
+  wired):
+  - **Python backend** — AST → SymPy → Tool 5 transpile via
+    `eml_cost.transpile.eml_tree_to_python`. 13 tests; matches
+    closed-form sigmoid + arrhenius to 1e-12.
+  - **LLVM IR backend** — portable IR text with externs for every
+    libmonogate transcendental. Module-level constants inline.
+    14 tests; 10/10 demo files emit clean IR.
+  - **WASM backend** — chains through LLVM with `wasm32-unknown-unknown`
+    triple; falls back to IR when no `llc`/`clang` on PATH. 5 tests.
+  - **VHDL backend** — VHDL-2008 port of `VerilogBackend`. 4 tests;
+    11/12 verticals emit; toolchain-neutral.
+  - **Chisel/FIRRTL backend** — Scala source consuming chisel3.
+    snake_case → CamelCase class naming. 4 tests; 11/12 verticals.
+- **4 new FPGA/ASIC target stubs** matching the canonical artix7 shape:
+  - `lattice.ice40` (open toolchain via yosys + nextpnr-ice40)
+  - `lattice.ecp5` (open toolchain via yosys + nextpnr-ecp5)
+  - `intel.cyclone10` (Quartus Prime Lite)
+  - `asic.sky130` (OpenLane / SkyWater 130nm; LUT field
+    reinterpreted as NAND2-equivalent gates)
+  - 15 parametric tests covering canonical-key + cost-table parity.
+- **Cross-backend integration matrix** at
+  `tests/integration/test_backend_matrix.py` — 87 tests covering
+  every demo × every backend × every FPGA vertical for the new
+  hardware backends.
+- **`eml-compile init` subcommand** scaffolds a new project
+  (pyproject.toml + main.eml + .vscode/settings.json + .gitignore).
+  10 tests including subprocess dispatch.
+- **`eml-compile manpage` subcommand** emits roff(7) man page from
+  argparse. Documents all 9 targets + both subcommands.
+  3 tests including subcommand dispatch.
+- **VS Code extension polish** (`tools/ide/vscode/`):
+  - "Compile to..." picker (single command palette entry, 9 targets)
+  - format-on-save via `DocumentFormattingEditProvider`
+  - FPGA status bar item showing aggregate LUT/DSP/cycle counts
+  - Configuration: `eml.compile.python`, `eml.fpga.target` (with
+    enum of all 5 live targets)
+- **JetBrains plugin scaffold** (`tools/ide/jetbrains/`):
+  - File-type registration for `.eml`
+  - Stub lexer + parser + syntax highlighter
+  - "Compile to..." action gated to `.eml` files
+  - Gradle build with `org.jetbrains.intellij` 1.17.0
+- **Documentation depth** (`docs/` 1/15 → 13/15):
+  - `architecture/overview.md` — full pipeline diagram + layer map
+  - `architecture/optimizer_pipeline.md` — 5-pass detail
+  - `architecture/profiler.md` — Pfaffian profiling reference
+  - `api_reference/cli.md` — full CLI surface
+  - `api_reference/backends.md` — module-level backend reference
+  - `api_reference/targets.md` — FPGA/ASIC target table + extension
+  - `industry_guides/{aerospace,automotive,medical,audio,robotics,ml_inference}.md`
+- **CLI dispatch graduates** python/llvm/wasm/vhdl/chisel out of
+  `_PLANNED_TARGETS` -- every target is now live.
+
+### Changed
+
+- `_LIVE_TARGETS` now includes every target the parser accepts;
+  `_PLANNED_TARGETS` is empty.
+- `tools/cli/main.py` recognizes `init` and `manpage` as
+  subcommands (early dispatch before the argparse pass).
+- VS Code extension version bumped 0.1.0 → 0.2.0.
+
+### Blackwell-gated (deferred)
+
+- CUDA-accelerated Verilator simulation (Phase 3.3).
+- Vivado synth + bitstream smoke (vendor toolchain).
+
+---
+
+## [Earlier] — 2026-04-29 morning (Phase 2 import system + optimizer + 7 verticals)
 
 The full marathon push from 2026-04-28 evening through 2026-04-29
 morning. **525+ tests passing**, 24 skipped (Verilator-dependent).

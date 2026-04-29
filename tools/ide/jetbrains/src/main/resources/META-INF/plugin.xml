@@ -1,0 +1,57 @@
+<idea-plugin>
+    <id>research.monogate.forge</id>
+    <name>Monogate Forge</name>
+    <vendor email="hello@monogate.dev" url="https://monogate.dev/forge">
+        Monogate Research
+    </vendor>
+
+    <description><![CDATA[
+        EML-lang support for IntelliJ-platform IDEs.
+        <br/><br/>
+        Surface today:
+        <ul>
+            <li>Syntax highlighting for <code>.eml</code> files</li>
+            <li>Compile-to-target action (Tools menu) shelling out to the
+                <code>eml-compile</code> Python CLI</li>
+            <li>Inspection that flags chain-order violations on save by
+                running <code>eml-compile --profile-only</code> and
+                surfacing parser errors</li>
+        </ul>
+        Inline profile annotations (chain order / cost class on each
+        function header) are planned for a future release once the
+        IntelliJ Platform's CodeVision API matures across all targets.
+    ]]></description>
+
+    <change-notes><![CDATA[
+        <ul>
+            <li><b>0.1.0</b> initial scaffold: syntax + Compile-to action.</li>
+        </ul>
+    ]]></change-notes>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType
+            name="EML File"
+            implementationClass="research.monogate.forge.EmlFileType"
+            fieldName="INSTANCE"
+            language="EML"
+            extensions="eml" />
+        <lang.parserDefinition
+            language="EML"
+            implementationClass="research.monogate.forge.EmlParserDefinition" />
+        <lang.syntaxHighlighterFactory
+            language="EML"
+            implementationClass="research.monogate.forge.EmlSyntaxHighlighterFactory" />
+    </extensions>
+
+    <actions>
+        <action
+            id="MonogateForge.CompileTo"
+            class="research.monogate.forge.actions.CompileToAction"
+            text="Monogate Forge: Compile to..."
+            description="Compile the active .eml file to a Forge target (c / rust / python / llvm / wasm / verilog / vhdl / chisel / lean)">
+            <add-to-group group-id="ToolsMenu" anchor="last" />
+        </action>
+    </actions>
+</idea-plugin>
