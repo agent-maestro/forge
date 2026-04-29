@@ -33,6 +33,11 @@ from tools.equivalence.c_runner import (
     CRunnerError,
     gcc_available,
 )
+from tools.equivalence.lean_runner import (
+    LeanCheckResult,
+    LeanRunner,
+    LeanRunnerError,
+)
 
 
 @dataclass(frozen=True)
@@ -144,6 +149,8 @@ def cross_target_check(
         results["c"] = _run_c(
             mod, function_name, vectors, ref_outputs, optimize=optimize,
         )
+    if "lean" in targets:
+        results["lean"] = _run_lean(mod, function_name)
 
     overall_match = all(
         (not r.available) or (r.error == "" and r.max_abs_err <= tolerance)
@@ -202,6 +209,34 @@ def _run_c(
     except CRunnerError as e:
         return TargetResult(target="c", available=True, error=str(e))
     return _compare_outputs("c", outputs, reference)
+
+
+def _run_lean(mod: EMLModule, name: str) -> TargetResult:
+    """Run the Lean structural / build check. The result becomes
+    a TargetResult so it slots into EquivalenceReport just like
+    the numeric backends -- but `outputs` stays empty (Lean's
+    "output" is a passing type-check, not a numeric value)."""
+    runner = LeanRunner(mod)
+    check = runner.check(name)
+    if not check.available:
+        # No @verify(lean) annotation -> nothing to check, but
+        # not an error either. Mark as unavailable.
+        return TargetResult(target="lean", available=False)
+    if check.error:
+        return TargetResult(
+            target="lean", available=True, error=check.error,
+        )
+    if not check.structural_ok:
+        return TargetResult(
+            target="lean", available=True,
+            error="structural: " + "; ".join(check.structural_findings),
+        )
+    if check.full_build_attempted and not check.full_build_ok:
+        return TargetResult(
+            target="lean", available=True,
+            error=check.error or "lake build failed",
+        )
+    return TargetResult(target="lean", available=True)
 
 
 def _compare_outputs(

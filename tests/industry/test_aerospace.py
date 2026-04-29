@@ -48,15 +48,18 @@ def test_autopilot_source_exists():
 
 def test_autopilot_parses_and_profiles(autopilot_module):
     """The autopilot module must parse cleanly and produce a
-    populated profile for every function."""
+    populated profile for every LOCAL function. (Since the
+    2026-04 stdlib refactor the module also imports
+    `stdlib::control` -- filter to imported_from=None to compare
+    just the locally-defined functions.)"""
     mod = autopilot_module
     assert mod.name == "autopilot"
-    assert len(mod.functions) == 3
-    fn_names = {f.name for f in mod.functions}
-    assert fn_names == {
+    local = [f for f in mod.functions if f.imported_from is None]
+    local_names = {f.name for f in local}
+    assert local_names == {
         "gravity_compensation", "rate_controller", "autopilot_step",
     }
-    for fn in mod.functions:
+    for fn in local:
         assert fn.profile is not None
         assert fn.profile.get("status") == "ok"
 
@@ -113,12 +116,22 @@ def test_compiles_to_lean(autopilot_module):
     assert "(autopilot_step pitch_setpoint pitch_measured pitch_integral)" in src
 
 
-def test_compiles_to_verilog(autopilot_module):
+def test_compiles_to_verilog_unoptimized(autopilot_module):
+    """With the inliner OFF, the inner rate_controller call
+    materialises as a separate sub-pipeline."""
+    plan = FPGAAllocator().allocate(autopilot_module)
+    raw = VerilogBackend(optimize=False)
+    src = raw.compile(autopilot_module, plan)
+    assert "module autopilot_step_pipeline" in src
+    assert "rate_controller_pipeline" in src
+
+
+def test_compiles_to_verilog_optimized(autopilot_module):
+    """With the optimizer ON (default), rate_controller gets
+    inlined; the actuator clamp emerges as the standard ternary."""
     plan = FPGAAllocator().allocate(autopilot_module)
     src = VerilogBackend().compile(autopilot_module, plan)
     assert "module autopilot_step_pipeline" in src
-    # Sub-instance for the inner controller call
-    assert "rate_controller_pipeline" in src
     # Clamp lowered to the standard ternary chain on the actuator
     # output -- the actuator-limit safety gate.
     assert "ELEVATOR_MIN" in src and "ELEVATOR_MAX" in src

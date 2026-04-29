@@ -28,7 +28,11 @@ from copy import deepcopy
 from lang.optimizer.constant_folding import fold_constants, fold_in_place
 from lang.optimizer.cse import apply_cse, apply_cse_module
 from lang.optimizer.inliner import inline_calls
-from lang.optimizer.superbest import route_superbest
+from lang.optimizer.superbest import (
+    route_superbest,
+    superbest_function,
+    superbest_module,
+)
 from lang.optimizer.tree_shaker import shake_imports
 from lang.parser.ast_nodes import EMLFunction, EMLModule, NodeKind
 
@@ -76,8 +80,11 @@ def optimize_module(mod: EMLModule) -> EMLModule:
     """
     # Pass 0: module-level inliner.
     out = inline_calls(mod)
-    # Passes 1 -> 3: per-function.
+    # Passes 1 -> 2: per-function (constant_folding + CSE).
     out.functions = [optimize_function(fn) for fn in out.functions]
+    # Pass 3: module-level SuperBEST routing -- needs SymPy
+    # bridge access so it lives outside optimize_function.
+    out = superbest_module(out)
     # Pass 4: drop unused imports (after inlining so reachable set
     # reflects the post-inline call graph).
     out = shake_imports(out)

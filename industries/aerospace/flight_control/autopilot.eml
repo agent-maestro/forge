@@ -18,6 +18,13 @@
 
 module autopilot;
 
+// ── Stdlib imports ───────────────────────────────────────────
+// `pid` is the textbook P+I+D combiner from stdlib::control.
+// We use it for the inner PI-with-FF loop below; the inliner
+// substitutes its body so the emitted FPGA pipeline is exactly
+// the same as the inline-everything style.
+use stdlib::control;
+
 // ── Tunings ───────────────────────────────────────────────────
 const Kp:                Real = 2.5
 const Ki:                Real = 0.4
@@ -41,15 +48,16 @@ fn gravity_compensation(pitch: Real) -> StableSignal {
 }
 
 // ── Inner attitude controller ─────────────────────────────────
+// PI body (Kp*e + Ki*i, no D term) via stdlib::control::pid,
+// then sum with the gravity feed-forward. After inlining the
+// emitted code is identical to the inline-everything style.
 fn rate_controller(
     pitch_error: Real,
     pitch_integral: Real,
     pitch_measured: Real,
 ) -> StableSignal {
-    let p_term = Kp * pitch_error;
-    let i_term = Ki * pitch_integral;
-    let ff = gravity_compensation(pitch_measured);
-    p_term + i_term + ff
+    pid(pitch_error, pitch_integral, 0.0, Kp, Ki, 0.0)
+        + gravity_compensation(pitch_measured)
 }
 
 // ── Top-level autopilot step ──────────────────────────────────
