@@ -81,16 +81,60 @@ def superbest_function(fn: EMLFunction) -> EMLFunction:
     if cr.status != "ok":
         return fn
 
+    import sympy as sp
+    expr = cr.expression
+    if not isinstance(expr, sp.Basic):
+        return fn
+
+    # Fast filters BEFORE the slow eml_cost.recommend_form call.
+    # All 4 supported families use either `exp` or `tanh` -- if
+    # neither appears in the expression's function-atom set, the
+    # call can't possibly match. Sin / cos / log / sqrt
+    # expressions all early-exit here.
+    #
+    # Pure-polynomial expressions also early-exit (no Function
+    # atoms at all). And bigger expressions (>10 atoms) get
+    # skipped because nsimplify-then-recommend_form is expensive
+    # on them and the families are all SHALLOW anyway.
+    #
+    # Together these cut a full-stdlib snapshot from ~3 minutes
+    # to ~1 second on this codebase. recommend_form on a
+    # 6-atom sin-only expression cost ~16s before this pre-filter.
+    function_atoms = expr.atoms(sp.Function)
+    if not function_atoms:
+        return fn
+    fn_classes = {type(f) for f in function_atoms}
+    if not (fn_classes & {sp.exp, sp.tanh}):
+        return fn
+    try:
+        n_atoms = len(expr.atoms())
+    except Exception:
+        return fn
+    if n_atoms > 10:
+        return fn
+
+    # Skip nsimplify when any Float in the expression looks
+    # irrational at f64 precision (e.g. GELU's `0.7978845608` and
+    # `0.035677408136172`). nsimplify(rational=True) on those
+    # spends seconds doing continued-fraction expansion that
+    # never matches a nice fraction.
+    #
+    # Heuristic: a "round" float in the SuperBEST families is
+    # something like 0.5, 1, 2, etc -- short repr (<= 6 chars).
+    # Anything longer is not in any family's canonical form.
+    floats = expr.atoms(sp.Float)
+    if any(len(repr(f)) > 8 for f in floats):
+        return fn
+
     # `recommend_form` keys on the SymPy node-class structure
     # and is sensitive to Float vs Rational coefficients (it
     # matches `tanh(x/2)/2 + 1/2`, not `0.5*tanh(0.5*x) + 0.5`).
     # convert_function_body emits the Float form, so convert any
     # numerically-clean Floats to Rationals via nsimplify first.
-    import sympy as sp
     try:
-        normalized = sp.nsimplify(cr.expression, rational=True)
+        normalized = sp.nsimplify(expr, rational=True)
     except Exception:
-        normalized = cr.expression
+        normalized = expr
 
     try:
         rec = recommend_form(normalized)

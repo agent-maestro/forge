@@ -114,6 +114,9 @@ class FPGAAllocator:
     # else shared (time-multiplexed). Tunable per-target later.
     _SHARING_THRESHOLD = 2
 
+    def __init__(self, *, optimize: bool = True) -> None:
+        self.optimize = optimize
+
     def allocate(
         self,
         mod: EMLModule,
@@ -122,7 +125,17 @@ class FPGAAllocator:
         """Return a plan covering every `@target(fpga)` function
         in the module. constraints overrides the chosen target's
         defaults (clock_mhz, max_luts, max_dsps, max_brams,
-        precision)."""
+        precision).
+
+        When `optimize=True` (default), the input module is run
+        through the optimizer first -- otherwise the allocator
+        sees user-CALL nodes for any helper that would have been
+        inlined, and miscounts transcendentals (e.g. 4 sins
+        hidden behind a `partial(...)` helper get reported as 0
+        sin units instead of 4)."""
+        if self.optimize:
+            from lang.optimizer import optimize_module
+            mod = optimize_module(mod)
         constraints = constraints or {}
 
         target = self._resolve_target(constraints)

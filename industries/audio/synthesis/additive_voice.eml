@@ -1,0 +1,62 @@
+// additive_voice.eml -- audio synthesis vertical that exercises
+// Patent #14 (FPGA resource allocator).
+//
+// Real-time additive synthesizer: one voice = sum of 4 harmonic
+// partials with an exponential envelope. The interesting bit is
+// that the same .eml source uses FIVE transcendentals at four
+// distinct call sites (4x sin + 1x exp), all under one
+// @target(fpga) function. The allocator's sharing-vs-dedicated
+// decision lights up here:
+//
+//   - sin units: 4 occurrences -> over the SHARING_THRESHOLD (2),
+//     so the allocator picks `shared` (time-multiplexed) sin
+//   - exp units: 1 occurrence  -> dedicated
+//
+// Test verifies the allocator's plan reflects this. With more
+// partials added, the same vertical demonstrates how the
+// allocator's footprint stays bounded by sharing -- the patent's
+// headline claim.
+
+module additive_voice;
+
+const PI:           Real = 3.141592653589793
+const TWO_PI:       Real = 6.283185307179586
+const ATTACK_RATE:  Real = 5.0      // 1/s -- fast attack
+const PARTIAL_2:    Real = 0.5      // 2nd harmonic gain
+const PARTIAL_3:    Real = 0.333    // 3rd harmonic gain
+const PARTIAL_4:    Real = 0.25     // 4th harmonic gain
+
+type StableSignal = Real where chain_order <= 2
+
+// Single sine partial at the n-th harmonic.
+fn partial(t: Real, freq: Real, n_harmonic: Real) -> StableSignal {
+    sin(TWO_PI * freq * n_harmonic * t)
+}
+
+// Exponential attack envelope: 0 at t=0, asymptote 1.
+fn envelope(t: Real) -> StableSignal
+    where chain_order <= 1
+{
+    1.0 - exp(-ATTACK_RATE * t)
+}
+
+// One voice sample at time `t` for fundamental frequency `freq`.
+// Sum of 4 partials, modulated by the envelope. Five
+// transcendentals total (4 sin + 1 exp); the FPGA allocator
+// decides which share their hardware unit.
+@target(fpga, clock_mhz = 96, precision = float32)
+@verify(lean, theorem = "additive_voice_amplitude_bounded")
+fn voice_sample(t: Real, freq: Real) -> Real
+    requires (t >= 0.0)
+    requires (t < 1.0e6)
+    requires (freq > 0.0)
+    requires (freq < 22050.0)            // Nyquist for 44.1 kHz audio
+    ensures  (abs(result) < 4.0)         // sum of |partials| bound
+{
+    let p1 = partial(t, freq, 1.0);
+    let p2 = PARTIAL_2 * partial(t, freq, 2.0);
+    let p3 = PARTIAL_3 * partial(t, freq, 3.0);
+    let p4 = PARTIAL_4 * partial(t, freq, 4.0);
+    let env = envelope(t);
+    env * (p1 + p2 + p3 + p4)
+}

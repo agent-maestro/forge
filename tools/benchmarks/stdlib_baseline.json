@@ -1,0 +1,408 @@
+{
+  "control::complementary": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "control::dead_zone": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "control::hpf1": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "control::kalman1d_predict": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "control::kalman1d_update": {
+    "chain_order": 0,
+    "fpga_cycles": 18,
+    "mac_units": 9,
+    "node_count": 24,
+    "trig_units": 0
+  },
+  "control::lpf1": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "control::pid": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "control::pid_anti_windup": {
+    "chain_order": 0,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 24,
+    "trig_units": 0
+  },
+  "control::pid_integrate": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "control::rate_limit": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "control::saturate": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "control::slew": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "linalg::mat3_det": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 30,
+    "trig_units": 0
+  },
+  "linalg::mat3_trace": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "linalg::mat3_vec3": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 35,
+    "trig_units": 0
+  },
+  "linalg::quat_conj": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "linalg::quat_mul": {
+    "chain_order": 0,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 62,
+    "trig_units": 0
+  },
+  "linalg::quat_norm_sq": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "linalg::quat_normalize": {
+    "chain_order": 1,
+    "fpga_cycles": 32,
+    "mac_units": 16,
+    "node_count": 35,
+    "trig_units": 0
+  },
+  "linalg::vec3_cross": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 23,
+    "trig_units": 0
+  },
+  "linalg::vec3_dot": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "linalg::vec3_norm": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 13,
+    "trig_units": 0
+  },
+  "linalg::vec3_norm_sq": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "linalg::vec3_normalize": {
+    "chain_order": 1,
+    "fpga_cycles": 24,
+    "mac_units": 12,
+    "node_count": 28,
+    "trig_units": 0
+  },
+  "linalg::vec3_scale": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "math::atan2_pos_x": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 5,
+    "trig_units": 1
+  },
+  "math::cube": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "math::degrees": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "math::exp10": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 5,
+    "trig_units": 0
+  },
+  "math::exp2": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 5,
+    "trig_units": 0
+  },
+  "math::hypot2": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "math::hypot3": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 13,
+    "trig_units": 0
+  },
+  "math::lerp": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "math::log10": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 5,
+    "trig_units": 0
+  },
+  "math::log2": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 5,
+    "trig_units": 0
+  },
+  "math::log_b": {
+    "chain_order": 2,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "math::radians": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "math::sign01": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 5,
+    "trig_units": 0
+  },
+  "math::smoothstep": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "math::sq": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "ml::gelu": {
+    "chain_order": 1,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 19,
+    "trig_units": 0
+  },
+  "ml::leaky_relu": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "ml::relu": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 5,
+    "trig_units": 0
+  },
+  "ml::sigmoid": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "ml::sigmoid_alt": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "ml::softplus": {
+    "chain_order": 2,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "ml::swish": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "signal::biquad_state_update": {
+    "chain_order": 0,
+    "fpga_cycles": 0,
+    "mac_units": 0,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "signal::biquad_step": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 20,
+    "trig_units": 0
+  },
+  "signal::box_muller": {
+    "chain_order": 4,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 11,
+    "trig_units": 1
+  },
+  "signal::box_muller_pair": {
+    "chain_order": 4,
+    "fpga_cycles": 20,
+    "mac_units": 10,
+    "node_count": 20,
+    "trig_units": 0
+  },
+  "signal::db_to_linear": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "signal::fir3": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "signal::fir5": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 20,
+    "trig_units": 0
+  },
+  "signal::linear_to_db": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "signal::wave_cosine": {
+    "chain_order": 2,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 11,
+    "trig_units": 1
+  },
+  "signal::wave_sine": {
+    "chain_order": 2,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 11,
+    "trig_units": 1
+  },
+  "signal::wave_triangle": {
+    "chain_order": 6,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 33,
+    "trig_units": 3
+  }
+}

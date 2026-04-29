@@ -1,4 +1,25 @@
 {
+  "additive_voice::envelope": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "additive_voice::partial": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 9,
+    "trig_units": 1
+  },
+  "additive_voice::voice_sample": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 54,
+    "trig_units": 0
+  },
   "arm_6dof::arm_endpoint_x": {
     "chain_order": 4,
     "fpga_cycles": 12,

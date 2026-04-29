@@ -195,9 +195,16 @@ class EMLImport:
     The resolver uses this to filter merged constants / types /
     functions; names not in `only` stay in the imported module
     but don't enter the importing module's namespace.
+
+    `aliases` maps original-name -> aliased-name for the
+    `name as alias` form:
+      `use stdlib::math::{lerp as interp, hypot2};`
+        -> only=["lerp", "hypot2"], aliases={"lerp": "interp"}
+    Names without an alias keep their original spelling.
     """
     path: list[str]
     only: list[str] | None = None
+    aliases: dict[str, str] | None = None
     line: int = 0
     col: int = 0
 

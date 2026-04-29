@@ -516,3 +516,109 @@ def test_explicitly_imported_function_call_inlines() -> None:
             return True
         return any(has_call(c) for c in n.children)
     assert not has_call(midpoint.body)
+
+
+# ── 11. `as alias` renames at import time ────────────────────
+
+
+def test_alias_renames_imported_function() -> None:
+    """`use stdlib::math::{lerp as interp};` brings in `lerp`'s
+    body under the local name `interp`. The original `lerp`
+    name is NOT in scope."""
+    src = (
+        "use stdlib::math::{lerp as interp};\n"
+        "fn midpoint(a: f64, b: f64) -> f64 { interp(a, b, 0.5) }\n"
+    )
+    mod = parse_source(src, resolve=True)
+    fnames = {f.name for f in mod.functions}
+    assert "interp" in fnames
+    assert "lerp" not in fnames
+    assert "midpoint" in fnames
+
+
+def test_alias_mixed_with_unaliased_in_same_block() -> None:
+    """`{lerp as interp, hypot2}` brings in lerp under `interp`
+    and hypot2 under its original name."""
+    src = (
+        "use stdlib::math::{lerp as interp, hypot2};\n"
+        "fn t() -> f64 { 1.0 }\n"
+    )
+    mod = parse_source(src, resolve=True)
+    fnames = {f.name for f in mod.functions}
+    assert "interp" in fnames
+    assert "hypot2" in fnames
+    assert "lerp" not in fnames
+
+
+def test_alias_renames_imported_constant() -> None:
+    """Aliasing works on constants too: LN2 imported as L2."""
+    src = (
+        "use stdlib::math::{LN2 as L2};\n"
+        "fn t() -> f64 { L2 }\n"
+    )
+    mod = parse_source(src, resolve=True)
+    cnames = {c.name for c in mod.constants}
+    assert "L2" in cnames
+    assert "LN2" not in cnames
+
+
+def test_alias_clash_with_local_errors() -> None:
+    """If the alias collides with a local function name, that's
+    a clash -- the loader rejects it explicitly so the author
+    sees the conflict."""
+    src = (
+        "use stdlib::math::{lerp as midpoint};\n"
+        "fn midpoint(a: f64, b: f64) -> f64 { a + b }\n"
+    )
+    with pytest.raises(LoaderError, match="already defines"):
+        parse_source(src, resolve=True)
+
+
+def test_two_aliases_same_underlying_name_in_different_imports() -> None:
+    """Two different files importing `lerp` under different
+    aliases is fine -- each importing module sees its own
+    chosen local name."""
+    src_a = (
+        "use stdlib::math::{lerp as a_interp};\n"
+        "fn a_use() -> f64 { a_interp(0.0, 1.0, 0.5) }\n"
+    )
+    src_b = (
+        "use stdlib::math::{lerp as b_interp};\n"
+        "fn b_use() -> f64 { b_interp(0.0, 1.0, 0.5) }\n"
+    )
+    a_mod = parse_source(src_a, resolve=True)
+    b_mod = parse_source(src_b, resolve=True)
+    assert {"a_use", "a_interp"} <= {f.name for f in a_mod.functions}
+    assert {"b_use", "b_interp"} <= {f.name for f in b_mod.functions}
+
+
+def test_formatter_round_trips_aliases() -> None:
+    from tools.fmt import format_source
+    src = (
+        "use stdlib::math::{lerp as interp, hypot2};\n"
+        "fn t() -> f64 { 1.0 }\n"
+    )
+    once = format_source(src)
+    assert "use stdlib::math::{lerp as interp, hypot2};" in once
+    twice = format_source(once)
+    assert once == twice
+
+
+def test_aliased_call_inlines_via_optimizer() -> None:
+    """The inliner respects the aliased name -- a CALL to
+    `interp(...)` resolves to the aliased function and gets
+    inlined just like a non-aliased import."""
+    from lang.optimizer import optimize_module
+    from lang.parser.ast_nodes import NodeKind
+    src = (
+        "use stdlib::math::{lerp as interp};\n"
+        "fn midpoint(a: f64, b: f64) -> f64 { interp(a, b, 0.5) }\n"
+    )
+    mod = parse_source(src, resolve=True)
+    out = optimize_module(mod)
+    midpoint = next(f for f in out.functions if f.name == "midpoint")
+    def has_call(n):
+        if n.kind == NodeKind.CALL:
+            return True
+        return any(has_call(c) for c in n.children)
+    assert not has_call(midpoint.body)

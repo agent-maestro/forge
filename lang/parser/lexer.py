@@ -18,7 +18,7 @@ from dataclasses import dataclass
 # Keyword classification. Anything not in this set that matches the
 # identifier regex is emitted as an IDENT token.
 KEYWORDS: frozenset[str] = frozenset({
-    "module", "import", "use",
+    "module", "import", "use", "as",
     "const", "type", "fn", "let", "mut", "while", "where",
     "domain", "precision", "chain_order", "requires", "ensures",
     "return", "if", "else",
