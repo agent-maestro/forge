@@ -2,10 +2,14 @@
   "name": "monogate-forge-vscode",
   "displayName": "Monogate Forge",
   "description": "EML-lang syntax highlighting + inline profiling + chain-order diagnostics",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "monogate-research",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Programming Languages", "Linters"],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:eml"
+  ],
   "contributes": {
     "languages": [{
       "id": "eml",
@@ -17,7 +21,53 @@
       "language": "eml",
       "scopeName": "source.eml",
       "path": "./syntaxes/eml.tmLanguage.json"
-    }]
+    }],
+    "commands": [
+      {
+        "command": "monogate-forge.profile",
+        "title": "Monogate Forge: Refresh profile lenses",
+        "category": "Monogate Forge"
+      },
+      {
+        "command": "monogate-forge.compile.c",
+        "title": "Monogate Forge: Compile to C",
+        "category": "Monogate Forge"
+      },
+      {
+        "command": "monogate-forge.compile.rust",
+        "title": "Monogate Forge: Compile to Rust",
+        "category": "Monogate Forge"
+      },
+      {
+        "command": "monogate-forge.compile.lean",
+        "title": "Monogate Forge: Compile to Lean",
+        "category": "Monogate Forge"
+      },
+      {
+        "command": "monogate-forge.compile.verilog",
+        "title": "Monogate Forge: Compile to Verilog",
+        "category": "Monogate Forge"
+      },
+      {
+        "command": "monogate-forge.compile.all",
+        "title": "Monogate Forge: Compile to all targets",
+        "category": "Monogate Forge"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "when": "resourceLangId == eml",
+          "command": "monogate-forge.compile.all",
+          "group": "monogate-forge@1"
+        },
+        {
+          "when": "resourceLangId == eml",
+          "command": "monogate-forge.profile",
+          "group": "monogate-forge@2"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "tsc -p ./",
