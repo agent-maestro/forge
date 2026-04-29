@@ -87,6 +87,7 @@ def cross_target_check(
     *,
     tolerance: float = 1e-9,
     targets: tuple[str, ...] = ("python", "rust", "c"),
+    optimize: bool = True,
 ) -> EquivalenceReport:
     """Run `function_name` from the .eml at `eml_path` through every
     requested backend and report agreement with the Python reference."""
@@ -125,9 +126,13 @@ def cross_target_check(
     }
 
     if "rust" in targets:
-        results["rust"] = _run_rust(mod, function_name, vectors, ref_outputs)
+        results["rust"] = _run_rust(
+            mod, function_name, vectors, ref_outputs, optimize=optimize,
+        )
     if "c" in targets:
-        results["c"] = _run_c(mod, function_name, vectors, ref_outputs)
+        results["c"] = _run_c(
+            mod, function_name, vectors, ref_outputs, optimize=optimize,
+        )
 
     overall_match = all(
         (not r.available) or (r.error == "" and r.max_abs_err <= tolerance)
@@ -158,11 +163,13 @@ def _run_rust(
     mod: EMLModule, name: str,
     vectors: list[tuple[float, ...]],
     reference: list,
+    *,
+    optimize: bool = True,
 ) -> TargetResult:
     if not cargo_available():
         return TargetResult(target="rust", available=False)
     try:
-        with RustRunner(mod) as runner:
+        with RustRunner(mod, optimize=optimize) as runner:
             outputs = runner.call(name, vectors)
     except RustRunnerError as e:
         return TargetResult(target="rust", available=True, error=str(e))
@@ -173,11 +180,13 @@ def _run_c(
     mod: EMLModule, name: str,
     vectors: list[tuple[float, ...]],
     reference: list,
+    *,
+    optimize: bool = True,
 ) -> TargetResult:
     if not gcc_available():
         return TargetResult(target="c", available=False)
     try:
-        with CRunner(mod) as runner:
+        with CRunner(mod, optimize=optimize) as runner:
             outputs = runner.call(name, vectors)
     except CRunnerError as e:
         return TargetResult(target="c", available=True, error=str(e))

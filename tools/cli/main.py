@@ -134,6 +134,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check", action="store_true",
                         help="When used with --fmt, exit 1 if the file "
                              "is not in canonical form (CI gate).")
+    parser.add_argument("--no-optimize", action="store_true",
+                        help="Disable the optimizer pass sequence "
+                             "(constant folding + CSE + SuperBEST). "
+                             "Useful when comparing optimized vs "
+                             "unoptimized output.")
     parser.add_argument("--version", action="version",
                         version="eml-compile 0.1.0 (Phase 1 + 2.1)")
     args = parser.parse_args(argv)
@@ -222,20 +227,20 @@ def main(argv: list[str] | None = None) -> int:
         # C
         from software.backends.c_backend import CBackend
         c_path = out_dir / f"{stem}.c"
-        c_src = CBackend().compile(mod)
+        c_src = CBackend(optimize=not args.no_optimize).compile(mod)
         c_path.write_text(c_src, encoding="utf-8")
         results.append(("c", c_path, len(c_src)))
 
         # Rust
         from software.backends.rust_backend import RustBackend
         rs_path = out_dir / f"{stem}.rs"
-        rs_src = RustBackend().compile(mod)
+        rs_src = RustBackend(optimize=not args.no_optimize).compile(mod)
         rs_path.write_text(rs_src, encoding="utf-8")
         results.append(("rust", rs_path, len(rs_src)))
 
         # Lean (only if any @verify(lean) blocks)
         from software.verification.lean.LeanBackend import LeanBackend
-        lean_src = LeanBackend().compile_module(mod)
+        lean_src = LeanBackend(optimize=not args.no_optimize).compile_module(mod)
         if lean_src:
             lean_path = out_dir / f"{stem}.lean"
             lean_path.write_text(lean_src, encoding="utf-8")
@@ -248,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
             plan = FPGAAllocator().allocate(
                 mod, constraints={"target": args.fpga_target},
             )
-            v_src = VerilogBackend().compile(mod, plan)
+            v_src = VerilogBackend(optimize=not args.no_optimize).compile(mod, plan)
             v_path = out_dir / f"{stem}.v"
             v_path.write_text(v_src, encoding="utf-8")
             results.append(("verilog", v_path, len(v_src)))
@@ -268,7 +273,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.target == "c":
         from software.backends.c_backend import CBackend, CompileError
         try:
-            c_source = CBackend().compile(mod)
+            c_source = CBackend(optimize=not args.no_optimize).compile(mod)
         except CompileError as e:
             print(f"compile error (c backend): {e}", file=sys.stderr)
             return 1
@@ -287,7 +292,7 @@ def main(argv: list[str] | None = None) -> int:
             CompileError as RustCompileError,
         )
         try:
-            rust_source = RustBackend().compile(mod)
+            rust_source = RustBackend(optimize=not args.no_optimize).compile(mod)
         except RustCompileError as e:
             print(f"compile error (rust backend): {e}", file=sys.stderr)
             return 1
@@ -312,7 +317,7 @@ def main(argv: list[str] | None = None) -> int:
             plan = FPGAAllocator().allocate(
                 mod, constraints={"target": args.fpga_target},
             )
-            verilog_source = VerilogBackend().compile(mod, plan)
+            verilog_source = VerilogBackend(optimize=not args.no_optimize).compile(mod, plan)
         except (AllocErr, VerilogErr) as e:
             print(f"compile error (verilog backend): {e}",
                   file=sys.stderr)
@@ -329,7 +334,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.target == "lean":
         from software.verification.lean.LeanBackend import LeanBackend
-        lean_source = LeanBackend().compile_module(mod)
+        lean_source = LeanBackend(optimize=not args.no_optimize).compile_module(mod)
         if not lean_source:
             print(f"lean backend: no `@verify(lean, ...)` blocks "
                   f"found in {args.source} -- nothing to emit",
