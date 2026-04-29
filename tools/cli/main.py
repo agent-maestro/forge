@@ -124,6 +124,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fpga-target", default="xilinx.artix7",
                         help="FPGA target (e.g. xilinx.artix7). "
                              "Default: xilinx.artix7.")
+    parser.add_argument("--fmt", action="store_true",
+                        help="Print canonically-formatted source to "
+                             "stdout (eml-fmt). Use with --write to "
+                             "rewrite the file in place.")
+    parser.add_argument("--write", action="store_true",
+                        help="When used with --fmt, rewrite the source "
+                             "file in place if formatting changed it.")
+    parser.add_argument("--check", action="store_true",
+                        help="When used with --fmt, exit 1 if the file "
+                             "is not in canonical form (CI gate).")
     parser.add_argument("--version", action="version",
                         version="eml-compile 0.1.0 (Phase 1 + 2.1)")
     args = parser.parse_args(argv)
@@ -136,6 +146,31 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: source file not found: {args.source}",
               file=sys.stderr)
         return 1
+
+    # ── --fmt -> canonical formatter (no profile needed) ──────
+    if args.fmt:
+        from tools.fmt import format_file
+        original = args.source.read_text(encoding="utf-8")
+        try:
+            formatted = format_file(args.source)
+        except Exception as e:
+            print(f"format error: {e}", file=sys.stderr)
+            return 1
+        if args.check:
+            if original != formatted:
+                print(
+                    f"error: {args.source} is not formatted "
+                    f"(run with --fmt --write to fix)",
+                    file=sys.stderr,
+                )
+                return 1
+            return 0
+        if args.write:
+            if original != formatted:
+                args.source.write_text(formatted, encoding="utf-8")
+            return 0
+        sys.stdout.write(formatted)
+        return 0
 
     # ── Parse + profile (live for any input) ──────────────────
     try:

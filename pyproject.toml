@@ -31,12 +31,24 @@ eml-compile = "tools.cli.main:main"
 packages = [
     "lang", "lang.parser", "lang.profiler", "lang.optimizer",
     "software", "software.backends", "software.verification",
-    "hardware", "hardware.allocator", "hardware.hdl_gen", "hardware.simulation",
-    "tools", "tools.cli", "tools.audit",
+    "hardware", "hardware.allocator", "hardware.hdl_gen",
+    "hardware.simulation", "hardware.modules",
+    "tools", "tools.cli", "tools.audit", "tools.equivalence",
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+# Tests live in:
+#   - tests/             : top-level integration + stdlib + equivalence + industry
+#   - lang/**/tests/     : per-package unit tests (parser, profiler)
+#   - software/**/tests/ : backend tests
+#   - hardware/**/tests/ : hardware module + simulation tests
+testpaths = [
+    "tests",
+    "lang",
+    "software",
+    "hardware",
+    "tools",
+]
 python_files = ["test_*.py"]
 
 [tool.ruff]
