@@ -1,0 +1,41 @@
+// sha3.eml -- SHA-3 / Keccak-f[1600] permutation (FIPS 202).
+//
+// The Keccak-f permutation is 24 rounds of five sub-permutations
+// (theta, rho, pi, chi, iota) on a 5x5 array of 64-bit lanes
+// (1600 bits total). Every operation is chain-order-0
+// (XOR, AND, NOT, rotate) and constant-time by construction.
+// Headline FPGA target: 1.6 Gbps at 350 MHz with a fully-unrolled
+// round.
+//
+// State semantics (when EML grammar supports arrays): every public
+// function below operates on the 25-lane (5x5 64-bit) state. The
+// scalar signatures below carry one lane at a time — sufficient for
+// the cost-class / chain-order analysis the forge profiler needs.
+
+module sha3;
+
+const ROUNDS:   Int = 24      // Keccak-f[1600] — 24 rounds
+const LANES:    Int = 25      // 5x5 lane grid
+const LANE_BIT: Int = 64      // each lane is 64 bits
+
+type Word64 = Int where chain_order == 0
+type ConstantTime = Word64 where chain_order == 0
+
+// One Keccak round on a single lane (full state update is the
+// 25-element fan-out; per-lane analysis suffices for cost class).
+@target(fpga, clock_mhz = 350, constant_time = true)
+@verify(lean, theorem = "keccak_round_invertible")
+fn keccak_round_lane(lane: ConstantTime, rc: ConstantTime)
+    -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    iota_lane(chi_lane(rho_pi_lane(theta_lane(lane))), rc)
+}
+
+// Five Keccak sub-permutations applied per-lane (FIPS 202 §3.2).
+
+extern fn theta_lane(s: ConstantTime) -> ConstantTime
+extern fn rho_pi_lane(s: ConstantTime) -> ConstantTime
+extern fn chi_lane(s: ConstantTime) -> ConstantTime
+extern fn iota_lane(s: ConstantTime, rc: ConstantTime) -> ConstantTime

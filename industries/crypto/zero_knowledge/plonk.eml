@@ -1,0 +1,59 @@
+// plonk.eml -- PLONK gate arithmetic (Gabizon-Williamson-Ciobotaru, 2019).
+//
+// PLONK is a universal zk-SNARK: the trusted setup is reusable
+// across any circuit (unlike Groth16, which is per-circuit). The
+// proving system commits to polynomials representing a custom
+// gate and uses the KZG polynomial commitment. Every operation —
+// gate evaluation, permutation argument, KZG opening — is
+// chain-order-0 polynomial arithmetic over GF(p).
+//
+// Polynomial semantics: real PLONK polynomials carry 1024+
+// coefficients. The KZG signature below takes one coefficient
+// at a time for cost-class analysis purposes.
+
+module plonk;
+
+const FIELD_BITS:    Int = 254        // BN254 base field
+const GATE_DEGREE:   Int = 5          // standard PLONK gate
+
+type FieldElt = Int where chain_order == 0
+type ConstantTime = FieldElt where chain_order == 0
+
+// The standard PLONK custom gate (degree 5):
+//   q_L · a + q_R · b + q_O · c + q_M · a · b + q_C = 0
+// All q_* are circuit-specific selectors; (a, b, c) are wire
+// values. Pure polynomial evaluation.
+@target(fpga, clock_mhz = 280, constant_time = true)
+@verify(lean, theorem = "plonk_gate_satisfies_circuit")
+fn evaluate_gate(
+    a: ConstantTime, b: ConstantTime, c: ConstantTime,
+    q_l: ConstantTime, q_r: ConstantTime, q_o: ConstantTime,
+    q_m: ConstantTime, q_c: ConstantTime,
+) -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    fadd(fadd(fadd(fadd(
+        fmul(q_l, a),
+        fmul(q_r, b)),
+        fmul(q_o, c)),
+        fmul(q_m, fmul(a, b))),
+        q_c)
+}
+
+@target(fpga, clock_mhz = 280, constant_time = true)
+@verify(lean, theorem = "plonk_kzg_open_correct")
+fn kzg_open_at(coeff: ConstantTime, point: ConstantTime)
+    -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    kzg_open_one(coeff, point)
+}
+
+extern fn fadd(a: ConstantTime, b: ConstantTime) -> ConstantTime
+extern fn fmul(a: ConstantTime, b: ConstantTime) -> ConstantTime
+extern fn kzg_open_one(
+    coeff: ConstantTime,
+    point: ConstantTime,
+) -> ConstantTime

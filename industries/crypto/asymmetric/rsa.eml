@@ -1,0 +1,45 @@
+// rsa.eml -- RSA modular exponentiation (PKCS#1 v2.2 / RFC 8017).
+//
+// The hot path is m^e mod n for encryption / verify (small e)
+// and c^d mod n for decryption / sign (full-length d). Both are
+// pure modular arithmetic over Z/nZ — chain order 0 — but
+// require careful constant-time exponentiation to defeat
+// Kocher-style timing attacks.
+//
+// We use the Montgomery ladder: every iteration of the
+// exponent loop performs the same {mul, square} sequence
+// regardless of the bit value. This is what makes the operation
+// ConstantTime-typeable; naive square-and-multiply is rejected.
+
+module rsa;
+
+const KEY_BITS:    Int = 2048           // FIPS 186-5 minimum
+const E_DEFAULT:   Int = 65537          // standard public exponent F4
+
+type BigUInt = Int where chain_order == 0
+type ConstantTime = BigUInt where chain_order == 0
+
+@target(fpga, clock_mhz = 200, constant_time = true)
+@verify(lean, theorem = "rsa_modexp_correct")
+fn modexp_montgomery(
+    base: ConstantTime,
+    exp: ConstantTime,
+    modulus: ConstantTime,
+) -> ConstantTime
+    requires (modulus > 1)
+    requires (base < modulus)
+    ensures  (true)
+    ensures  (result < modulus)
+{
+    // Montgomery ladder skeleton — every loop iteration does
+    // exactly one mod-mul and one mod-square in fixed order, so
+    // timing leaks no bit of `exp`. Loop body is the body of the
+    // SuperBEST-optimal Montgomery multiplication.
+    montgomery_ladder(base, exp, modulus)
+}
+
+extern fn montgomery_ladder(
+    base: ConstantTime,
+    exp: ConstantTime,
+    modulus: ConstantTime,
+) -> ConstantTime

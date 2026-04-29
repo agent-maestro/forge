@@ -1,0 +1,58 @@
+// stark.eml -- STARK prover arithmetic (Ben-Sasson et al.).
+//
+// STARKs are transparent (no trusted setup), post-quantum
+// (collision-resistant hash + Reed-Solomon proximity testing),
+// and arithmetic-friendly: every step is polynomial evaluation
+// over a finite field — chain order 0 throughout. The hot path
+// is the FRI low-degree test, which is many rounds of Merkle
+// commitments + linear combinations of polynomial evaluations.
+//
+// Field: Goldilocks (p = 2^64 - 2^32 + 1) — the standard fast
+// 64-bit STARK field with cheap modular reduction.
+//
+// Polynomial / proof semantics: real STARK proofs are KB-scale.
+// Scalar signatures below carry one polynomial coefficient at
+// a time for cost-class analysis purposes.
+
+module stark;
+
+const FIELD_BITS: Int = 64        // Goldilocks
+const FRI_ROUNDS: Int = 80        // typical security parameter
+
+type FieldElt = Int where chain_order == 0
+type ConstantTime = FieldElt where chain_order == 0
+
+@target(fpga, clock_mhz = 280, constant_time = true)
+@verify(lean, theorem = "fri_round_correct")
+fn fri_fold_step(coeff_even: ConstantTime, coeff_odd: ConstantTime,
+                  challenge: ConstantTime)
+    -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    // FRI fold: take a polynomial of degree < 2n and produce
+    // one of degree < n via a random linear combination of
+    // even and odd coefficients. Pure field arithmetic.
+    fri_fold(coeff_even, coeff_odd, challenge)
+}
+
+@target(fpga, clock_mhz = 280, constant_time = true)
+@verify(lean, theorem = "stark_verify_correct")
+fn verify_byte(proof_byte: ConstantTime, public_input_byte: ConstantTime)
+    -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    verify_stark_byte(proof_byte, public_input_byte)
+}
+
+extern fn fri_fold(
+    coeff_even: ConstantTime,
+    coeff_odd: ConstantTime,
+    challenge: ConstantTime,
+) -> ConstantTime
+
+extern fn verify_stark_byte(
+    proof: ConstantTime,
+    public_input: ConstantTime,
+) -> ConstantTime

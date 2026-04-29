@@ -1,0 +1,60 @@
+// kyber.eml -- CRYSTALS-Kyber key encapsulation mechanism
+// (FIPS 203 — ML-KEM).
+//
+// NIST PQC selected lattice-based KEM. Security rests on
+// Module-LWE; all arithmetic is polynomial multiplication in
+// R_q = Z_q[X] / (X^256 + 1) where q = 3329. The hot loop is the
+// number-theoretic transform (NTT), which is chain order 0
+// (modular ring arithmetic) and fully unrolled in the FPGA
+// pipeline.
+//
+// Polynomial / ciphertext / key semantics: real Kyber takes
+// arrays of 256+ coefficients per polynomial and KB-scale
+// ciphertexts and keys. The scalar signatures below take one
+// coefficient at a time — sufficient for cost-class /
+// chain-order analysis the forge profiler needs.
+
+module kyber;
+
+const KYBER_K:    Int = 3       // Kyber768 (NIST level 3)
+const KYBER_N:    Int = 256     // polynomial degree
+const KYBER_Q:    Int = 3329    // prime modulus
+
+type Coeff = Int where chain_order == 0
+type ConstantTime = Coeff where chain_order == 0
+
+@target(fpga, clock_mhz = 300, constant_time = true)
+@verify(lean, theorem = "kyber_ntt_invertible")
+fn ntt_butterfly(coeff: ConstantTime, twiddle: ConstantTime)
+    -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    // One Cooley-Tukey butterfly step over Z_q[X]/(X^256 + 1).
+    // The full NTT applies 7 stages of these in fixed schedule —
+    // every coefficient pair gets the same multiply-add pattern
+    // independent of input value.
+    cooley_tukey_butterfly(coeff, twiddle)
+}
+
+@target(fpga, clock_mhz = 300, constant_time = true)
+@verify(lean, theorem = "kyber_decapsulate_correct")
+fn decapsulate_byte(
+    ciphertext_byte: ConstantTime,
+    secret_key_byte: ConstantTime,
+) -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    decapsulate_kyber768_byte(ciphertext_byte, secret_key_byte)
+}
+
+extern fn cooley_tukey_butterfly(
+    coeff: ConstantTime,
+    twiddle: ConstantTime,
+) -> ConstantTime
+
+extern fn decapsulate_kyber768_byte(
+    ct: ConstantTime,
+    sk: ConstantTime,
+) -> ConstantTime

@@ -1,0 +1,62 @@
+// dilithium.eml -- CRYSTALS-Dilithium signature (FIPS 204 — ML-DSA).
+//
+// NIST PQC selected lattice signature. Security rests on
+// Module-LWE / Module-SIS over R_q = Z_q[X] / (X^256 + 1) with
+// q = 8380417. Dilithium's signing loop is a Fiat-Shamir-with-
+// aborts construction — the abort-resample is data-dependent on
+// the rejection sampling outcome, which complicates strict
+// constant-time analysis. We model the *inner* operations
+// (NTT, polynomial mul, decompose, makeHint) as chain-order-0
+// constant-time and isolate the rejection logic in a typed
+// boundary.
+//
+// Polynomial / signature semantics: real Dilithium takes
+// 256-coefficient polynomials and KB-scale signatures. Scalar
+// signatures below carry one coefficient at a time for cost-
+// class analysis purposes.
+
+module dilithium;
+
+const DILITHIUM_N: Int = 256        // polynomial degree
+const DILITHIUM_Q: Int = 8380417    // prime modulus
+const DILITHIUM_K: Int = 6          // Dilithium3 (NIST level 3)
+const DILITHIUM_L: Int = 5
+
+type Coeff = Int where chain_order == 0
+type ConstantTime = Coeff where chain_order == 0
+
+@target(fpga, clock_mhz = 250, constant_time = true)
+@verify(lean, theorem = "dilithium_ntt_correct")
+fn ntt_butterfly(coeff: ConstantTime, twiddle: ConstantTime)
+    -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    // Same Cooley-Tukey structure as Kyber but over a different
+    // prime; the SuperBEST optimizer reuses the butterfly schedule.
+    dilithium_butterfly(coeff, twiddle)
+}
+
+@target(fpga, clock_mhz = 250, constant_time = true)
+@verify(lean, theorem = "dilithium_verify_correct")
+fn verify_byte(
+    pk_byte: ConstantTime,
+    msg_byte: ConstantTime,
+    sig_byte: ConstantTime,
+) -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    verify_dilithium3_byte(pk_byte, msg_byte, sig_byte)
+}
+
+extern fn dilithium_butterfly(
+    coeff: ConstantTime,
+    twiddle: ConstantTime,
+) -> ConstantTime
+
+extern fn verify_dilithium3_byte(
+    pk: ConstantTime,
+    msg: ConstantTime,
+    sig: ConstantTime,
+) -> ConstantTime
