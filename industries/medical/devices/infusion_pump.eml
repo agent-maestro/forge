@@ -1,0 +1,42 @@
+// infusion_pump.eml -- IV infusion-pump drug-delivery rate control.
+//
+// IEC 62304 software safety class C candidate (death or serious
+// injury possible from incorrect output). FDA 510(k) Class II
+// medical device.
+//
+// Pipeline:
+//   prescribed_rate (mL/hr)  -- from physician order
+//   measured_rate   (mL/hr)  -- from in-line flow sensor
+//   error = prescribed - measured
+//   PI loop produces motor speed command, clamped to motor limits.
+
+module infusion_pump;
+
+const Kp:           Real = 0.4
+const Ki:           Real = 0.05
+const dt:           Real = 0.1            // 10 Hz control loop
+const RATE_MIN:     Real = 0.1            // mL/hr (KVO -- keep vein open)
+const RATE_MAX:     Real = 999.0          // mL/hr (FDA upper bound for Class II)
+const MOTOR_MIN:    Real = -100.0         // RPM, reverse for syringe back-off
+const MOTOR_MAX:    Real =  500.0         // RPM, forward delivery max
+
+type StableSignal = Real where chain_order <= 2
+
+@target(fpga, clock_mhz = 50, precision = float32)
+@verify(lean, theorem = "infusion_motor_command_safe")
+fn motor_command(
+    prescribed_rate: Real,
+    measured_rate: Real,
+    rate_integral: Real,
+) -> Real
+    requires (RATE_MIN <= prescribed_rate)
+    requires (prescribed_rate <= RATE_MAX)
+    requires (abs(measured_rate) < RATE_MAX)
+    requires (abs(rate_integral) < 100.0)
+    ensures  (MOTOR_MIN <= result)
+    ensures  (result <= MOTOR_MAX)
+{
+    let error = prescribed_rate - measured_rate;
+    let pi_out = Kp * error + Ki * rate_integral;
+    clamp(pi_out, MOTOR_MIN, MOTOR_MAX)
+}

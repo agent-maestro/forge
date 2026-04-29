@@ -1,0 +1,32 @@
+// ins.eml -- Inertial Navigation System (INS) attitude update.
+//
+// MIL-STD-882 / DO-178C dual-track candidate (defense systems
+// often need both -- military safety + airworthiness).
+//
+// Single-axis attitude integration step from a rate gyro.
+// Real INS code chains six of these (3 attitude + 3 velocity);
+// this is the unit verified for the demo.
+
+module ins;
+
+const dt:        Real = 0.001    // 1 kHz IMU rate
+const ATT_LIMIT: Real = 6.28319  // 2*pi (full revolution wrap)
+
+type StableSignal = Real where chain_order <= 2
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "ins_attitude_update_bounded")
+fn attitude_step(
+    attitude: Real,
+    rate_gyro: Real,
+) -> Real
+    requires (abs(attitude) < ATT_LIMIT)
+    requires (abs(rate_gyro) < 100.0)   // rad/s, well above any platform
+    ensures  (abs(result) < ATT_LIMIT * 2.0)  // bounded growth per step
+{
+    // Trapezoidal integration with cos correction for the sin term
+    // of the small-angle expansion (chain order 2 via cos).
+    let new_attitude = attitude + rate_gyro * dt;
+    let cos_correction = 1.0 - 0.5 * rate_gyro * dt * rate_gyro * dt;
+    new_attitude * cos_correction
+}
