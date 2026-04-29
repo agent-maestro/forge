@@ -120,10 +120,12 @@ def superbest_function(fn: EMLFunction) -> EMLFunction:
     # never matches a nice fraction.
     #
     # Heuristic: a "round" float in the SuperBEST families is
-    # something like 0.5, 1, 2, etc -- short repr (<= 6 chars).
-    # Anything longer is not in any family's canonical form.
+    # something like 0.5, 1, 2, etc -- short Python repr (<= 8 chars).
+    # NB: we check `repr(float(f))` rather than `repr(f)` because
+    # `sp.Float`'s repr always extends to its full 15-digit
+    # precision, which would reject every value that contains 0.5.
     floats = expr.atoms(sp.Float)
-    if any(len(repr(f)) > 8 for f in floats):
+    if any(len(repr(float(f))) > 8 for f in floats):
         return fn
 
     # `recommend_form` keys on the SymPy node-class structure

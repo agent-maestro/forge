@@ -462,8 +462,8 @@ def _format_function(
         family = after.profile["superbest_family"]
         digits = after.profile["superbest_digits_saved"]
         lines.append(
-            f"    superbest: matched {family!r} family, "
-            f"saved {digits:.2f} digits of precision"
+            f"    superbest: matched {family!r} family, rewrote to "
+            f"{family} canonical form (saved {digits:.2f} digits)"
         )
     return lines
 

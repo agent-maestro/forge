@@ -15,22 +15,26 @@
 Forge is a programming language + compiler for verified
 mathematical computation. You write a `.eml` source file
 describing a control law (PID, FOC, autopilot, anything
-expressible as math). The compiler emits:
+expressible as math). The compiler emits **nine targets**:
 
 | Target | Output | Use case |
 |--------|--------|----------|
-| `--target c` | C99 source linking `libmonogate.h` | Fast portable binary; gcc-compilable |
-| `--target rust` | Rust source via the `monogate-sys` crate | `cargo build`-compatible |
-| `--target lean` | Lean 4 theorem with `MonogateEML.Tactics` | Formal verification of `requires` → `ensures` |
-| `--target verilog` | Synthesizable Verilog (Arty A7-100 default) | FPGA deployment via Vivado / yosys |
-| `--allocate` | FPGA resource allocation plan | Pre-synthesis budget check |
-| `--target all` | All of the above in one shot | Full cert package generation |
+| `--target c`        | C99 source linking `libmonogate.h`     | Fast portable binary; gcc-compilable |
+| `--target rust`     | Rust source via the `monogate-sys` crate | `cargo build`-compatible |
+| `--target python`   | Python module using `math.*`           | Tooling, notebooks, golden reference |
+| `--target llvm`     | Portable LLVM IR text                  | Lower with `llc` to native, ARM, RISC-V |
+| `--target wasm`     | wasm32 bytecode                        | Browser-native (1op.io playground) |
+| `--target verilog`  | Synthesizable Verilog                  | FPGA via Vivado / yosys |
+| `--target vhdl`     | VHDL-2008                              | FPGA in shops with VHDL flows |
+| `--target chisel`   | Chisel 3 / FIRRTL                      | SiFive / Chipyard / Rocket flows |
+| `--target lean`     | Lean 4 theorem with `MonogateEML.Tactics` | Formal verification of `requires` → `ensures` |
+| `--target all`      | All of the above in one shot           | Full cert package generation |
 
 All of those targets share **one source of truth**: the `.eml`
 file. Same parser, same profiler, same SuperBEST-routed
-optimizer. The C and Verilog outputs are bit-equivalent within
-3 LSBs of Q16.16 (verified by the Verilator harness when
-verilator is on PATH).
+optimizer. The C / Rust / Verilog outputs are bit-equivalent
+within 3 LSBs of Q16.16 (verified by the Verilator harness
+when verilator is on PATH).
 
 ---
 
@@ -163,6 +167,13 @@ $ python tools/cli/main.py \
 
 Four artifacts. One source. Zero hand-translation.
 
+You can also target any of the other five backends individually:
+`--target python`, `--target llvm`, `--target wasm`,
+`--target vhdl`, `--target chisel`. See
+[`software_targets.md`](software_targets.md) and
+[`hardware_targets.md`](hardware_targets.md) for the full
+per-target walk-through.
+
 ### Step 6 — Verify the Lean theorem
 
 The generated `autopilot.lean` is real Lean 4 source. Move
@@ -201,20 +212,32 @@ backends with random test vectors, and asserts MATCH within
 .eml source                ← human writes math
     │
     ▼
-forge: parse + profile + type-check
+forge: parse + profile + type-check + 5-pass optimizer
     │
     ├──→ C99      (libmonogate.h)        ← compiles with gcc
     ├──→ Rust     (monogate-sys crate)   ← compiles with cargo
+    ├──→ Python   (math.*)               ← golden reference / notebooks
+    ├──→ LLVM IR  (portable)             ← lower with llc to any target
+    ├──→ WASM     (wasm32)               ← browser playgrounds
     ├──→ Verilog  (Arty A7-100 plan)     ← simulates via Verilator
-    │                                       (matches C bit-for-bit)
+    ├──→ VHDL     (VHDL-2008)            ← Vivado / Quartus VHDL flows
+    ├──→ Chisel   (FIRRTL)               ← SiFive / Chipyard
     └──→ Lean theorem                    ← verifies via lake build
 ```
 
-That's the whole compiler. Six verticals already have working
-examples (`industries/aerospace`, `automotive`, `robotics`,
-`medical`, `defense`, `energy`); each ships its own cert
-template (DO-178C, ISO 26262, ROS 2, IEC 62304, MIL-STD-882,
-NRC respectively).
+That's the whole compiler. **Eleven verticals** already have
+working examples (`industries/aerospace`, `automotive`, `robotics`,
+`medical`, `defense`, `energy`, `audio/dsp`, `audio/synthesis`,
+`ml/inference`, `scientific/physics`, `manufacturing/process_control`);
+each ships its own cert template (DO-178C, ISO 26262, ROS 2,
+IEC 62304, MIL-STD-882, NRC, AES-67, MIDI, MLPerf-tiny, IEEE 754,
+ISA-95 respectively).
+
+If you want a head start, **`forge.blocks`** ships 34 pre-verified
+computation blocks (PID, sigmoid, Park, Kalman, biquad, …) where
+the parse + profile + FPGA allocation are pre-cached at import
+time. See [`language_guide.md`](language_guide.md#using-forgeblocks)
+for the tour.
 
 ---
 
@@ -222,30 +245,43 @@ NRC respectively).
 
 | You want to… | Read |
 |--------------|------|
-| Understand the language design | `lang/spec/EML_LANG_DESIGN.md` |
-| See the language spec | `lang/spec/SPEC.md` |
-| Browse the demo examples | `lang/spec/grammar/examples/` (10 short demos) |
-| Browse the industry examples | `industries/<vertical>/` (six verticals) |
-| Read the FPGA allocator design | `hardware/allocator/allocator.py` |
-| Read the patent map | `patents/index.md` |
-| See where the project's headed | `roadmap/phases/`, `roadmap/business/` |
-| Submit something | `CONTRIBUTING.md` |
+| Write your first .eml file              | [`language_guide.md`](language_guide.md) |
+| Compile to C / Rust / Python / LLVM / WASM | [`software_targets.md`](software_targets.md) |
+| Compile to Verilog / VHDL / Chisel      | [`hardware_targets.md`](hardware_targets.md) |
+| Use `@verify(lean)` blocks              | [`verification_guide.md`](verification_guide.md) |
+| Skim the architecture                   | [`architecture/overview.md`](architecture/overview.md) |
+| CLI reference                           | [`api_reference/cli.md`](api_reference/cli.md) |
+| Backend reference                       | [`api_reference/backends.md`](api_reference/backends.md) |
+| FPGA / ASIC target catalogue            | [`api_reference/targets.md`](api_reference/targets.md) |
+| Industry walk-throughs                  | [`industry_guides/`](industry_guides/) |
+| Browse the demo examples                | `lang/spec/grammar/examples/` (10 short demos) |
+| Browse the industry examples            | `industries/<vertical>/` (11 verticals) |
+| Browse pre-verified blocks              | [`forge/blocks/README.md`](../forge/blocks/README.md) |
+| Read the language design                | `lang/spec/EML_LANG_DESIGN.md` |
+| Read the FPGA allocator design          | `hardware/allocator/allocator.py` |
+| Read the patent map                     | `patents/index.md` |
+| See where the project's headed          | `roadmap/phases/`, `roadmap/business/` |
+| Submit something                        | `CONTRIBUTING.md` |
 
 ---
 
 ## What's left to ship
 
 The compiler is real. The forge produces working artifacts in
-all four targets. What's still on the roadmap:
+**all nine targets**. What's still on the roadmap:
 
-- **Phase 2.3 (LLVM IR + WASM):** browser-deployable demos.
-- **Phase 4 IDE:** VS Code extension with inline profile
-  annotations.
-- **More vendor FPGA targets:** Lattice ECP5 (open-source
-  toolchain), Xilinx Kintex / UltraScale, Intel Cyclone /
-  Stratix.
-- **Q-format precision tuning:** the literals work today
-  at fixed Q16.16; per-function FRAC is on deck.
+- **CUDA-accelerated Verilator simulation** (Blackwell-gated):
+  batch FPGA simulation of 10K+ test vectors per testbench.
+- **Vendor synth + bitstream smoke**: Vivado / Quartus / OpenLane
+  flows wired into CI. Today the toolchain is on the user's
+  PATH; the harness expects it.
+- **Place-and-route closure feedback** into the FPGA allocator.
+- **JetBrains plugin polish**: 0.1 scaffold ships; grammar-driven
+  lexer + CodeVision land in 0.2.
+- **VS Code SuperBEST visualization**: extension shows the
+  routing decision per-node.
 
-See `CHANGELOG.md` for the full ship history (so far: 16
-commits, 220 tests passing, 26% scaffold buildout).
+See `CHANGELOG.md` for the full ship history. Live counters:
+**~677 tests passing**, 56% scaffold buildout, 9/9 backends
+live, 5 FPGA/ASIC targets, 11 industry verticals, 34 pre-verified
+blocks in `forge.blocks`.

@@ -40,16 +40,14 @@ for stream in (sys.stdout, sys.stderr):
 
 
 # Backends that are wired today.
-_LIVE_TARGETS = {"c", "rust", "lean", "verilog"}
-
-# Backends that print "not built yet" with a phase pointer.
-_PLANNED_TARGETS = {
-    "python":  "Phase 2.4 (eml-cost transpile reuse)",
-    "llvm":    "Phase 2.3",
-    "wasm":    "Phase 2.3 (via LLVM)",
-    "vhdl":    "Phase 3.2 (Verilog already shipped; VHDL is a syntax port)",
-    "chisel":  "Phase 3.2 (Verilog already shipped; Chisel is FIRRTL emit)",
+_LIVE_TARGETS = {
+    "c", "rust", "python", "llvm", "wasm",
+    "verilog", "vhdl", "chisel", "lean",
 }
+
+# Backends that print "not built yet" with a phase pointer. Empty
+# now -- every target the parser accepts is wired.
+_PLANNED_TARGETS: dict[str, str] = {}
 
 
 def _print_profile_summary(mod) -> None:
@@ -93,9 +91,27 @@ def _print_profile_summary(mod) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+
+    # Handle subcommands that take their own argv. These must go
+    # through their own parser rather than the file-oriented one
+    # below.
+    if argv and argv[0] == "init":
+        from tools.cli.init_cmd import main as init_main
+        return init_main(argv[1:])
+    if argv and argv[0] in ("manpage", "--manpage"):
+        from tools.cli.manpage import emit_manpage
+        sys.stdout.write(emit_manpage())
+        return 0
+
     parser = argparse.ArgumentParser(
         prog="eml-compile",
-        description="Monogate Forge -- the EML-lang compiler",
+        description=(
+            "Monogate Forge -- the EML-lang compiler. "
+            "Run `eml-compile init <dir>` to scaffold a new project; "
+            "`eml-compile manpage` to print the man page."
+        ),
     )
     parser.add_argument("source", type=Path, nargs="?",
                         help="Path to a .eml source file")
@@ -264,6 +280,34 @@ def main(argv: list[str] | None = None) -> int:
         rs_path.write_text(rs_src, encoding="utf-8")
         results.append(("rust", rs_path, len(rs_src)))
 
+        # Python
+        from software.backends.python_backend import PythonBackend
+        py_path = out_dir / f"{stem}.py"
+        py_src = PythonBackend(optimize=not args.no_optimize).compile(mod)
+        py_path.write_text(py_src, encoding="utf-8")
+        results.append(("python", py_path, len(py_src)))
+
+        # LLVM IR
+        from software.backends.llvm_backend import LLVMBackend
+        ll_path = out_dir / f"{stem}.ll"
+        ll_src = LLVMBackend(optimize=not args.no_optimize).compile(mod)
+        ll_path.write_text(ll_src, encoding="utf-8")
+        results.append(("llvm", ll_path, len(ll_src)))
+
+        # WASM (or LLVM-IR fallback when no llc/clang on PATH)
+        from software.backends.wasm_backend import WASMBackend
+        wasm_result = WASMBackend(
+            optimize=not args.no_optimize,
+        ).compile_full(mod)
+        if wasm_result.toolchain == "none":
+            wasm_path = out_dir / f"{stem}.wasm.ll"
+            wasm_path.write_text(wasm_result.ir, encoding="utf-8")
+            results.append(("wasm-ir", wasm_path, len(wasm_result.ir)))
+        else:
+            wasm_path = out_dir / f"{stem}.wasm"
+            wasm_path.write_bytes(wasm_result.wasm)
+            results.append(("wasm", wasm_path, len(wasm_result.wasm)))
+
         # Lean (only if any @verify(lean) blocks)
         from software.verification.lean.LeanBackend import LeanBackend
         lean_src = LeanBackend(optimize=not args.no_optimize).compile_module(mod)
@@ -272,20 +316,37 @@ def main(argv: list[str] | None = None) -> int:
             lean_path.write_text(lean_src, encoding="utf-8")
             results.append(("lean", lean_path, len(lean_src)))
 
-        # Verilog (only if any @target(fpga) functions)
+        # HDL backends (only if any @target(fpga) functions)
         try:
             from hardware.allocator import FPGAAllocator
             from hardware.hdl_gen.verilog_backend import VerilogBackend
+            from hardware.hdl_gen.vhdl_backend import VHDLBackend
+            from hardware.hdl_gen.chisel_backend import ChiselBackend
             plan = FPGAAllocator().allocate(
                 mod, constraints={"target": args.fpga_target},
             )
+
             v_src = VerilogBackend(optimize=not args.no_optimize).compile(mod, plan)
             v_path = out_dir / f"{stem}.v"
             v_path.write_text(v_src, encoding="utf-8")
             results.append(("verilog", v_path, len(v_src)))
+
+            vhd_src = VHDLBackend(optimize=not args.no_optimize).compile(mod, plan)
+            vhd_path = out_dir / f"{stem}.vhd"
+            vhd_path.write_text(vhd_src, encoding="utf-8")
+            results.append(("vhdl", vhd_path, len(vhd_src)))
+
+            ch_src = ChiselBackend(optimize=not args.no_optimize).compile(mod, plan)
+            # snake_case -> CamelCase + .scala
+            stem_camel = "".join(w.capitalize() for w in stem.split("_"))
+            ch_path = out_dir / f"{stem_camel}.scala"
+            ch_path.write_text(ch_src, encoding="utf-8")
+            results.append(("chisel", ch_path, len(ch_src)))
         except Exception as e:  # noqa: BLE001 -- best-effort
             results.append(("verilog", Path("<skipped>"), 0))
-            print(f"  verilog skipped: {e}", file=sys.stderr)
+            results.append(("vhdl",    Path("<skipped>"), 0))
+            results.append(("chisel",  Path("<skipped>"), 0))
+            print(f"  hdl skipped: {e}", file=sys.stderr)
 
         print(f"# eml-compile --target all -> {out_dir}")
         for target, path, nbytes in results:
@@ -356,6 +417,121 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
         else:
             print(verilog_source, end="")
+        return 0
+
+    if args.target == "python":
+        from software.backends.python_backend import (
+            PythonBackend, CompileError as PyErr,
+        )
+        try:
+            py_source = PythonBackend(optimize=not args.no_optimize).compile(mod)
+        except PyErr as e:
+            print(f"compile error (python backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(py_source, encoding="utf-8")
+            print(f"wrote {args.output} "
+                  f"({len(py_source)} bytes, "
+                  f"{py_source.count(chr(10))} lines)",
+                  file=sys.stderr)
+        else:
+            print(py_source, end="")
+        return 0
+
+    if args.target == "llvm":
+        from software.backends.llvm_backend import (
+            LLVMBackend, CompileError as LLVMErr,
+        )
+        try:
+            ir = LLVMBackend(optimize=not args.no_optimize).compile(mod)
+        except LLVMErr as e:
+            print(f"compile error (llvm backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(ir, encoding="utf-8")
+            print(f"wrote {args.output} "
+                  f"({len(ir)} bytes, "
+                  f"{ir.count(chr(10))} lines)",
+                  file=sys.stderr)
+        else:
+            print(ir, end="")
+        return 0
+
+    if args.target == "wasm":
+        from software.backends.wasm_backend import WASMBackend
+        result = WASMBackend(optimize=not args.no_optimize).compile_full(mod)
+        if result.toolchain == "none":
+            # No llc/clang -- emit IR so the user can finish the
+            # compile with their own toolchain.
+            if args.output:
+                args.output.write_text(result.ir, encoding="utf-8")
+                print(f"wrote LLVM IR to {args.output} "
+                      f"(no llc/clang on PATH; install one to emit wasm bytecode)",
+                      file=sys.stderr)
+            else:
+                print(result.ir, end="")
+            return 0
+        if args.output:
+            args.output.write_bytes(result.wasm)
+            print(f"wrote {args.output} "
+                  f"({len(result.wasm)} bytes wasm via {result.toolchain})",
+                  file=sys.stderr)
+        else:
+            sys.stdout.buffer.write(result.wasm)
+        return 0
+
+    if args.target == "vhdl":
+        from hardware.allocator import FPGAAllocator
+        from hardware.allocator import CompileError as AllocErr
+        from hardware.hdl_gen.vhdl_backend import (
+            VHDLBackend, CompileError as VHDLErr,
+        )
+        try:
+            plan = FPGAAllocator().allocate(
+                mod, constraints={"target": args.fpga_target},
+            )
+            vhdl_source = VHDLBackend(
+                optimize=not args.no_optimize,
+            ).compile(mod, plan)
+        except (AllocErr, VHDLErr) as e:
+            print(f"compile error (vhdl backend): {e}",
+                  file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(vhdl_source, encoding="utf-8")
+            print(f"wrote {args.output} "
+                  f"({len(vhdl_source)} bytes, "
+                  f"{vhdl_source.count(chr(10))} lines)",
+                  file=sys.stderr)
+        else:
+            print(vhdl_source, end="")
+        return 0
+
+    if args.target == "chisel":
+        from hardware.allocator import FPGAAllocator
+        from hardware.allocator import CompileError as AllocErr
+        from hardware.hdl_gen.chisel_backend import (
+            ChiselBackend, CompileError as ChiselErr,
+        )
+        try:
+            plan = FPGAAllocator().allocate(
+                mod, constraints={"target": args.fpga_target},
+            )
+            chisel_source = ChiselBackend(
+                optimize=not args.no_optimize,
+            ).compile(mod, plan)
+        except (AllocErr, ChiselErr) as e:
+            print(f"compile error (chisel backend): {e}",
+                  file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(chisel_source, encoding="utf-8")
+            print(f"wrote {args.output} "
+                  f"({len(chisel_source)} bytes, "
+                  f"{chisel_source.count(chr(10))} lines)",
+                  file=sys.stderr)
+        else:
+            print(chisel_source, end="")
         return 0
 
     if args.target == "lean":
