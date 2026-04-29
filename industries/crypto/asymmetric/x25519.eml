@@ -1,0 +1,39 @@
+// x25519.eml -- X25519 key exchange (RFC 7748).
+//
+// X25519 is the Diffie-Hellman primitive over the Montgomery
+// form of Curve25519: shared = scalarmult(my_secret, their_pub).
+// The Montgomery ladder evaluates the x-coordinate only, which
+// halves bandwidth and makes the inner loop one of the most
+// regular constant-time pipelines in cryptography.
+//
+// Field: GF(2^255 - 19). Curve: y^2 = x^3 + 486662 x^2 + x.
+// Cofactor 8 (handled by clamping the secret).
+
+module x25519;
+
+const FIELD_BITS:  Int = 255       // GF(2^255 - 19)
+const SCALAR_BYTES: Int = 32
+
+type FieldElt = Int where chain_order == 0
+type ConstantTime = FieldElt where chain_order == 0
+
+@target(fpga, clock_mhz = 320, constant_time = true)
+@verify(lean, theorem = "x25519_montgomery_correct")
+fn x25519(
+    scalar: ConstantTime,
+    u_coord: ConstantTime,
+) -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    // The famous 255-iteration ladder. Each iteration does the
+    // same conditional swap and the same field operations,
+    // independent of the scalar bit value.
+    montgomery_ladder_x25519(scalar_clamp(scalar), u_coord)
+}
+
+extern fn scalar_clamp(s: ConstantTime) -> ConstantTime
+extern fn montgomery_ladder_x25519(
+    scalar: ConstantTime,
+    u: ConstantTime,
+) -> ConstantTime

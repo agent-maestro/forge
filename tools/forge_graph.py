@@ -327,6 +327,7 @@ VERTICAL_CERT = {
     "energy":        ("NRC / IEC 61508", "certification/NRC_compliance.md"),
     "medical":       ("IEC 62304 + FDA 510(k)", "certification/IEC_62304.md"),
     "defense":       ("MIL-STD-882",   "certification/MIL_STD_882.md"),
+    "crypto":        ("FIPS 140-3 + CC EAL", "certification/FIPS_140_3.md"),
     "audio":         ("none",          None),
     "ml":            ("none",          None),
     "scientific":    ("none",          None),

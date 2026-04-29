@@ -1,0 +1,62 @@
+// ecdsa.eml -- ECDSA signature over NIST P-256 (FIPS 186-5).
+//
+// Signing: r = (k * G).x mod n;  s = k^-1 (H(m) + r*d) mod n.
+// Verification: u1 = s^-1 H(m) mod n;  u2 = s^-1 r mod n;
+//               accept iff (u1*G + u2*Q).x == r mod n.
+//
+// All operations are over GF(p) for the curve coordinates and
+// Z/nZ for the scalar modulus. Chain order 0. The dangerous bit
+// is the scalar multiplication k*G — must be constant-time to
+// avoid leaking the per-message nonce k (and thus, by lattice
+// attack, the long-term private key d).
+//
+// Point semantics: P-256 points are pairs (x, y) of field
+// elements. The scalar-only signatures below take and return
+// the x-coordinate (sufficient for the cost-class / chain-order
+// analysis). When EML grammar supports tuple parameters, the
+// real signatures will carry both coordinates explicitly.
+
+module ecdsa;
+
+const CURVE_BITS:  Int = 256     // P-256 / secp256r1
+const HASH_BITS:   Int = 256     // SHA-256
+
+type FieldElt = Int where chain_order == 0
+type ConstantTime = FieldElt where chain_order == 0
+
+@target(fpga, clock_mhz = 250, constant_time = true)
+@verify(lean, theorem = "ecdsa_scalar_mul_correct")
+fn scalar_mul_x(scalar: ConstantTime, point_x: ConstantTime)
+    -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    // Joye double-and-add ladder — each bit triggers the same
+    // {double, add} pair in the same order. Branchless.
+    montgomery_ladder_p256_x(scalar, point_x)
+}
+
+@target(fpga, clock_mhz = 250, constant_time = true)
+@verify(lean, theorem = "ecdsa_sign_correct")
+fn sign_r(
+    private_key: ConstantTime,
+    nonce: ConstantTime,
+    msg_hash: ConstantTime,
+) -> ConstantTime
+    requires (nonce > 0)
+    ensures  (true)
+{
+    // Returns the r component of the (r, s) signature pair.
+    sign_p256_r(private_key, nonce, msg_hash)
+}
+
+extern fn montgomery_ladder_p256_x(
+    scalar: ConstantTime,
+    point_x: ConstantTime,
+) -> ConstantTime
+
+extern fn sign_p256_r(
+    d: ConstantTime,
+    k: ConstantTime,
+    h: ConstantTime,
+) -> ConstantTime

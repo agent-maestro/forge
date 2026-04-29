@@ -1,0 +1,60 @@
+// ed25519.eml -- EdDSA signature over Curve25519 (RFC 8032).
+//
+// Ed25519 is the deterministic-nonce, constant-time-by-design
+// alternative to ECDSA. Twisted Edwards curve E: -x^2 + y^2 =
+// 1 - (121665/121666) x^2 y^2 over GF(2^255 - 19). The complete
+// addition law (no special-case handling) makes this naturally
+// branchless; chain order 0 throughout.
+//
+// Hash: SHA-512 (use industries/crypto/symmetric/sha3.eml or
+// equivalent). Signing nonce is derived from the long-term
+// private key + message — eliminates the nonce-reuse vector
+// that destroys ECDSA when the RNG is bad.
+//
+// Point + message semantics: Edwards points are (x, y) pairs;
+// messages are 32-byte arrays. The scalar signatures below take
+// and return the y-coordinate / first message byte for cost-
+// class analysis purposes. Real implementation handles full
+// (x, y) and full 32-byte message — pending grammar extension.
+
+module ed25519;
+
+const FIELD_BITS:  Int = 255       // GF(2^255 - 19)
+const ORDER_BITS:  Int = 252       // ℓ = 2^252 + 27742...
+const SIG_BYTES:   Int = 64        // 32-byte R || 32-byte s
+
+type FieldElt = Int where chain_order == 0
+type ConstantTime = FieldElt where chain_order == 0
+
+@target(fpga, clock_mhz = 300, constant_time = true)
+@verify(lean, theorem = "ed25519_point_addition_complete")
+fn edwards_add_y(p_y: ConstantTime, q_y: ConstantTime)
+    -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    // Complete twisted-Edwards addition — same formula for any
+    // (P, Q), including P = Q (doubling) and P = -Q (identity).
+    // No conditional handling, hence trivially constant-time.
+    edwards_add_complete_y(p_y, q_y)
+}
+
+@target(fpga, clock_mhz = 300, constant_time = true)
+@verify(lean, theorem = "ed25519_sign_correct")
+fn sign_r(private_key: ConstantTime, msg_first: ConstantTime)
+    -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    sign_ed25519_r(private_key, msg_first)
+}
+
+extern fn edwards_add_complete_y(
+    p_y: ConstantTime,
+    q_y: ConstantTime,
+) -> ConstantTime
+
+extern fn sign_ed25519_r(
+    sk: ConstantTime,
+    msg_first: ConstantTime,
+) -> ConstantTime

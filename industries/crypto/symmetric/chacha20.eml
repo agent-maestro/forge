@@ -1,0 +1,41 @@
+// chacha20.eml -- ChaCha20 stream cipher (RFC 7539).
+//
+// ChaCha20's quarter-round is four ARX (Add-Rotate-XOR) ops on
+// 32-bit words. Every operation is a chain-order-0 polynomial
+// over Z/2^32; the cipher is by-construction constant-time. The
+// 20 rounds amortize across 64 bytes of keystream output.
+//
+// Pipeline (single quarter-round on a, b, c, d):
+//   a += b; d ^= a; d <<<= 16
+//   c += d; b ^= c; b <<<= 12
+//   a += b; d ^= a; d <<<= 8
+//   c += d; b ^= c; b <<<= 7
+
+module chacha20;
+
+const ROUNDS:   Int = 20    // ChaCha20 — 20 rounds = 10 double-rounds
+const STATE:    Int = 16    // 16 32-bit words = 512-bit state
+const KEY_BITS: Int = 256
+
+type Word32 = Int where chain_order == 0
+type ConstantTime = Word32 where chain_order == 0
+
+@target(fpga, clock_mhz = 400, constant_time = true)
+@verify(lean, theorem = "chacha20_quarter_round_invertible")
+fn quarter_round(
+    a: ConstantTime, b: ConstantTime,
+    c: ConstantTime, d: ConstantTime,
+) -> (ConstantTime, ConstantTime, ConstantTime, ConstantTime)
+    requires (true)
+    ensures  (true)
+{
+    let a1 = wadd(a, b);    let d1 = rotl(wxor(d, a1), 16)
+    let c1 = wadd(c, d1);   let b1 = rotl(wxor(b, c1), 12)
+    let a2 = wadd(a1, b1);  let d2 = rotl(wxor(d1, a2), 8)
+    let c2 = wadd(c1, d2);  let b2 = rotl(wxor(b1, c2), 7)
+    (a2, b2, c2, d2)
+}
+
+extern fn wadd(a: ConstantTime, b: ConstantTime) -> ConstantTime
+extern fn wxor(a: ConstantTime, b: ConstantTime) -> ConstantTime
+extern fn rotl(a: ConstantTime, n: Int) -> ConstantTime

@@ -1,0 +1,48 @@
+// falcon.eml -- FALCON signature (FIPS 206 candidate).
+//
+// FALCON is the lattice signature scheme based on NTRU lattices
+// + fast Fourier sampling. Unlike Kyber/Dilithium it uses
+// floating-point FFT for the Gaussian sampler; that floating-
+// point dependency is the most controversial part of the spec
+// because it complicates constant-time analysis on platforms
+// without IEEE-754 determinism.
+//
+// Forge's contribution: the Gaussian sampler is the *only*
+// chain-order-1+ operation in FALCON (sqrt + log for the
+// rejection bound). We isolate it in a typed boundary so the
+// rest of the signing pipeline can still be ConstantTime.
+//
+// Polynomial semantics: real FALCON takes 512-coefficient
+// polynomials. Scalar signatures below carry one coefficient
+// at a time for cost-class analysis purposes.
+
+module falcon;
+
+const FALCON_N:   Int = 512        // FALCON-512 (NIST level 1)
+const FALCON_Q:   Int = 12289      // prime modulus
+
+type Coeff = Int where chain_order == 0
+type ConstantTime = Coeff where chain_order == 0
+
+// The Gaussian-sampler boundary is intentionally NOT
+// ConstantTime; it's chain order 2 (sqrt + log) and runs in
+// software, while the rest of the signing pipeline runs on
+// the FPGA in constant-time-typed primitives.
+type GaussianSampled = Coeff where chain_order <= 2
+
+@target(fpga, clock_mhz = 250, constant_time = true)
+@verify(lean, theorem = "falcon_ntt_correct")
+fn ntt_butterfly(coeff: ConstantTime, twiddle: ConstantTime)
+    -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    falcon_butterfly(coeff, twiddle)
+}
+
+// Gaussian sampling via FFT — software-only path.
+extern fn gaussian_sample(seed: ConstantTime) -> GaussianSampled
+extern fn falcon_butterfly(
+    coeff: ConstantTime,
+    twiddle: ConstantTime,
+) -> ConstantTime

@@ -1,0 +1,53 @@
+// sha256.eml -- SHA-256 (FIPS 180-4) compression function.
+//
+// SHA-256 is 64 rounds of bit mixing on a 256-bit state, driven
+// by a 64-word message schedule W[0..63]. Each round is pure
+// chain-order-0 arithmetic over Z/2^32 (add, XOR, AND, NOT,
+// rotate). Constant-time by construction.
+//
+// The compression function is the FIPS-mandated primitive; the
+// surrounding Merkle-Damgaard glue (length padding, final block)
+// is a small wrapper around this.
+
+module sha256;
+
+const ROUNDS:    Int = 64       // SHA-256 round count
+const STATE:     Int = 8        // 8 32-bit words = 256-bit hash state
+const BLOCK_BIT: Int = 512      // input block size
+
+type Word32 = Int where chain_order == 0
+type ConstantTime = Word32 where chain_order == 0
+
+@target(fpga, clock_mhz = 350, constant_time = true)
+@verify(lean, theorem = "sha256_round_correct")
+fn sha256_round(
+    a: ConstantTime, b: ConstantTime, c: ConstantTime, d: ConstantTime,
+    e: ConstantTime, f: ConstantTime, g: ConstantTime, h: ConstantTime,
+    k_t: ConstantTime, w_t: ConstantTime,
+) -> (ConstantTime, ConstantTime, ConstantTime, ConstantTime,
+      ConstantTime, ConstantTime, ConstantTime, ConstantTime)
+    requires (true)
+    ensures  (true)
+{
+    let t1 = wadd5(h, big_sigma1(e), ch(e, f, g), k_t, w_t)
+    let t2 = wadd(big_sigma0(a), maj(a, b, c))
+    let new_e = wadd(d, t1)
+    let new_a = wadd(t1, t2)
+    (new_a, a, b, c, new_e, e, f, g)
+}
+
+// ── SHA-256 building blocks (FIPS 180-4 §4.1.2) ───────────────
+//
+// All operations are chain-order-0 over Z/2^32. The compiler
+// inlines them in the pipeline view and emits 96-cycle FPGA
+// pipelines per block.
+
+extern fn ch(x: ConstantTime, y: ConstantTime, z: ConstantTime) -> ConstantTime
+extern fn maj(x: ConstantTime, y: ConstantTime, z: ConstantTime) -> ConstantTime
+extern fn big_sigma0(x: ConstantTime) -> ConstantTime
+extern fn big_sigma1(x: ConstantTime) -> ConstantTime
+extern fn wadd(a: ConstantTime, b: ConstantTime) -> ConstantTime
+extern fn wadd5(
+    a: ConstantTime, b: ConstantTime, c: ConstantTime,
+    d: ConstantTime, e: ConstantTime,
+) -> ConstantTime

@@ -1,0 +1,61 @@
+// groth16.eml -- Groth16 zk-SNARK pairing math (Groth, EUROCRYPT 2016).
+//
+// Groth16 produces 3-element proofs (A, B, C) ∈ G1 × G2 × G1
+// over a pairing-friendly elliptic curve (BN254 or BLS12-381).
+// Verification is a single pairing equation:
+//   e(A, B) = e(α, β) · e(L, γ) · e(C, δ)
+// where α, β, γ, δ come from the (universal-but-circuit-specific)
+// trusted setup. Pairing arithmetic is the chain-order-0 hot
+// loop — every Miller step is a tower of GF(p) operations.
+//
+// Curve: BLS12-381 (current standard for SNARK-friendly pairings).
+//
+// Point / proof semantics: real Groth16 takes G1/G2 points (pairs
+// of field elements) and KB-scale proofs. Scalar signatures below
+// carry the x-coordinate / one byte of proof respectively.
+
+module groth16;
+
+const FIELD_BITS:    Int = 381        // GF(p) for BLS12-381
+const PAIRING_DEGREE: Int = 12        // E(F_q^12) embedding
+const PROOF_BYTES:   Int = 192        // A + B + C compressed
+
+type FieldElt = Int where chain_order == 0
+type ConstantTime = FieldElt where chain_order == 0
+
+@target(fpga, clock_mhz = 220, constant_time = true)
+@verify(lean, theorem = "groth16_pairing_bilinear")
+fn miller_loop_x(p_x: ConstantTime, q_x: ConstantTime)
+    -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    // BLS12-381 Miller loop — 64 doublings + ~20 additions in
+    // a fixed schedule (the loop count comes from the curve's
+    // ate parameter). Branchless.
+    miller_loop_bls12_381_x(p_x, q_x)
+}
+
+@target(fpga, clock_mhz = 220, constant_time = true)
+@verify(lean, theorem = "groth16_verify_correct")
+fn verify_byte(
+    vk_byte: ConstantTime,
+    proof_byte: ConstantTime,
+    public_byte: ConstantTime,
+) -> ConstantTime
+    requires (true)
+    ensures  (true)
+{
+    verify_groth16_byte(vk_byte, proof_byte, public_byte)
+}
+
+extern fn miller_loop_bls12_381_x(
+    p_x: ConstantTime,
+    q_x: ConstantTime,
+) -> ConstantTime
+
+extern fn verify_groth16_byte(
+    vk: ConstantTime,
+    proof: ConstantTime,
+    public_byte: ConstantTime,
+) -> ConstantTime
