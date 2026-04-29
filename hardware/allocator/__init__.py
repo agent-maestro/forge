@@ -10,6 +10,16 @@ The allocation plan is consumed by the Verilog/VHDL/Chisel
 backends.
 """
 
-from hardware.allocator.allocator import FPGAAllocator
+from hardware.allocator.allocator import (
+    AllocationPlan,
+    CompileError,
+    FPGAAllocator,
+    TranscendentalUnit,
+)
 
-__all__ = ["FPGAAllocator"]
+__all__ = [
+    "AllocationPlan",
+    "CompileError",
+    "FPGAAllocator",
+    "TranscendentalUnit",
+]
