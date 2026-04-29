@@ -114,6 +114,12 @@ static inline double mg_atanh(double x) { return atanh(x); }
 static inline double mg_sqrt(double x) { return sqrt(x); }
 static inline double mg_abs(double x)  { return fabs(x); }
 
+/* Pow + clamp -- needed by the C backend's NodeKind dispatch. */
+static inline double mg_pow(double x, double y) { return pow(x, y); }
+static inline double mg_clamp(double x, double lo, double hi) {
+    return fmin(fmax(x, lo), hi);
+}
+
 /* ── Diagnostics (for debugging generated code) ─────────────── */
 
 /*
