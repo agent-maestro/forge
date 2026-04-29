@@ -1,0 +1,16 @@
+[package]
+name = "monogate-sys"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "Rust runtime for EML-lang -- the 23-operator EML primitive family + transcendental wrappers."
+repository = "local"
+
+[lib]
+name = "monogate_sys"
+path = "src/lib.rs"
+
+[dependencies]
+# `libm` ships the math primitives we wrap. Pinned at the latest
+# stable major; no other deps.
+libm = "0.2"

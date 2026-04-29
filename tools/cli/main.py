@@ -40,11 +40,10 @@ for stream in (sys.stdout, sys.stderr):
 
 
 # Backends that are wired today.
-_LIVE_TARGETS = {"c", "lean"}
+_LIVE_TARGETS = {"c", "rust", "lean"}
 
 # Backends that print "not built yet" with a phase pointer.
 _PLANNED_TARGETS = {
-    "rust":    "Phase 2.2",
     "python":  "Phase 2.4 (eml-cost transpile reuse)",
     "llvm":    "Phase 2.3",
     "wasm":    "Phase 2.3 (via LLVM)",
@@ -166,6 +165,26 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
         else:
             print(c_source, end="")
+        return 0
+
+    if args.target == "rust":
+        from software.backends.rust_backend import RustBackend
+        from software.backends.rust_backend import (
+            CompileError as RustCompileError,
+        )
+        try:
+            rust_source = RustBackend().compile(mod)
+        except RustCompileError as e:
+            print(f"compile error (rust backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(rust_source, encoding="utf-8")
+            print(f"wrote {args.output} "
+                  f"({len(rust_source)} bytes, "
+                  f"{rust_source.count(chr(10))} lines)",
+                  file=sys.stderr)
+        else:
+            print(rust_source, end="")
         return 0
 
     if args.target == "lean":
