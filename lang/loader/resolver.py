@@ -22,9 +22,14 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 # Search-path table mapping the FIRST path segment to a directory.
 # When `use stdlib::math;` is parsed, the loader looks for
 # `<DEFAULT_SEARCH_PATHS["stdlib"]>/math.eml`.
+#
+# The reserved root `"local"` does NOT appear here -- it resolves
+# relative to the importing file's directory at load time.
 DEFAULT_SEARCH_PATHS: dict[str, Path] = {
     "stdlib": _REPO_ROOT / "lang" / "spec" / "stdlib",
 }
+
+LOCAL_ROOT = "local"
 
 
 class LoaderError(Exception):
@@ -37,70 +42,108 @@ class ModuleLoader:
 
     Construct one per parse session if you want test isolation;
     construct one and reuse it across many parse calls if you
-    want maximum cache hit rate."""
+    want maximum cache hit rate.
+
+    Cache keys are RESOLVED file-paths (strings), not joined
+    import paths -- so `local::helpers` from `/a/x.eml` and
+    `/b/x.eml` correctly cache as two different modules even
+    though they share a joined-path spelling."""
     search_paths: dict[str, Path] = field(
         default_factory=lambda: dict(DEFAULT_SEARCH_PATHS),
     )
     cache: dict[str, EMLModule] = field(default_factory=dict)
     _in_progress: set[str] = field(default_factory=set)
 
-    def load(self, joined_path: str) -> EMLModule:
+    def load(
+        self,
+        joined_path: str,
+        *,
+        source_dir: Path | None = None,
+    ) -> EMLModule:
         """Load the module identified by `joined_path` (e.g.
-        'stdlib::math'). Returns the (cached) parsed EMLModule.
+        'stdlib::math' or 'local::helpers').
+
+        `source_dir` is the directory of the file doing the import.
+        Required when `joined_path` starts with `local::`; ignored
+        otherwise.
 
         Raises LoaderError on:
-          - unknown root segment ('foo' not in search_paths)
+          - unknown root segment (not in search_paths and not 'local')
+          - missing `local::` source_dir
           - missing .eml file
-          - import cycle (path already in self._in_progress)
+          - import cycle (resolved file path already in progress)
         """
-        if joined_path in self.cache:
-            return self.cache[joined_path]
+        file_path = self.resolve(joined_path, source_dir=source_dir)
+        cache_key = str(file_path.resolve())
 
-        if joined_path in self._in_progress:
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+
+        if cache_key in self._in_progress:
             raise LoaderError(
                 f"import cycle while loading {joined_path!r} "
-                f"(in-progress: {sorted(self._in_progress)})"
+                f"({file_path}) -- in progress: "
+                f"{sorted(self._in_progress)}"
             )
 
-        file_path = self.resolve(joined_path)
         if not file_path.is_file():
             raise LoaderError(
                 f"module {joined_path!r} not found "
                 f"(looked for {file_path})"
             )
 
-        # Local import to avoid a parser <-> loader import cycle.
+        # Local import to avoid a parser <-> loader cycle.
         from lang.parser.parser import parse_source
 
-        self._in_progress.add(joined_path)
+        self._in_progress.add(cache_key)
         try:
             text = file_path.read_text(encoding="utf-8")
             mod = parse_source(text, source_file=str(file_path))
             # Recursively resolve transitive imports BEFORE caching.
             mod = resolve_imports(mod, loader=self)
-            self.cache[joined_path] = mod
+            self.cache[cache_key] = mod
             return mod
         finally:
-            self._in_progress.discard(joined_path)
+            self._in_progress.discard(cache_key)
 
-    def resolve(self, joined_path: str) -> Path:
+    def resolve(
+        self,
+        joined_path: str,
+        *,
+        source_dir: Path | None = None,
+    ) -> Path:
         """Translate `<root>::<name>(::<sub>...)` into a file path
-        without loading. Raises LoaderError on unknown root."""
+        without loading.
+
+        `local::name` resolves against `source_dir`; every other
+        root resolves against `self.search_paths`."""
         parts = joined_path.split("::")
         if len(parts) < 2:
             raise LoaderError(
                 f"path {joined_path!r} must have at least 2 segments"
             )
         root, *rest = parts
-        if root not in self.search_paths:
-            raise LoaderError(
-                f"unknown import root {root!r} "
-                f"(known: {sorted(self.search_paths)})"
-            )
-        # rest = ["math"]      -> stdlib/math.eml
-        # rest = ["foo", "bar"] -> stdlib/foo/bar.eml
+
+        if root == LOCAL_ROOT:
+            if source_dir is None:
+                raise LoaderError(
+                    f"`use local::{ '::'.join(rest) };` requires a "
+                    f"source-file directory but none was supplied "
+                    f"(use parse_file or pass source_dir=)"
+                )
+            base = source_dir
+        else:
+            if root not in self.search_paths:
+                raise LoaderError(
+                    f"unknown import root {root!r} "
+                    f"(known: {sorted(self.search_paths) + [LOCAL_ROOT]})"
+                )
+            base = self.search_paths[root]
+
+        # rest = ["math"]      -> math.eml
+        # rest = ["foo", "bar"] -> foo/bar.eml
         rel = Path(*rest[:-1]) / f"{rest[-1]}.eml"
-        return self.search_paths[root] / rel
+        return base / rel
 
 
 def resolve_imports(
@@ -111,15 +154,27 @@ def resolve_imports(
     """Return a new EMLModule with every `use ...;` import resolved
     and its constants/types/functions merged into `mod`'s namespace.
 
+    `local::` imports are resolved against the directory of
+    `mod.source_file`; if that is "<unknown>" or "<string>"
+    (parsed from a string, not a file), local imports raise
+    LoaderError -- callers wanting local imports must set the
+    EMLModule.source_file before calling.
+
     Conflicts (an imported name collides with a local one, or two
-    imports both define the same name) raise LoaderError. Modules
-    with no imports pass through untouched.
+    imports both define the same name) raise LoaderError.
     """
     if not mod.imports:
         return mod
 
     if loader is None:
         loader = ModuleLoader()
+
+    # Compute the importing file's directory once so every
+    # local::... lookup uses the same base.
+    source_dir: Path | None = None
+    src = mod.source_file
+    if src and not src.startswith("<"):
+        source_dir = Path(src).resolve().parent
 
     out = deepcopy(mod)
 
@@ -136,7 +191,7 @@ def resolve_imports(
     provided_by: dict[str, str] = {}
 
     for imp in mod.imports:
-        sub = loader.load(imp.joined)
+        sub = loader.load(imp.joined, source_dir=source_dir)
 
         for c in sub.constants:
             _check_clash(c.name, "constant", imp, provided_by,

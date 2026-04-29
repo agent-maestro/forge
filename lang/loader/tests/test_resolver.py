@@ -206,3 +206,82 @@ def test_formatter_idempotent_on_use_decls() -> None:
     once = format_source(src)
     twice = format_source(once)
     assert once == twice
+
+
+# ── 8. Local imports ─────────────────────────────────────────
+
+
+def test_local_import_resolves_relative_to_source(
+    tmp_path: Path,
+) -> None:
+    """`use local::helpers;` from /a/main.eml resolves to
+    /a/helpers.eml."""
+    helpers = tmp_path / "helpers.eml"
+    helpers.write_text(
+        "module helpers;\nfn double(x: f64) -> f64 { 2.0 * x }\n",
+        encoding="utf-8",
+    )
+    main = tmp_path / "main.eml"
+    main.write_text(
+        "use local::helpers;\n"
+        "fn quad(x: f64) -> f64 { double(double(x)) }\n",
+        encoding="utf-8",
+    )
+    mod = parse_file(main)
+    fnames = {f.name for f in mod.functions}
+    assert "double" in fnames
+    assert "quad" in fnames
+
+
+def test_local_import_caches_per_resolved_path(
+    tmp_path: Path,
+) -> None:
+    """Two sibling files with the same `use local::shared;`
+    must resolve to two different files (different dirs)."""
+    a_dir = tmp_path / "a"
+    b_dir = tmp_path / "b"
+    a_dir.mkdir()
+    b_dir.mkdir()
+    (a_dir / "shared.eml").write_text(
+        "fn marker_a(x: f64) -> f64 { x }\n", encoding="utf-8",
+    )
+    (b_dir / "shared.eml").write_text(
+        "fn marker_b(x: f64) -> f64 { x }\n", encoding="utf-8",
+    )
+    (a_dir / "main.eml").write_text(
+        "use local::shared;\nfn t(x: f64) -> f64 { x }\n",
+        encoding="utf-8",
+    )
+    (b_dir / "main.eml").write_text(
+        "use local::shared;\nfn t(x: f64) -> f64 { x }\n",
+        encoding="utf-8",
+    )
+    a_mod = parse_file(a_dir / "main.eml")
+    b_mod = parse_file(b_dir / "main.eml")
+    a_names = {f.name for f in a_mod.functions}
+    b_names = {f.name for f in b_mod.functions}
+    assert "marker_a" in a_names and "marker_b" not in a_names
+    assert "marker_b" in b_names and "marker_a" not in b_names
+
+
+def test_local_import_without_source_dir_errors() -> None:
+    """Parsing a string (no source file) and trying to use
+    local:: must produce a clear LoaderError."""
+    src = (
+        "use local::helpers;\n"
+        "fn t() -> f64 { 1.0 }\n"
+    )
+    with pytest.raises(LoaderError, match="requires a source-file"):
+        # parse_source with resolve=True triggers loader.load()
+        # without a source dir (the source_file is "<string>").
+        parse_source(src, resolve=True)
+
+
+def test_local_import_missing_file_errors(tmp_path: Path) -> None:
+    main = tmp_path / "main.eml"
+    main.write_text(
+        "use local::no_such_helper;\nfn t() -> f64 { 1.0 }\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(LoaderError, match="not found"):
+        parse_file(main)

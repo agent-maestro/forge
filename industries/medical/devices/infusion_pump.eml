@@ -12,6 +12,9 @@
 
 module infusion_pump;
 
+// PI loop body via stdlib::control::pid (no D term).
+use stdlib::control;
+
 const Kp:           Real = 0.4
 const Ki:           Real = 0.05
 const dt:           Real = 0.1            // 10 Hz control loop
@@ -37,6 +40,6 @@ fn motor_command(
     ensures  (result <= MOTOR_MAX)
 {
     let error = prescribed_rate - measured_rate;
-    let pi_out = Kp * error + Ki * rate_integral;
+    let pi_out = pid(error, rate_integral, 0.0, Kp, Ki, 0.0);
     clamp(pi_out, MOTOR_MIN, MOTOR_MAX)
 }
