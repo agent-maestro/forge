@@ -114,6 +114,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fpga-sim", action="store_true",
                         help="After emitting Verilog, run Verilator simulation "
                              "(Phase 3.3 required)")
+    parser.add_argument("--allocate", action="store_true",
+                        help="Run the FPGA resource allocator (Patent #14) "
+                             "and print the allocation plan. Requires at "
+                             "least one @target(fpga, ...) function.")
+    parser.add_argument("--fpga-target", default="xilinx.artix7",
+                        help="FPGA target (e.g. xilinx.artix7). "
+                             "Default: xilinx.artix7.")
     parser.add_argument("--version", action="version",
                         version="eml-compile 0.1.0 (Phase 1 + 2.1)")
     args = parser.parse_args(argv)
@@ -144,6 +151,19 @@ def main(argv: list[str] | None = None) -> int:
 
     profiler = Profiler()
     profiler.profile_module(mod)
+
+    # ── --allocate -> run FPGA allocator + print plan ──────────
+    if args.allocate:
+        from hardware.allocator import FPGAAllocator, CompileError as AllocErr
+        try:
+            plan = FPGAAllocator().allocate(
+                mod, constraints={"target": args.fpga_target},
+            )
+        except AllocErr as e:
+            print(f"allocator error: {e}", file=sys.stderr)
+            return 1
+        print(plan.render())
+        return 0
 
     # ── No target / --profile-only -> summary ─────────────────
     if not args.target or args.profile_only:
