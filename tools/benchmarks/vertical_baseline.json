@@ -1,0 +1,114 @@
+{
+  "arm_6dof::arm_endpoint_x": {
+    "chain_order": 4,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 16,
+    "trig_units": 2
+  },
+  "arm_6dof::joint_xy": {
+    "chain_order": 2,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 14,
+    "trig_units": 0
+  },
+  "autopilot::autopilot_step": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 24,
+    "trig_units": 0
+  },
+  "autopilot::gravity_compensation": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 5,
+    "trig_units": 1
+  },
+  "autopilot::rate_controller": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 13,
+    "trig_units": 0
+  },
+  "infusion_pump::motor_command": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 17,
+    "trig_units": 0
+  },
+  "ins::attitude_step": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 22,
+    "trig_units": 0
+  },
+  "ml_binary_classifier::binary_cross_entropy": {
+    "chain_order": 2,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 15,
+    "trig_units": 0
+  },
+  "ml_binary_classifier::classify": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 17,
+    "trig_units": 0
+  },
+  "ml_binary_classifier::score": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "ml_binary_classifier::sigmoid_tanh_form": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "motor_foc_automotive::foc_d_axis": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "motor_foc_automotive::pi_step": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "mppt::mppt_step": {
+    "chain_order": 1,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "three_phase::clarke": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "three_phase::park": {
+    "chain_order": 2,
+    "fpga_cycles": 20,
+    "mac_units": 10,
+    "node_count": 27,
+    "trig_units": 0
+  }
+}

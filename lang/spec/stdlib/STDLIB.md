@@ -9,7 +9,8 @@ idiomatic in EML-lang.
 
 | Module | File | Functions | Constants |
 |--------|------|----------:|----------:|
-| `math`     | `math.eml`     | 21 |  4 |
+| `math`     | `math.eml`     | 15 |  4 |
+| `ml`       | `ml.eml`       |  6 |  0 |
 | `control`  | `control.eml`  | 12 |  0 |
 | `signal`   | `signal.eml`   | 11 |  3 |
 | `linalg`   | `linalg.eml`   | 13 |  0 |
@@ -34,14 +35,22 @@ math module only adds composites built on top of those.
 | `log_b(x, b)`                 | 2 | `ln(x)/ln(b)` (two lns compose) |
 | `log2(x)` / `log10(x)`        | 1 | Hard-coded `LN2`/`LN10` |
 | `exp2(x)` / `exp10(x)`        | 1 | Mirror of log2/log10 |
-| `sigmoid(x)`                  | 1 | `1 / (1 + exp(-x))` |
-| `softplus(x)`                 | 2 | `ln(1 + exp(x))` |
-| `relu(x)` / `leaky_relu`      | 0 | clamp-based |
-| `gelu(x)`                     | 1 | tanh-based GPT/BERT form |
-| `swish(x)`                    | 1 | `x * sigmoid(x)` |
 | `hypot2(x,y)` / `hypot3(x,y,z)` | 1 | Euclidean distance |
 | `atan2_pos_x(y,x)`            | 2 | Single-quadrant scaffold |
 | `radians(deg)` / `degrees(rad)` | 0 | Unit conversion |
+
+### `ml` — neural-network activation primitives
+
+Split out of `math` in 2026-04 so ML code can `use stdlib::ml;`
+without pulling in the rest of the math module.
+
+| Function | Chain order | Notes |
+|----------|------------:|-------|
+| `sigmoid(x)`                  | 1 | `1 / (1 + exp(-x))` |
+| `softplus(x)`                 | 2 | `ln(1 + exp(x))` |
+| `swish(x)`                    | 1 | `x * sigmoid(x)` |
+| `gelu(x)`                     | 1 | tanh-based BERT/GPT form |
+| `relu(x)` / `leaky_relu(x, alpha)` | 0 | clamp-based |
 
 ### `control` — PID, filters, saturation, slew
 

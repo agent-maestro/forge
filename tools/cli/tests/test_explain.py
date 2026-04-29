@@ -126,3 +126,61 @@ def test_cli_explain_emits_no_backend_code_on_real_file() -> None:
     assert "#include" not in r.stdout
     assert "pub fn" not in r.stdout
     assert "always @(" not in r.stdout
+
+
+# ── --backend-stats: per-target footprint reporting ──────────
+
+
+def test_format_module_with_backend_stats_includes_footprints() -> None:
+    """In-process: --backend-stats adds the codegen footprint
+    section listing C / Rust LOC."""
+    from tools.cli.explain import _format_backend_stats
+    from lang.profiler.profiler import Profiler
+    src = (
+        "@target(fpga, clock_mhz = 100)\n"
+        "fn t(x: f64) -> f64 { x * x + 1.0 }\n"
+    )
+    mod = parse_source(src)
+    Profiler().profile_module(mod)
+    out = _format_backend_stats(mod)
+    assert "backend codegen footprints" in out
+    assert "c (gcc)" in out
+    assert "rust (cargo)" in out
+    # Verilog appears because we have an @target(fpga) function.
+    assert "verilog" in out
+    # LOC and chars columns are present for at least one backend.
+    assert "LOC" in out and "chars" in out
+
+
+def test_backend_stats_skips_lean_when_no_verify_block() -> None:
+    """Lean line says `skipped` when no @verify(lean) block exists."""
+    from tools.cli.explain import _format_backend_stats
+    from lang.profiler.profiler import Profiler
+    src = "fn t(x: f64) -> f64 { x }\n"
+    mod = parse_source(src)
+    Profiler().profile_module(mod)
+    out = _format_backend_stats(mod)
+    assert "lean" in out
+    assert "skipped" in out
+
+
+def test_backend_stats_skips_verilog_when_no_fpga_block() -> None:
+    """Verilog line says `skipped` when no @target(fpga) block."""
+    from tools.cli.explain import _format_backend_stats
+    from lang.profiler.profiler import Profiler
+    src = "fn t(x: f64) -> f64 { x * x }\n"
+    mod = parse_source(src)
+    Profiler().profile_module(mod)
+    out = _format_backend_stats(mod)
+    assert "verilog" in out and "skipped" in out
+
+
+def test_backend_stats_off_by_default() -> None:
+    """Without --backend-stats, footprint section is absent."""
+    from tools.cli.explain import _format_module
+    from lang.profiler.profiler import Profiler
+    src = "fn t(x: f64) -> f64 { x }\n"
+    mod = parse_source(src)
+    Profiler().profile_module(mod)
+    out = _format_module(mod)
+    assert "backend codegen footprints" not in out

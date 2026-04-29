@@ -175,7 +175,8 @@ def test_stdlib_function_count_documented() -> None:
     bug. This test pins the totals so a change to either side
     forces a deliberate update."""
     expected = {
-        "math.eml":      21,
+        "math.eml":      15,   # was 21; 6 activations moved to ml.eml in 2026-04
+        "ml.eml":         6,   # sigmoid, softplus, swish, gelu, relu, leaky_relu
         "control.eml":   12,
         "signal.eml":    11,
         "linalg.eml":    13,

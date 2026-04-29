@@ -145,6 +145,11 @@ def main(argv: list[str] | None = None) -> int:
                              "node counts, SuperBEST family + digits "
                              "saved, and CSE bindings introduced. "
                              "Doesn't emit any backend code.")
+    parser.add_argument("--backend-stats", action="store_true",
+                        help="When used with --explain, also compile "
+                             "to every backend and report per-target "
+                             "emitted-source size (LOC, chars, "
+                             "Verilog module count).")
     parser.add_argument("--version", action="version",
                         version="eml-compile 0.1.0 (Phase 1 + 2.1)")
     args = parser.parse_args(argv)
@@ -204,7 +209,9 @@ def main(argv: list[str] | None = None) -> int:
     # ── --explain -> per-function optimizer diff ─────────────
     if args.explain:
         from tools.cli.explain import print_explain_report
-        print_explain_report(mod)
+        print_explain_report(
+            mod, include_backend_stats=args.backend_stats,
+        )
         return 0
 
     # ── --allocate -> run FPGA allocator + print plan ──────────
