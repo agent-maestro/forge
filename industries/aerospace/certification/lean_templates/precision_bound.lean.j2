@@ -1,0 +1,37 @@
+-- Precision-bound theorem template (DO-178C verification evidence).
+--
+-- Use case: prove that a function's output is within `eps` of its
+-- ideal mathematical value over a declared input domain.
+--
+-- Jinja variables:
+--   {{ theorem_name }}    -- name from @verify(theorem = ...)
+--   {{ fn_name }}         -- the EML-lang function being verified
+--   {{ params }}          -- parameter list as Lean binders
+--                            e.g. "(x : Real) (y : Real)"
+--   {{ domain }}          -- precondition expression
+--                            e.g. "0 < x ∧ x < 1"
+--   {{ ideal_expr }}      -- the closed-form ideal the impl approximates
+--                            e.g. "Real.sin x"
+--   {{ eps }}             -- precision tolerance
+--                            e.g. "1.0e-12"
+--
+-- The template body attempts `eml_auto`; falls back to `sorry`
+-- with a TODO marker that humans fill in for cert submission.
+
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
+import Mathlib.Analysis.SpecialFunctions.Exp
+import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import MonogateEML.Tactics
+
+open Real
+
+theorem {{ theorem_name }} {{ params }}
+    (h : {{ domain }}) :
+    abs ({{ fn_name }} {{ params_pos }} - {{ ideal_expr }}) <= {{ eps }} := by
+  -- Auto-attempt: eml_auto closes most precision bounds via the
+  -- E-193 numerical-stability model + Mathlib's analytic-bound
+  -- lemma library. Hand-prove for DAL A submissions.
+  first
+  | exact MonogateEML.Tactics.eml_auto
+  | (unfold {{ fn_name }}; norm_num; sorry)
+  | sorry

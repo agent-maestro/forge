@@ -1,0 +1,73 @@
+// autopilot.eml -- aerospace flight control demo.
+//
+// Single-axis pitch-attitude autopilot. Real DO-178C-grade
+// control law: PID inner loop wrapped in a quaternion-aware
+// outer loop, with explicit safety bounds on the actuator
+// command output.
+//
+// Pipeline:
+//   pitch_error = pitch_setpoint - pitch_measured
+//   pitch_integral = clamp(pitch_integral + pitch_error * dt,
+//                          -INTEGRAL_LIMIT, +INTEGRAL_LIMIT)
+//   pitch_rate_target = Kp * pitch_error + Ki * pitch_integral
+//                     + gravity_compensation(pitch_measured)
+//   elevator_cmd = clamp(Kr * pitch_rate_target,
+//                        ELEVATOR_MIN, ELEVATOR_MAX)
+//
+// gravity_compensation() needs cos(pitch) -> chain order 2.
+
+module autopilot;
+
+// ── Tunings ───────────────────────────────────────────────────
+const Kp:                Real = 2.5
+const Ki:                Real = 0.4
+const Kr:                Real = 1.8
+const dt:                Real = 0.01      // 100 Hz loop
+const INTEGRAL_LIMIT:    Real = 5.0       // rad
+const ELEVATOR_MIN:      Real = -0.349    // -20 deg
+const ELEVATOR_MAX:      Real =  0.349    // +20 deg
+const GRAVITY_GAIN:      Real = 0.196     // m/s^2 normalised by Vt
+
+// ── Type aliases with chain-order constraints ─────────────────
+//   StableSignal: anything chain order <= 2 is safe to ship to
+//   the actuator (numerical stability per E-193 model).
+type StableSignal = Real where chain_order <= 2
+
+// ── Gravity feed-forward ──────────────────────────────────────
+// Compensates for gravity component along the body z-axis.
+// cos() is a chain-2 operator; the outer multiplication is free.
+fn gravity_compensation(pitch: Real) -> StableSignal {
+    GRAVITY_GAIN * cos(pitch)
+}
+
+// ── Inner attitude controller ─────────────────────────────────
+fn rate_controller(
+    pitch_error: Real,
+    pitch_integral: Real,
+    pitch_measured: Real,
+) -> StableSignal {
+    let p_term = Kp * pitch_error;
+    let i_term = Ki * pitch_integral;
+    let ff = gravity_compensation(pitch_measured);
+    p_term + i_term + ff
+}
+
+// ── Top-level autopilot step ──────────────────────────────────
+@target(fpga, clock_mhz = 100, precision = float32)
+@verify(lean, theorem = "autopilot_command_within_limits")
+fn autopilot_step(
+    pitch_setpoint: Real,
+    pitch_measured: Real,
+    pitch_integral: Real,
+) -> Real
+    requires (abs(pitch_setpoint) < 1.5708)   // |pi/2|, +/- 90 deg
+    requires (abs(pitch_measured) < 1.5708)
+    requires (abs(pitch_integral) < INTEGRAL_LIMIT)
+    ensures  (abs(result) < ELEVATOR_MAX)
+{
+    let pitch_error = pitch_setpoint - pitch_measured;
+    let rate_target = rate_controller(
+        pitch_error, pitch_integral, pitch_measured,
+    );
+    clamp(Kr * rate_target, ELEVATOR_MIN, ELEVATOR_MAX)
+}

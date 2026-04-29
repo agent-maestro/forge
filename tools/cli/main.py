@@ -102,7 +102,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--target", choices=[
         "c", "rust", "python", "llvm", "wasm",
         "verilog", "vhdl", "chisel", "lean",
-    ], help="Output target")
+        "all",
+    ], help=("Output target. 'all' runs every live backend "
+            "(c, rust, lean, verilog) and writes <stem>.<ext> "
+            "files alongside the source (or into --output if it's "
+            "a directory)."))
     parser.add_argument("-o", "--output", type=Path,
                         help="Output file (defaults to stdout)")
     parser.add_argument("--profile-only", action="store_true",
@@ -167,6 +171,62 @@ def main(argv: list[str] | None = None) -> int:
     # ── No target / --profile-only -> summary ─────────────────
     if not args.target or args.profile_only:
         _print_profile_summary(mod)
+        return 0
+
+    # ── --target all -> run every live backend ────────────────
+    if args.target == "all":
+        out_dir = args.output if args.output else args.source.parent
+        if out_dir.exists() and not out_dir.is_dir() and args.output:
+            print(f"error: --output must be a directory when "
+                  f"--target=all (got file: {out_dir})", file=sys.stderr)
+            return 1
+        out_dir.mkdir(parents=True, exist_ok=True)
+        stem = args.source.stem
+        results: list[tuple[str, Path, int]] = []  # (target, path, bytes)
+
+        # C
+        from software.backends.c_backend import CBackend
+        c_path = out_dir / f"{stem}.c"
+        c_src = CBackend().compile(mod)
+        c_path.write_text(c_src, encoding="utf-8")
+        results.append(("c", c_path, len(c_src)))
+
+        # Rust
+        from software.backends.rust_backend import RustBackend
+        rs_path = out_dir / f"{stem}.rs"
+        rs_src = RustBackend().compile(mod)
+        rs_path.write_text(rs_src, encoding="utf-8")
+        results.append(("rust", rs_path, len(rs_src)))
+
+        # Lean (only if any @verify(lean) blocks)
+        from software.verification.lean.LeanBackend import LeanBackend
+        lean_src = LeanBackend().compile_module(mod)
+        if lean_src:
+            lean_path = out_dir / f"{stem}.lean"
+            lean_path.write_text(lean_src, encoding="utf-8")
+            results.append(("lean", lean_path, len(lean_src)))
+
+        # Verilog (only if any @target(fpga) functions)
+        try:
+            from hardware.allocator import FPGAAllocator
+            from hardware.hdl_gen.verilog_backend import VerilogBackend
+            plan = FPGAAllocator().allocate(
+                mod, constraints={"target": args.fpga_target},
+            )
+            v_src = VerilogBackend().compile(mod, plan)
+            v_path = out_dir / f"{stem}.v"
+            v_path.write_text(v_src, encoding="utf-8")
+            results.append(("verilog", v_path, len(v_src)))
+        except Exception as e:  # noqa: BLE001 -- best-effort
+            results.append(("verilog", Path("<skipped>"), 0))
+            print(f"  verilog skipped: {e}", file=sys.stderr)
+
+        print(f"# eml-compile --target all -> {out_dir}")
+        for target, path, nbytes in results:
+            if path.name == "<skipped>":
+                print(f"  [skip] {target}")
+            else:
+                print(f"  [ok]   {target:8s} {path}  ({nbytes:,} bytes)")
         return 0
 
     # ── Live targets ──────────────────────────────────────────
