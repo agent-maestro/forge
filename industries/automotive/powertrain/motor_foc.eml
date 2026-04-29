@@ -20,6 +20,13 @@
 
 module motor_foc_automotive;
 
+// ── Stdlib imports ───────────────────────────────────────────
+// `pid` and `saturate` come from stdlib::control. The inliner
+// will substitute their bodies before the FPGA backend emits
+// Verilog, so there's zero call-overhead vs the previous
+// inline-everything style.
+use stdlib::control;
+
 // ── Tunings (per-motor; calibrated values) ────────────────────
 const Kp_d:      Real = 0.8       // d-axis current-loop P gain
 const Ki_d:      Real = 12.0      // d-axis current-loop I gain
@@ -50,13 +57,14 @@ fn clarke(i_a: Real, i_b: Real, i_c: Real) -> (StableSignal, StableSignal) {
     (i_alpha, i_beta)
 }
 
-// ── Per-axis PI controller with anti-windup clamp ─────────────
+// ── Per-axis PI controller (PI is the no-D special case of PID) ──
+// Uses stdlib::control::pid with the derivative term zeroed out.
+// Constant-folding removes the `Kd * 0.0` and `+ 0.0` introduced
+// by that specialisation.
 fn pi_step(
     error: Real, integral: Real, Kp: Real, Ki: Real,
 ) -> StableSignal {
-    let p_term = Kp * error;
-    let i_term = Ki * integral;
-    p_term + i_term
+    pid(error, integral, 0.0, Kp, Ki, 0.0)
 }
 
 // ── Top-level FOC voltage demand for the d-axis ───────────────
@@ -77,5 +85,5 @@ fn foc_d_axis(
 {
     let error = i_d_setpoint - i_d_measured;
     let v_d_unclamped = pi_step(error, i_d_integral, Kp_d, Ki_d);
-    clamp(v_d_unclamped, -V_LIMIT, V_LIMIT)
+    saturate(v_d_unclamped, V_LIMIT)
 }

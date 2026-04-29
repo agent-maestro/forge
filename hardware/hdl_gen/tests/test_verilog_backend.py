@@ -134,13 +134,17 @@ fn f(x: Real, y: Real) -> Real { eml(x, y) }'''
 # ── User function calls ─────────────────────────────────────────────
 
 
-def test_user_function_call_emits_sub_pipeline(profiler, backend):
+def test_user_function_call_emits_sub_pipeline(profiler):
+    """Verify user CALLs render as `helper_pipeline` instances when
+    the inliner is disabled (the default optimizer would otherwise
+    inline `helper`'s single-expression body in place)."""
     src = '''module t;
 fn helper(x: Real) -> Real { x * 2.0 }
 
 @target(fpga, clock_mhz = 100)
 fn caller(x: Real) -> Real { helper(x) + 1.0 }'''
-    out = _allocate_and_compile(src, profiler, backend)
+    raw = VerilogBackend(optimize=False)
+    out = _allocate_and_compile(src, profiler, raw)
     assert "helper_pipeline" in out
 
 
@@ -161,14 +165,17 @@ fn f(x: Real) -> Real { x + x }'''
 
 
 def test_motor_control_realtime_control_compiles_to_verilog(
-    profiler: Profiler, backend: VerilogBackend,
+    profiler: Profiler,
 ):
     """The canonical demo's @target(fpga) function emits a real
-    Verilog module."""
+    Verilog module. With the inliner disabled, the internal call
+    to pid_output materialises as a sub-pipeline instance; with
+    optimization on the call would be inlined in place."""
+    raw = VerilogBackend(optimize=False)
     mod = parse_file(EXAMPLES_DIR / "motor_control.eml")
     profiler.profile_module(mod)
     plan = FPGAAllocator().allocate(mod)
-    out = backend.compile(mod, plan)
+    out = raw.compile(mod, plan)
     assert "module realtime_control_pipeline" in out
     # It calls pid_output internally
     assert "pid_output_pipeline" in out

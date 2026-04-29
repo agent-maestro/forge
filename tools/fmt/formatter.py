@@ -98,6 +98,12 @@ class _Formatter:
         if mod.name:
             out.append(f"module {mod.name};\n")
 
+        # `use stdlib::name;` block.
+        if mod.imports:
+            for imp in mod.imports:
+                out.append(f"use {imp.joined};")
+            out.append("")
+
         # Constants block
         if mod.constants:
             for c in mod.constants:

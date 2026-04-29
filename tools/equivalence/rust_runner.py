@@ -55,7 +55,16 @@ class RustRunner:
     ) -> None:
         if not cargo_available():
             raise RustRunnerError("cargo / rustc not on PATH")
-        self.module = module
+        # Apply the optimizer to the module ONCE up front when
+        # optimize=True, so the lib.rs source AND the dispatcher's
+        # function-name list are in sync (the optimizer's tree-
+        # shaker pass can drop unused imported functions, and the
+        # dispatcher must not reference dropped names).
+        if optimize:
+            from lang.optimizer import optimize_module
+            self.module = optimize_module(module)
+        else:
+            self.module = module
         self.timeout_s = timeout_s
         self.optimize = optimize
         self._tmp = tempfile.TemporaryDirectory(prefix="forge_rust_")
@@ -79,7 +88,12 @@ class RustRunner:
     # ── Build ─────────────────────────────────────────────────
 
     def _build_crate(self) -> None:
-        rust_src = RustBackend(optimize=self.optimize).compile(self.module)
+        # We already applied optimize_module() in __init__ when
+        # self.optimize is True, so the backend should NOT optimize
+        # again -- doing so would deepcopy the module + re-run all
+        # passes (correct but redundant). Pass optimize=False here
+        # to skip the duplicate work.
+        rust_src = RustBackend(optimize=False).compile(self.module)
         # Strip the `use monogate_sys::*;` line and re-add inside
         # `lib.rs`. We create both lib.rs (the generated code) and
         # main.rs (the dispatcher).

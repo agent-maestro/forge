@@ -27,13 +27,20 @@ from copy import deepcopy
 
 from lang.optimizer.constant_folding import fold_constants, fold_in_place
 from lang.optimizer.cse import apply_cse, apply_cse_module
+from lang.optimizer.inliner import inline_calls
 from lang.optimizer.superbest import route_superbest
+from lang.optimizer.tree_shaker import shake_imports
 from lang.parser.ast_nodes import EMLFunction, EMLModule, NodeKind
 
 
 def optimize_function(fn: EMLFunction) -> EMLFunction:
-    """Run the default pass sequence on one function. Returns a
-    new function -- the input is not mutated."""
+    """Run the per-function pass sequence (constant_folding + CSE +
+    superbest). Returns a new function -- input is not mutated.
+
+    NOTE: the call-inliner is a MODULE-level pass (it needs to
+    look up callees in the module's function table) so it lives
+    in `optimize_module`, not here. Calling `optimize_function`
+    directly skips inlining."""
     if fn.body is None:
         return fn
 
@@ -52,9 +59,28 @@ def optimize_function(fn: EMLFunction) -> EMLFunction:
 
 def optimize_module(mod: EMLModule) -> EMLModule:
     """Run the default pass sequence on every function in `mod`.
-    Returns a new module; the input is not mutated."""
-    out = deepcopy(mod)
-    out.functions = [optimize_function(fn) for fn in mod.functions]
+    Returns a new module; the input is not mutated.
+
+    Pass order:
+      0. inline_calls       -- substitute eligible same-module
+                               CALLs with the callee's body
+      1. constant_folding   -- fold pure-literal sub-trees
+                               (incl. ones exposed by inlining)
+      2. cse                -- hoist remaining duplicates
+      3. superbest          -- per-node operator-family selection
+                               (placeholder)
+      4. shake_imports      -- drop imported functions never reached
+                               by a local function (post-inlining,
+                               so all the inline-removed callees
+                               correctly disappear).
+    """
+    # Pass 0: module-level inliner.
+    out = inline_calls(mod)
+    # Passes 1 -> 3: per-function.
+    out.functions = [optimize_function(fn) for fn in out.functions]
+    # Pass 4: drop unused imports (after inlining so reachable set
+    # reflects the post-inline call graph).
+    out = shake_imports(out)
     return out
 
 

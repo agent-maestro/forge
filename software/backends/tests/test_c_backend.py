@@ -123,12 +123,14 @@ def test_profile_comment_includes_chain_order(profiler: Profiler,
     assert "Chain order: 3" in out
 
 
-def test_call_to_user_function_passes_through(profiler: Profiler,
-                                              backend: CBackend):
-    """motor_control's pid_scheduled calls nonlinear_gain(error).
-    Wait, that's pid_nonlinear; motor_control's safe_pid calls
-    pid_output. Verify either."""
-    out = _profile_and_compile("motor_control.eml", profiler, backend)
+def test_call_to_user_function_passes_through(profiler: Profiler):
+    """motor_control's safe_pid calls pid_output. Verify the CALL
+    survives in the emitted C when optimization is disabled --
+    the inliner pass would otherwise substitute pid_output's body
+    in place. We disable optimize here because this test is
+    specifically about the CALL-emission code path."""
+    raw = CBackend(optimize=False)
+    out = _profile_and_compile("motor_control.eml", profiler, raw)
     assert "pid_output(error" in out
 
 
