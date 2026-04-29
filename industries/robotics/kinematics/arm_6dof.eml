@@ -1,0 +1,36 @@
+// arm_6dof.eml -- forward kinematics for a 6-DOF robot arm.
+//
+// Standard target for industrial robots (UR5, KUKA KR-class).
+// Single-joint forward kinematic step: takes joint angle theta_i
+// and computes the end-effector x/y contribution. Six instances
+// chained in real applications. The sin/cos pair is the chain-2
+// hot path; the multiplications are chain-0.
+//
+// No standard cert (industrial robotics is mostly ISO 9001
+// quality-managed; ISO 13482 applies to personal-care robots).
+
+module arm_6dof;
+
+const LINK_1: Real = 0.425   // shoulder-elbow link length, m
+const LINK_2: Real = 0.392   // elbow-wrist link length, m
+
+type StableSignal = Real where chain_order <= 2
+
+// Single-joint planar contribution (one term of the 6-DOF chain).
+fn joint_xy(theta: Real, link: Real) -> (StableSignal, StableSignal) {
+    let x = link * cos(theta);
+    let y = link * sin(theta);
+    (x, y)
+}
+
+@target(fpga, clock_mhz = 100, precision = float32)
+@verify(lean, theorem = "arm_endpoint_within_workspace")
+fn arm_endpoint_x(theta_1: Real, theta_2: Real) -> Real
+    requires (abs(theta_1) < 3.14159)   // +/- pi
+    requires (abs(theta_2) < 3.14159)
+    ensures  (abs(result) < 1.0)        // arm reach is < 1 m
+{
+    let x1 = LINK_1 * cos(theta_1);
+    let x2 = LINK_2 * cos(theta_1 + theta_2);
+    x1 + x2
+}

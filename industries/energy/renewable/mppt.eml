@@ -1,0 +1,45 @@
+// mppt.eml -- Maximum Power Point Tracking for solar PV / wind.
+//
+// IEC 61508 SIL-2 candidate (functional safety of grid-connected
+// power electronics). NRC compliance applies for nuclear plant
+// instrumentation.
+//
+// Perturb-and-observe MPPT step. The PV array's I-V curve has
+// one maximum-power point; this controller perturbs the operating
+// voltage and observes whether power increases or decreases.
+
+module mppt;
+
+const STEP:        Real = 0.5     // V, perturbation step
+const V_MIN:       Real = 0.0     // V, never reverse-bias
+const V_MAX:       Real = 1000.0  // V, array open-circuit ceiling
+const POWER_MIN:   Real = 0.0     // W, never command negative power
+const POWER_MAX:   Real = 50000.0 // W, 50 kW array
+
+type StableSignal = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 100, precision = float32)
+@verify(lean, theorem = "mppt_voltage_command_safe")
+fn mppt_step(
+    voltage_now: Real,
+    power_now: Real,
+    power_prev: Real,
+) -> Real
+    requires (V_MIN <= voltage_now)
+    requires (voltage_now <= V_MAX)
+    requires (POWER_MIN <= power_now)
+    requires (power_now <= POWER_MAX)
+    requires (POWER_MIN <= power_prev)
+    requires (power_prev <= POWER_MAX)
+    ensures  (V_MIN <= result)
+    ensures  (result <= V_MAX)
+{
+    // If power went up, keep going in the same direction; else
+    // reverse. Sign captured via the (power_now - power_prev) term.
+    let dp = power_now - power_prev;
+    // Direction: +1 if dp > 0 else -1. Computed via tanh as a
+    // smooth approximation (chain order 1).
+    let direction = tanh(dp);
+    let v_next = voltage_now + STEP * direction;
+    clamp(v_next, V_MIN, V_MAX)
+}
