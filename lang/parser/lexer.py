@@ -18,7 +18,7 @@ from dataclasses import dataclass
 # Keyword classification. Anything not in this set that matches the
 # identifier regex is emitted as an IDENT token.
 KEYWORDS: frozenset[str] = frozenset({
-    "module", "import",
+    "module", "import", "use",
     "const", "type", "fn", "let", "mut", "while", "where",
     "domain", "precision", "chain_order", "requires", "ensures",
     "return", "if", "else",
@@ -42,6 +42,7 @@ MULTI_CHAR_OPS: tuple[tuple[str, str], ...] = (
     ("!=", "NE"),
     ("&&", "AND"),
     ("||", "OR"),
+    ("::", "DCOLON"),  # path separator: stdlib::math
 )
 
 SINGLE_CHAR_OPS: dict[str, str] = {

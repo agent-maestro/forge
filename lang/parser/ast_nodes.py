@@ -154,6 +154,12 @@ class EMLFunction:
     max_path_r, eml_depth, cost_class, dynamics, node_count,
     stability_warnings, fp16_drift_risk, fpga_estimate."""
 
+    imported_from: Optional[str] = None
+    """When the function reached this module via `use stdlib::X;`,
+    the resolver populates this with the joined path of the source
+    module (e.g. "stdlib::control"). Local functions leave it None.
+    The tree-shaker uses this to decide what's safe to drop."""
+
 
 @dataclass
 class EMLConstant:
@@ -176,10 +182,28 @@ class EMLTypeAlias:
 
 
 @dataclass
+class EMLImport:
+    """A `use stdlib::name;` declaration.
+
+    `path` is the dotted path components in declaration order, e.g.
+    ["stdlib", "math"] for `use stdlib::math;`. The loader resolves
+    this to a file path via its search-path table.
+    """
+    path: list[str]
+    line: int = 0
+    col: int = 0
+
+    @property
+    def joined(self) -> str:
+        return "::".join(self.path)
+
+
+@dataclass
 class EMLModule:
     """The result of parsing one `.eml` file."""
     name: str
     """The `module <name>;` identifier, or "" if no module declaration."""
+    imports: list[EMLImport] = field(default_factory=list)
     constants: list[EMLConstant] = field(default_factory=list)
     types: list[EMLTypeAlias] = field(default_factory=list)
     functions: list[EMLFunction] = field(default_factory=list)

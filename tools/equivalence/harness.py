@@ -93,15 +93,26 @@ def cross_target_check(
     requested backend and report agreement with the Python reference."""
     mod = parse_file(str(eml_path))
     Profiler().profile_module(mod)
-    fn = _find_function(mod, function_name)
 
-    # Always compute the Python reference first. Pull module-level
-    # const values into the bridge so they substitute into the
-    # lambdified body (without this, vertical functions that
-    # reference e.g. GRAVITY_GAIN would leak as free symbols).
-    consts = constants_from_module(mod)
+    # Run the optimizer on the module BEFORE lambdifying so the
+    # Python reference sees the same inlined / constant-folded
+    # AST that the backends will see. Without this, calls into
+    # imported stdlib functions render as opaque sp.Function
+    # placeholders that lambdify can't evaluate.
+    if optimize:
+        from lang.optimizer import optimize_module
+        py_mod = optimize_module(mod)
+    else:
+        py_mod = mod
+    py_fn = _find_function(py_mod, function_name)
+
+    # Pull module-level const values into the bridge so they
+    # substitute into the lambdified body (without this, vertical
+    # functions that reference e.g. GRAVITY_GAIN would leak as
+    # free symbols).
+    consts = constants_from_module(py_mod)
     try:
-        ref_outputs = run_python_reference(fn, vectors, constants=consts)
+        ref_outputs = run_python_reference(py_fn, vectors, constants=consts)
     except PythonReferenceError as e:
         # No reference -> can't compare anything. Mark Python as
         # unavailable + return early.

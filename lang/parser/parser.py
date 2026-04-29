@@ -19,6 +19,7 @@ from lang.parser.ast_nodes import (
     BUILTIN_TO_KIND,
     EMLConstant,
     EMLFunction,
+    EMLImport,
     EMLModule,
     EMLTypeAlias,
     NodeKind,
@@ -117,6 +118,11 @@ class Parser:
 
         mod = EMLModule(name=module_name, source_file=self.source_file)
 
+        # `use stdlib::name;` declarations come right after `module`
+        # and before any other top-level item.
+        while self._check("KEYWORD", "use"):
+            mod.imports.append(self._parse_use())
+
         while not self._check("EOF"):
             tok = self._peek()
             if self._check("KEYWORD", "const"):
@@ -125,12 +131,35 @@ class Parser:
                 mod.types.append(self._parse_type_alias())
             elif self._check("AT") or self._check("KEYWORD", "fn"):
                 mod.functions.append(self._parse_function())
+            elif self._check("KEYWORD", "use"):
+                # Late-arriving use is also legal but discouraged.
+                mod.imports.append(self._parse_use())
             else:
                 raise ParseError(
-                    "expected `const`, `type`, `fn`, or `@`-annotation",
+                    "expected `use`, `const`, `type`, `fn`, or "
+                    "`@`-annotation",
                     tok, self.source_file,
                 )
         return mod
+
+    def _parse_use(self) -> EMLImport:
+        """Parse `use IDENT (:: IDENT)+ ;`. The path must have at
+        least two components -- a single name like `use math;` is
+        rejected so we always know which root namespace to search."""
+        kw = self._eat("KEYWORD", "use")
+        first = self._eat("IDENT")
+        path: list[str] = [first.value]
+        while self._accept("DCOLON"):
+            seg = self._eat("IDENT")
+            path.append(seg.value)
+        if len(path) < 2:
+            raise ParseError(
+                "use path must be at least 2 segments "
+                "(e.g. `use stdlib::math;`)",
+                kw, self.source_file,
+            )
+        self._eat("SEMI")
+        return EMLImport(path=path, line=kw.line, col=kw.col)
 
     # ── Declarations ──────────────────────────────────────────
 
@@ -555,12 +584,43 @@ class Parser:
 
 # ── Convenience entrypoints ───────────────────────────────────
 
-def parse_source(text: str, source_file: str = "<string>") -> EMLModule:
-    """Parse a string of .eml source into an EMLModule."""
-    return Parser(text, source_file).parse()
+def parse_source(
+    text: str,
+    source_file: str = "<string>",
+    *,
+    resolve: bool = False,
+) -> EMLModule:
+    """Parse a string of .eml source into an EMLModule.
+
+    When `resolve=True`, any `use ...;` declarations are also
+    resolved -- the imported module's constants/types/functions
+    are merged into the returned module's namespace. Default
+    `resolve=False` returns the raw module so callers that don't
+    care about imports (e.g. the formatter) don't pay the
+    filesystem-IO cost."""
+    mod = Parser(text, source_file).parse()
+    if resolve and mod.imports:
+        # Local import to keep parser <-> loader cycle off the
+        # cold path.
+        from lang.loader import resolve_imports
+        mod = resolve_imports(mod)
+    return mod
 
 
-def parse_file(path: str | Path) -> EMLModule:
-    """Parse a .eml file into an EMLModule."""
+def parse_file(
+    path: str | Path,
+    *,
+    resolve: bool = True,
+) -> EMLModule:
+    """Parse a .eml file into an EMLModule.
+
+    Default `resolve=True` since file-based callers (CLI,
+    profiler-from-disk, equivalence harness) almost always want
+    imports merged. Pass `resolve=False` to skip resolution
+    (useful for the formatter, which only needs the raw AST)."""
     p = Path(path)
-    return parse_source(p.read_text(encoding="utf-8"), str(p))
+    return parse_source(
+        p.read_text(encoding="utf-8"),
+        str(p),
+        resolve=resolve,
+    )

@@ -43,10 +43,19 @@ def test_motor_foc_source_exists():
 
 
 def test_motor_foc_parses_and_profiles(foc_module):
-    """Module parses cleanly with the expected function/const set."""
+    """Module parses cleanly with the expected LOCAL function set.
+
+    Since the 2026-04 stdlib refactor, this module also imports
+    `stdlib::control` -- the parser auto-resolves imports so the
+    full function list now includes 12 stdlib functions. We
+    filter to just the locally-defined ones (imported_from is
+    None) for this regression check."""
     assert foc_module.name == "motor_foc_automotive"
-    fn_names = {f.name for f in foc_module.functions}
-    assert {"park", "clarke", "pi_step", "foc_d_axis"} == fn_names
+    local_names = {
+        f.name for f in foc_module.functions
+        if f.imported_from is None
+    }
+    assert {"park", "clarke", "pi_step", "foc_d_axis"} == local_names
     for fn in foc_module.functions:
         assert fn.profile is not None
 
@@ -114,12 +123,25 @@ def test_compiles_to_lean(foc_module):
     assert "(foc_d_axis i_d_setpoint i_d_measured i_d_integral)" in src
 
 
-def test_compiles_to_verilog(foc_module):
+def test_compiles_to_verilog_unoptimized(foc_module):
+    """With the inliner OFF, sub-functions emit as separate
+    sub-pipelines. The clamp call (now via stdlib's saturate)
+    is also a sub-pipeline call rather than inline ternary."""
+    plan = FPGAAllocator().allocate(foc_module)
+    raw = VerilogBackend(optimize=False)
+    src = raw.compile(foc_module, plan)
+    assert "module foc_d_axis_pipeline" in src
+    # Inner PI controller stays as a sub-pipeline call.
+    assert "pi_step_pipeline" in src
+
+
+def test_compiles_to_verilog_optimized(foc_module):
+    """With the optimizer ON (default), pi_step + saturate get
+    inlined into foc_d_axis. The clamp emerges as the actuator-
+    output ternary."""
     plan = FPGAAllocator().allocate(foc_module)
     src = VerilogBackend().compile(foc_module, plan)
     assert "module foc_d_axis_pipeline" in src
-    # Inner PI controller as a sub-pipeline call
-    assert "pi_step_pipeline" in src
     # Clamp lowered to ternary on the actuator output
     assert "?" in src and ":" in src
 

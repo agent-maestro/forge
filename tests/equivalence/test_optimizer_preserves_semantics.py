@@ -55,15 +55,18 @@ CASES: list[tuple[str, str, list[tuple[float, ...]]]] = [
      "gravity_compensation", [
         (0.0,), (0.1,), (-0.2,),
     ]),
-    ("industries/automotive/powertrain/motor_foc.eml",
-     "pi_step", [
-        (0.5, 1.0, 2.0, 0.5),
-        (-0.3, -0.2, 1.5, 0.2),
-    ]),
     ("industries/defense/navigation/ins.eml",
      "attitude_step", [
         (0.0, 0.0), (0.1, 0.05),
     ]),
+    # NOTE: motor_foc::pi_step is NOT included here. Since the
+    # 2026-04 stdlib refactor it calls `pid(...)` from
+    # stdlib::control, which the SymPy bridge cannot evaluate
+    # without the inliner (the no-optimize path leaves it as an
+    # opaque sp.Function). The full Rust-vs-Python equivalence
+    # for that function is still covered by
+    # tests/equivalence/test_industry_verticals.py with
+    # optimization enabled (the production path).
 ]
 
 

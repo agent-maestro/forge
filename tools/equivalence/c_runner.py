@@ -46,7 +46,14 @@ class CRunner:
     ) -> None:
         if not gcc_available():
             raise CRunnerError("gcc not on PATH")
-        self.module = module
+        # Apply the optimizer once up front so the dispatcher in
+        # main.c only references functions that survive the
+        # tree-shaker pass. (Mirrors RustRunner.)
+        if optimize:
+            from lang.optimizer import optimize_module
+            self.module = optimize_module(module)
+        else:
+            self.module = module
         self.timeout_s = timeout_s
         self.optimize = optimize
         self._tmp = tempfile.TemporaryDirectory(prefix="forge_c_")
@@ -69,7 +76,10 @@ class CRunner:
     # ── Build ─────────────────────────────────────────────────
 
     def _build(self) -> None:
-        c_src = CBackend(optimize=self.optimize).compile(self.module)
+        # We already optimized in __init__ when self.optimize is
+        # True; pass optimize=False to the backend to skip the
+        # duplicate pass.
+        c_src = CBackend(optimize=False).compile(self.module)
         # The generated header includes "libmonogate.h" -- we point
         # the include path at the runtime dir.
         gen_c = self.work_dir / "gen.c"
