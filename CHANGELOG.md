@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] — 2026-04-28 (Phase 1 SHIPPED)
+
+### Added (commits `1df5090` parser + `0099bdd` profiler)
+
+- **Working lexer** at `lang/parser/lexer.py` — longest-match
+  operator handling, line + col tracking, keyword classification
+- **Working parser** at `lang/parser/parser.py` — full
+  recursive-descent + Pratt expression precedence; 11/11 demo
+  `.eml` files parse cleanly into typed `EMLModule` /
+  `EMLFunction` / `EMLConstant` / `EMLTypeAlias` ASTs with
+  source-location info on every node
+- **AST → SymPy bridge** at `lang/profiler/ast_to_sympy.py` —
+  handles let-binding inlining, tuple-return decomposition,
+  builtin dispatch (exp/ln/sin/cos/tan/sqrt/asin/acos/atan/sinh
+  /cosh/tanh/abs/clamp/eml). Functions with `let mut` / `while` /
+  assignment correctly land in `complex_body` status.
+- **Working profiler** at `lang/profiler/profiler.py` — every
+  function gets a populated `profile` dict (chain_order,
+  cost_class, eml_depth, dynamics counter, FPGA estimate,
+  stability warnings, drift risk) via `eml-cost.analyze` +
+  `eml-cost.analyze_dynamics`
+- **AST node extensions** in `lang/parser/ast_nodes.py`:
+  `Param`, `Annotation`, `WhereClause`, `EMLModule` dataclasses;
+  `LET_MUT` / `ASSIGN` / `WHILE` / `BLOCK` / `EXPR_STMT` /
+  `TUPLE` NodeKinds; `BUILTIN_NAMES` + `BUILTIN_TO_KIND` tables
+- **66 tests passing** across `lang/parser/tests/` (43) +
+  `lang/profiler/tests/` (21) + `tests/integration/` (2).
+- End-to-end `parse → profile → type_check` pipeline closed.
+  Type checker correctly rejects `sin(x)` against
+  `chain_order <= 1` constraint.
+
+### Phase 1 status
+
+- 1.1 Grammar — DONE (hand-rolled parser preferred over ANTLR codegen)
+- 1.2 Parser — DONE
+- 1.3 Profiler + type checker — DONE
+- 1.6 Domain + precision constraint INFERENCE at call sites — deferred to a later sub-phase
+
+See `roadmap/phases/phase1_language.md` for the per-milestone
+checklist and `lang/spec/EML_LANG_DESIGN.md` for the canonical
+design vision.
+
 ## [Unreleased] — 2026-04-28 (post-design-doc integration)
 
 ### Added
