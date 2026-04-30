@@ -22,19 +22,15 @@
 --       abs (autopilot_step pitch_setpoint pitch_measured pitch_integral)
 --         < ELEVATOR_MAX := by ...
 
-import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
-import MonogateEML.Tactics
+import MachLib.EML
+import MachLib.Trig
 
-open Real
+open MachLib
+open MachLib.Real
 
 theorem {{ theorem_name }} {{ params }}
     (h : {{ requires }}) :
     {{ min_bound }} <= ({{ fn_name }} {{ params_pos }})
       ∧ ({{ fn_name }} {{ params_pos }}) <= {{ max_bound }} := by
-  -- Overflow proofs reduce to clamp() + interval arithmetic on
-  -- the chained operations. eml_auto handles trivial clamp cases;
-  -- transcendental-bounded outputs need manual interval reasoning.
-  first
-  | exact MonogateEML.Tactics.eml_auto
-  | (unfold {{ fn_name }}; constructor <;> [linarith; linarith])
-  | sorry
+  unfold {{ fn_name }}
+  sorry  -- TODO: prove the clamp + interval bound against MachLib foundations

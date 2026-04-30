@@ -9,9 +9,13 @@ theorem files. Each verified function produces:
   2. A theorem statement built from `requires` (hypotheses) +
      `ensures` (conclusion), with `result` rewritten to refer to
      the function's return value.
-  3. A proof attempt that tries `eml_auto` (from
-     `monogate-lean/MonogateEML/Tactics.lean`), then falls back
-     to `simp; sorry` with a TODO marker.
+  3. A proof body of `sorry` (the proof obligation is left for
+     the agent / human downstream).
+
+Output imports the MachLib foundations only — zero Mathlib
+dependency. After `open MachLib` and `open MachLib.Real`, bare
+`Real`, `exp`, `log`, `sin`, `cos`, `eml`, `min`, `max`, `abs`
+all resolve through MachLib.
 
 Reference: lang/spec/EML_LANG_DESIGN.md section 2.4.
 """
@@ -46,24 +50,14 @@ _BUILTIN_TO_LEAN: dict[NodeKind, str] = {
 }
 
 
-# Stdlib function name -> MonogateEML.Runtime symbol. When the AST
-# contains a CALL to a stdlib activation/growth function, resolve it
-# through the runtime namespace so generated theorems compile cleanly.
-_STDLIB_TO_RUNTIME: dict[str, str] = {
-    "sigmoid":  "MonogateEML.Runtime.mg_sigmoid",
-    "softplus": "MonogateEML.Runtime.mg_softplus",
-    "relu":     "MonogateEML.Runtime.mg_relu",
-    "logistic": "MonogateEML.Runtime.mg_logistic",
-    "gompertz": "MonogateEML.Runtime.mg_gompertz",
-    "eml":      "MonogateEML.Runtime.mg_eml",
-    "eal":      "MonogateEML.Runtime.mg_eal",
-    "exl":      "MonogateEML.Runtime.mg_exl",
-    "edl":      "MonogateEML.Runtime.mg_edl",
-    "lediv":    "MonogateEML.Runtime.mg_lediv",
-    "elsb":     "MonogateEML.Runtime.mg_elsb",
-    "elad":     "MonogateEML.Runtime.mg_elad",
-    "deml":     "MonogateEML.Runtime.mg_deml",
-}
+# Stdlib activation / EML-family function names that get a 1:1
+# pass-through to Lean (no runtime-namespace rewrite). The downstream
+# verifier provides their definitions; this list documents the set
+# that MachLib's stdlib emitter is expected to recognise.
+_STDLIB_PASSTHROUGH: frozenset[str] = frozenset({
+    "sigmoid", "softplus", "relu", "logistic", "gompertz",
+    "eml", "eal", "exl", "edl", "lediv", "elsb", "elad", "deml",
+})
 
 
 # Map EML-lang type names to Lean type names. Aliases default to
@@ -122,14 +116,11 @@ class LeanBackend:
             f"-- Source file:   {mod.source_file}",
             f"-- Verified fns:  {', '.join(f.name for f in verified)}",
             "",
-            "import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic",
-            "import Mathlib.Analysis.SpecialFunctions.Exp",
-            "import Mathlib.Analysis.SpecialFunctions.Log.Basic",
-            "import MonogateEML.Tactics",
-            "import MonogateEML.Runtime",
+            "import MachLib.EML",
+            "import MachLib.Trig",
             "",
-            "open Real",
-            "open MonogateEML.Runtime",
+            "open MachLib",
+            "open MachLib.Real",
             "",
         ]
         for fn in verified:
@@ -249,14 +240,13 @@ class LeanBackend:
         else:
             proof_lines[-1] += " :"
         proof_lines.append(f"    {conclusion} := by")
-        # Proof attempt: try eml_auto, then unfold + simp, then sorry.
+        # Proof body: sorry. The proof obligation is left for the
+        # downstream agent / human; MachLib intentionally ships
+        # without `eml_auto`-style omnibus tactics so that the
+        # corpus contains the actual proofs, not auto-closures.
         proof_lines.extend([
-            f"  -- Auto-attempt: eml_auto, then unfold + simp.",
-            f"  -- Falls through to `sorry` if neither closes the goal.",
-            f"  first",
-            f"  | exact MonogateEML.Tactics.eml_auto",
-            f"  | (unfold {func.name}; simp; sorry)",
-            f"  | sorry  -- TODO: hand-prove or strengthen eml_auto",
+            f"  unfold {func.name}",
+            f"  sorry  -- TODO: prove against MachLib foundations",
         ])
         return proof_lines
 
@@ -381,12 +371,10 @@ class LeanBackend:
                 self._emit_expr(c, result_subst=result_subst)
                 for c in node.children
             )
-            # Stdlib activation/growth/EML-family calls resolve through
-            # the MonogateEML.Runtime namespace (opened at file scope,
-            # so the short name suffices when there's no collision).
+            # Stdlib activation / EML-family calls pass through
+            # by their EML name; the downstream MachLib stdlib
+            # provides their definitions.
             name = str(node.value)
-            if name in _STDLIB_TO_RUNTIME:
-                return f"(mg_{name} {args})"
             return f"({name} {args})"
 
         if kind == NodeKind.TUPLE:

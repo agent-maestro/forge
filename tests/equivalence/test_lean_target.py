@@ -1,13 +1,12 @@
 """Lean structural-equivalence target tests.
 
 The Lean target proves the @verify(lean) blocks emitted for every
-production-shape vertical compile cleanly. Without a full Lean
-toolchain + Mathlib environment we can only do a structural check
-(theorem name present, MonogateEML.Tactics imported, proof tactic
-body found); when `lean` is on PATH the runner additionally
-syntactically validates the file. The same EquivalenceReport
-shape used by the C/Rust paths gets reused so callers can mix
-all three.
+production-shape vertical compile cleanly. Without a Lean
+toolchain we can only do a structural check (theorem name
+present, MachLib import line found, proof tactic body found);
+when `lean` is on PATH the runner additionally syntactically
+validates the file. The same EquivalenceReport shape used by the
+C/Rust paths gets reused so callers can mix all three.
 
 These tests are NEVER skipped on toolchain availability -- the
 structural check works everywhere. Lean-toolchain-dependent

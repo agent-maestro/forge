@@ -10,13 +10,13 @@ Two operating modes:
 
   - Structural mode (always available): emit the Lean source via
     LeanBackend and verify it contains the expected `theorem
-    <name>` declaration, the `import MonogateEML.Tactics` line,
-    and at least one proof tactic invocation.
+    <name>` declaration, an `import MachLib.*` line, and at
+    least one proof tactic invocation.
 
-  - Full-build mode (when `lake` is on PATH AND a MonogateEML
-    project is available): scaffold a tiny lake project, write
-    the generated source into it, and run `lake build`. The
-    result reports compile_ok=True iff the build succeeds.
+  - Full-build mode (when `lake` is on PATH AND a MachLib project
+    is available): scaffold a tiny lake project, write the
+    generated source into it, and run `lake build`. The result
+    reports compile_ok=True iff the build succeeds.
 
 The harness orchestrator never penalises a structural-only run
 relative to a full-build run; users that want hard verification
@@ -43,15 +43,15 @@ def lean_available() -> bool:
 
 def lake_available() -> bool:
     """True iff `lake` (the package manager) is on PATH AND
-    a working MonogateEML project is available for it to build
+    a working MachLib project is available for it to build
     against. Today we just check the binary; pointing at a real
     project is a follow-on for when the harness gains a Lake
     config."""
     return shutil.which("lake") is not None
 
 
-# Path to the in-repo MonogateEML project, if it exists.
-_MONOGATE_LEAN_DIR = (
+# Path to the in-repo MachLib foundations, if it exists.
+_MACHLIB_DIR = (
     Path(__file__).resolve().parents[2]
     / "software" / "verification" / "lean"
 )
@@ -174,11 +174,10 @@ class LeanRunner:
         `lake build`. Returns (ok, error_message).
 
         Today's MVP just runs `lean --check` against a single
-        file with no Mathlib dependency -- this catches syntax
-        errors but won't fully verify a theorem that needs
-        Mathlib lemmas. The harness's structural check covers
-        the no-toolchain case; this is the toolchain-present
-        but no-mathlib upgrade."""
+        file. Catches syntax errors and import resolution; doesn't
+        fully verify theorems whose proofs are `sorry`. The
+        harness's structural check covers the no-toolchain case;
+        this is the toolchain-present upgrade."""
         if shutil.which("lean") is None:
             return False, "lean binary not found alongside lake"
 
@@ -204,7 +203,7 @@ class LeanRunner:
 
 
 _THEOREM_RE = re.compile(r"theorem\s+(\w+)")
-_IMPORT_RE = re.compile(r"^\s*import\s+MonogateEML")
+_IMPORT_RE = re.compile(r"^\s*import\s+MachLib")
 
 
 def _structural_findings(src: str, fn) -> list[str]:
@@ -212,12 +211,11 @@ def _structural_findings(src: str, fn) -> list[str]:
     list means everything looks well-formed."""
     findings: list[str] = []
 
-    # Must import MonogateEML.Tactics (or similar) for eml_auto
-    # to be in scope.
+    # Must import a MachLib foundations module so `Real`, `exp`,
+    # `log`, etc. resolve.
     if not any(_IMPORT_RE.match(line) for line in src.splitlines()):
         findings.append(
-            "missing `import MonogateEML.Tactics` (or sibling) "
-            "from header"
+            "missing `import MachLib.EML` (or sibling) from header"
         )
 
     # Must declare a theorem with the expected name.
@@ -240,10 +238,9 @@ def _structural_findings(src: str, fn) -> list[str]:
             )
 
     # Must include at least one proof-tactic invocation.
-    if "eml_auto" not in src and ":= by" not in src and ":=\n  by" not in src:
+    if ":= by" not in src and ":=\n  by" not in src:
         findings.append(
-            "no proof-tactic body found (expected `eml_auto`, "
-            "`by`, or similar)"
+            "no proof-tactic body found (expected `:= by ...`)"
         )
 
     return findings
