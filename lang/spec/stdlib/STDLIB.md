@@ -10,7 +10,7 @@ idiomatic in EML-lang.
 | Module | File | Functions | Constants |
 |--------|------|----------:|----------:|
 | `math`     | `math.eml`     | 15 |  4 |
-| `ml`       | `ml.eml`       |  7 |  0 |
+| `ml`       | `ml.eml`       | 13 |  0 |
 | `control`  | `control.eml`  | 12 |  0 |
 | `signal`   | `signal.eml`   | 11 |  3 |
 | `linalg`   | `linalg.eml`   | 13 |  0 |
@@ -52,6 +52,11 @@ without pulling in the rest of the math module.
 | `swish(x)`                    | 1 | `x * sigmoid(x)` |
 | `gelu(x)`                     | 1 | tanh-based BERT/GPT form |
 | `relu(x)` / `leaky_relu(x, alpha)` | 0 | clamp-based |
+| `elu(x, alpha)`               | 1 | Exponential linear unit |
+| `selu(x)`                     | 1 | Scaled ELU; self-normalizing |
+| `mish(x)`                     | 3 | `x * tanh(softplus(x))` |
+| `hard_sigmoid(x)` / `hard_tanh(x)` | 0 | Piecewise-linear, FPGA-cheap |
+| `hard_swish(x)`               | 0 | Mobile-inference swish approximation |
 
 ### `control` — PID, filters, saturation, slew
 

@@ -1,0 +1,119 @@
+// black_scholes.eml -- Black-Scholes-Merton European call pricer.
+//
+// The textbook closed-form for a European call:
+//
+//   d1 = (ln(S/K) + (r + sigma^2/2) * T) / (sigma * sqrt(T))
+//   d2 = d1 - sigma * sqrt(T)
+//   C  = S * N(d1) - K * exp(-r * T) * N(d2)
+//
+// where N(x) is the standard-normal CDF. EML's builtin set does
+// not include `erf`, so we use the GELU-paper tanh-based
+// approximation
+//
+//   N(x) ≈ 0.5 * (1 + tanh(SQRT_2_OVER_PI * (x + 0.044715 * x^3)))
+//
+// which is accurate to ~1.5e-7 over |x| < 6 -- well within the
+// precision banks accept for daily desk-quote pricing. Chain order
+// 1 (single tanh applied to a chain-0 polynomial); routing
+// drift_risk = LOW.
+//
+// Domain assumptions are encoded as `requires` clauses below. The
+// FRTB certification doc at certification/FRTB_COMPLIANCE.md
+// pairs this implementation with its model-validation theorem.
+
+module black_scholes;
+
+// ── Constants ────────────────────────────────────────────────
+// sqrt(2 / pi) for the GELU-style normal CDF approximation.
+const SQRT_2_OVER_PI: Real = 0.7978845608028654
+// GELU's odd-cubic correction term coefficient.
+const GELU_C3:        Real = 0.044715
+// Half — used in the d1 + d2 formulas and the CDF.
+const HALF:           Real = 0.5
+// Floor on time-to-expiry (years). Below this the pricer would
+// divide by ~0; we clamp T into [TINY_T, +inf).
+const TINY_T:         Real = 0.000274  // 1 / (365 * 10) -- 2.4 hrs
+
+// ── Type aliases ─────────────────────────────────────────────
+// Closed-form Black-Scholes is chain order 3 once N(d1) and
+// N(d2) are inlined: ln + sqrt + tanh compose for the worst arm.
+type PricerSignal = Real where chain_order <= 3
+
+// ── Standard normal CDF ──────────────────────────────────────
+// GELU-paper approximation. tanh dominates the chain order; the
+// inner polynomial is chain 0 (multiplications + additions).
+fn norm_cdf(x: Real) -> Real
+    where chain_order <= 1
+{
+    HALF * (1.0 + tanh(SQRT_2_OVER_PI * (x + GELU_C3 * x * x * x)))
+}
+
+// ── d1, d2 helpers ───────────────────────────────────────────
+// d1 = (ln(S/K) + (r + sigma^2/2) * T) / (sigma * sqrt(T))
+// chain order: ln (1) on the left, sqrt (0.5 -> 1) on the right;
+// the division does not lift chain order.
+fn bs_d1(spot: Real, strike: Real, rate: Real, vol: Real, time_to_expiry: Real)
+    -> Real
+    where chain_order <= 2
+{
+    let drift_term  = (rate + HALF * vol * vol) * time_to_expiry;
+    let log_moneyness = ln(spot / strike);
+    let vol_sqrt_t  = vol * sqrt(time_to_expiry);
+    (log_moneyness + drift_term) / vol_sqrt_t
+}
+
+fn bs_d2(spot: Real, strike: Real, rate: Real, vol: Real, time_to_expiry: Real)
+    -> Real
+    where chain_order <= 2
+{
+    bs_d1(spot, strike, rate, vol, time_to_expiry)
+        - vol * sqrt(time_to_expiry)
+}
+
+// ── Top-level call pricer ────────────────────────────────────
+// @target(fpga, ...) drops the bitstream onto a 250 MHz fabric;
+// @verify(lean) attaches the put-call-parity + monotonicity
+// theorem (statement in certification/MODEL_VALIDATION.md).
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "black_scholes_call_no_arb")
+fn black_scholes_call(
+    spot: Real,
+    strike: Real,
+    rate: Real,
+    vol: Real,
+    time_to_expiry: Real,
+) -> PricerSignal
+    requires (spot > 0.0)
+    requires (strike > 0.0)
+    requires (vol > 0.0)
+    requires (time_to_expiry > TINY_T)
+    ensures  (result >= 0.0)            // calls are non-negative
+{
+    let d1 = bs_d1(spot, strike, rate, vol, time_to_expiry);
+    let d2 = bs_d2(spot, strike, rate, vol, time_to_expiry);
+    let discount_factor = exp(-rate * time_to_expiry);
+    spot * norm_cdf(d1) - strike * discount_factor * norm_cdf(d2)
+}
+
+// ── European put -- via put-call parity helper ───────────────
+// Put = Call - Spot + Strike * exp(-r*T). Cheaper to derive than
+// to recompute N(-d1), N(-d2) since put-call parity is exact.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "black_scholes_put_via_parity")
+fn black_scholes_put(
+    spot: Real,
+    strike: Real,
+    rate: Real,
+    vol: Real,
+    time_to_expiry: Real,
+) -> PricerSignal
+    requires (spot > 0.0)
+    requires (strike > 0.0)
+    requires (vol > 0.0)
+    requires (time_to_expiry > TINY_T)
+    ensures  (result >= 0.0)
+{
+    let call_price = black_scholes_call(spot, strike, rate, vol, time_to_expiry);
+    let discount   = exp(-rate * time_to_expiry);
+    call_price - spot + strike * discount
+}

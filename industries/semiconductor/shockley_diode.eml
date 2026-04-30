@@ -1,0 +1,54 @@
+// shockley_diode.eml -- ideal-diode current-voltage relationship.
+//
+// The Shockley diode equation:
+//
+//   I_D = I_s * (exp(V_D / (n * V_T)) - 1)
+//
+// with:
+//   I_s -- reverse saturation current (A)
+//   V_D -- diode terminal voltage (V)
+//   n   -- ideality factor (dimensionless, 1 .. 2)
+//   V_T -- thermal voltage = kT/q (V), ≈ 0.02585 V at 300 K
+//
+// Chain order 1 (single exp). Production SPICE adds capacitance,
+// recombination current, and temperature-coefficient terms; this
+// is the textbook DC I-V kernel.
+
+module shockley_diode;
+
+const VT_300K: Real = 0.025852       // thermal voltage at 300 K, in V
+
+type DeviceSignal = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "shockley_current_monotone_in_voltage")
+fn shockley_current(
+    voltage: Real,
+    saturation_current: Real,
+    ideality: Real,
+    thermal_voltage: Real,
+) -> DeviceSignal
+    where chain_order <= 1
+    requires (saturation_current > 0.0)
+    requires (ideality >= 1.0)
+    requires (ideality <= 2.0)
+    requires (thermal_voltage > 0.0)
+{
+    saturation_current * (exp(voltage / (ideality * thermal_voltage)) - 1.0)
+}
+
+// Convenience entry that fixes thermal_voltage to its 300 K
+// value -- the most common SPICE default. Same chain order.
+@target(fpga, clock_mhz = 200, precision = float64)
+fn shockley_at_room_temp(
+    voltage: Real,
+    saturation_current: Real,
+    ideality: Real,
+) -> DeviceSignal
+    where chain_order <= 1
+    requires (saturation_current > 0.0)
+    requires (ideality >= 1.0)
+    requires (ideality <= 2.0)
+{
+    shockley_current(voltage, saturation_current, ideality, VT_300K)
+}

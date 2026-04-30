@@ -106,10 +106,11 @@ fn selu(x: f64) -> f64
 
 // Mish (Misra 2019). Smooth, non-monotonic, self-gated --
 // outperforms swish / GELU on some vision benchmarks.
-// `mish(x) = x * tanh(softplus(x))`. Chain order 2 (tanh
-// composes through ln+exp via softplus).
+// `mish(x) = x * tanh(softplus(x))`. Chain order 3: softplus
+// is itself chain 2 (ln composes through exp), and tanh applied
+// to a chain-2 expression lifts the result to chain 3.
 fn mish(x: f64) -> f64
-    where chain_order <= 2
+    where chain_order <= 3
 {
     x * tanh(ln(1.0 + exp(x)))
 }

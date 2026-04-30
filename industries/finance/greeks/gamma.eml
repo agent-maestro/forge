@@ -1,0 +1,52 @@
+// gamma.eml -- Black-Scholes gamma. Gamma is the second derivative
+// of option price with respect to spot, equivalently the first
+// derivative of delta. Same for calls and puts.
+//
+//   gamma = phi(d1) / (S * sigma * sqrt(T))
+//
+// where phi(x) = (1/sqrt(2*pi)) * exp(-x^2/2) is the standard
+// normal PDF. Chain order 2 (ln in d1 + exp in phi).
+
+module gamma_greek;
+
+const HALF:           Real = 0.5
+const SQRT_2_PI_INV:  Real = 0.3989422804014327   // 1 / sqrt(2*pi)
+const TINY_T:         Real = 0.000274
+
+type GreekSignal = Real where chain_order <= 3
+
+fn norm_pdf(x: Real) -> Real
+    where chain_order <= 1
+{
+    SQRT_2_PI_INV * exp(-HALF * x * x)
+}
+
+fn d1(spot: Real, strike: Real, rate: Real, vol: Real, time_to_expiry: Real)
+    -> Real
+    where chain_order <= 2
+{
+    let drift_term    = (rate + HALF * vol * vol) * time_to_expiry;
+    let log_moneyness = ln(spot / strike);
+    let vol_sqrt_t    = vol * sqrt(time_to_expiry);
+    (log_moneyness + drift_term) / vol_sqrt_t
+}
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "bs_gamma_non_negative")
+fn bs_gamma(
+    spot: Real,
+    strike: Real,
+    rate: Real,
+    vol: Real,
+    time_to_expiry: Real,
+) -> GreekSignal
+    requires (spot > 0.0)
+    requires (strike > 0.0)
+    requires (vol > 0.0)
+    requires (time_to_expiry > TINY_T)
+    ensures  (result >= 0.0)
+{
+    let d1_val      = d1(spot, strike, rate, vol, time_to_expiry);
+    let denom       = spot * vol * sqrt(time_to_expiry);
+    norm_pdf(d1_val) / denom
+}

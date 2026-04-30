@@ -1,0 +1,75 @@
+// var_monte_carlo.eml -- parametric Value-at-Risk under a normal
+// return assumption. The Monte-Carlo loop itself runs on the host
+// (the .eml does not generate randomness); this file exposes the
+// parametric formula and the per-path P&L update used inside the
+// MC kernel.
+//
+// Parametric VaR (one-tail at confidence α):
+//
+//   VaR(α) = -μ * H + σ * sqrt(H) * Φ⁻¹(α)
+//
+// where μ, σ are the daily mean and stdev of returns, H is the
+// horizon in days, and Φ⁻¹ is the inverse standard-normal CDF.
+// We accept Φ⁻¹(α) as a precomputed input -- the Beasley-Springer
+// inverse-CDF approximation is supported in EML but rolling it
+// in would inflate this file's chain order without changing the
+// validation theorem (monotonicity in σ and H).
+
+module var_monte_carlo;
+
+const HALF: Real = 0.5
+
+type RiskSignal = Real where chain_order <= 1
+
+// ── Parametric VaR ───────────────────────────────────────────
+// Closed-form normal-VaR at horizon `horizon_days` and confidence
+// percentile encoded in `inv_cdf` (e.g. inv_cdf = 1.6449 for 95 %,
+// 2.3263 for 99 %).
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "parametric_var_monotone_in_sigma")
+fn parametric_var(
+    mean_return: Real,
+    stdev_return: Real,
+    horizon_days: Real,
+    inv_cdf: Real,
+) -> RiskSignal
+    where chain_order <= 1
+    requires (stdev_return > 0.0)
+    requires (horizon_days > 0.0)
+    requires (inv_cdf > 0.0)
+    ensures  (result > 0.0)
+{
+    -mean_return * horizon_days + stdev_return * sqrt(horizon_days) * inv_cdf
+}
+
+// ── Per-path log-return update ───────────────────────────────
+// Inside the MC kernel each path advances under a normal innovation
+// `z`. This function is the unit gate; the host loop calls it
+// once per path per step. Chain order 0 (just an exp on the way
+// out for the price level if the caller wants level-VaR rather
+// than log-return-VaR).
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "log_return_step_mean_drift")
+fn log_return_step(
+    mean_return: Real,
+    stdev_return: Real,
+    z: Real,
+) -> RiskSignal
+    where chain_order <= 0
+    requires (stdev_return > 0.0)
+{
+    mean_return + stdev_return * z
+}
+
+// ── Path-level worst loss tracker ────────────────────────────
+// Sticky-min over a running scan: given the previous worst loss
+// `running_min` and the latest sampled loss `path_loss`, returns
+// whichever is more negative. Used inside the MC sort to avoid
+// the full path-loss array on the host (a single accumulator is
+// enough when only the tail percentile matters).
+@target(fpga, clock_mhz = 250, precision = float64)
+fn path_worst_loss(running_min: Real, path_loss: Real) -> RiskSignal
+    where chain_order <= 0
+{
+    clamp(path_loss, -1.0e30, running_min)
+}
