@@ -116,8 +116,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("source", type=Path, nargs="?",
                         help="Path to a .eml source file")
     parser.add_argument("--target", choices=[
-        "c", "rust", "python", "llvm", "wasm",
+        "c", "cpp", "rust", "python", "llvm", "wasm",
         "verilog", "vhdl", "chisel", "lean",
+        "ada",
         "all",
     ], help=("Output target. 'all' runs every live backend "
             "(c, rust, lean, verilog) and writes <stem>.<ext> "
@@ -273,6 +274,31 @@ def main(argv: list[str] | None = None) -> int:
         c_path.write_text(c_src, encoding="utf-8")
         results.append(("c", c_path, len(c_src)))
 
+        # C++
+        try:
+            from software.backends.cpp_backend import CppBackend
+            cpp_path = out_dir / f"{stem}.cpp"
+            cpp_src = CppBackend(optimize=not args.no_optimize).compile(mod)
+            cpp_path.write_text(cpp_src, encoding="utf-8")
+            results.append(("cpp", cpp_path, len(cpp_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("cpp", Path("<skipped>"), 0))
+            print(f"  cpp skipped: {e}", file=sys.stderr)
+
+        # Ada / SPARK (writes .ads + .adb)
+        try:
+            from software.backends.ada_backend import AdaBackend
+            ada_art = AdaBackend(optimize=not args.no_optimize).compile_full(mod)
+            ads_path = out_dir / f"{stem}.ads"
+            adb_path = out_dir / f"{stem}.adb"
+            ads_path.write_text(ada_art.spec, encoding="utf-8")
+            adb_path.write_text(ada_art.body, encoding="utf-8")
+            results.append(("ada-spec", ads_path, len(ada_art.spec)))
+            results.append(("ada-body", adb_path, len(ada_art.body)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("ada", Path("<skipped>"), 0))
+            print(f"  ada skipped: {e}", file=sys.stderr)
+
         # Rust
         from software.backends.rust_backend import RustBackend
         rs_path = out_dir / f"{stem}.rs"
@@ -371,6 +397,44 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
         else:
             print(c_source, end="")
+        return 0
+
+    if args.target == "ada":
+        from software.backends.ada_backend import AdaBackend, CompileError as AdaErr
+        try:
+            ada = AdaBackend(optimize=not args.no_optimize).compile_full(mod)
+        except AdaErr as e:
+            print(f"compile error (ada backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            # Emit two files side-by-side: <stem>.ads and <stem>.adb.
+            stem = args.output.with_suffix("")
+            ads_path = stem.with_suffix(".ads")
+            adb_path = stem.with_suffix(".adb")
+            ads_path.write_text(ada.spec, encoding="utf-8")
+            adb_path.write_text(ada.body, encoding="utf-8")
+            print(f"wrote {ads_path} ({len(ada.spec)} bytes)", file=sys.stderr)
+            print(f"wrote {adb_path} ({len(ada.body)} bytes)", file=sys.stderr)
+        else:
+            # Stdout: combined spec + body with banner separators.
+            print(AdaBackend(optimize=not args.no_optimize).compile(mod), end="")
+        return 0
+
+    if args.target == "cpp":
+        from software.backends.cpp_backend import CppBackend, CompileError as CppErr
+        try:
+            cpp_source = CppBackend(optimize=not args.no_optimize).compile(mod)
+        except CppErr as e:
+            print(f"compile error (cpp backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(cpp_source, encoding="utf-8")
+            print(f"wrote {args.output} "
+                  f"({len(cpp_source)} bytes, "
+                  f"{cpp_source.count(chr(10))} lines)",
+                  file=sys.stderr)
+        else:
+            print(cpp_source, end="")
         return 0
 
     if args.target == "rust":
