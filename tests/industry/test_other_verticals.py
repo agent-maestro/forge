@@ -53,6 +53,27 @@ _VERTICALS = [
         "nuclear/NRC_compliance.md",
         "mppt_voltage_command_safe",
     ),
+    (
+        "telecom",
+        "telecom/pulse_compression.eml",
+        "pulse_tap",
+        "README.md",
+        "pulse_tap_amplitude_bounded",
+    ),
+    (
+        "radar",
+        "radar/cfar_threshold.eml",
+        "cfar_threshold",
+        "README.md",
+        "cfar_threshold_non_negative",
+    ),
+    (
+        "semiconductor",
+        "semiconductor/shockley_diode.eml",
+        "shockley_current",
+        "README.md",
+        "shockley_current_monotone_in_voltage",
+    ),
 ]
 
 

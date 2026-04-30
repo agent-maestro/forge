@@ -1,0 +1,73 @@
+// heston.eml -- Heston stochastic-volatility model: one
+// Euler-Maruyama discretisation step for the variance process.
+//
+// Heston dynamics:
+//   dS_t = μ * S_t dt + sqrt(v_t) * S_t dW1
+//   dv_t = κ * (θ - v_t) dt + ξ * sqrt(v_t) dW2
+//
+// Production Heston pricers go through the Lewis-Lipton characteristic
+// function (complex log + complex exp), which is outside EML's
+// real-arithmetic frontier. The compromise: ship the Monte-Carlo
+// kernel — a single step of the Euler-Maruyama discretisation —
+// and expose it as a primitive that risk + pricing pipelines can
+// loop on the calling side.
+//
+// The full-truncation scheme (Lord, Koopman, van Dijk 2010) clamps
+// the variance below by zero before computing sqrt; this file
+// implements that scheme directly.
+
+module heston;
+
+const HALF:        Real = 0.5
+const VAR_FLOOR:   Real = 0.0       // full-truncation clamp
+const VAR_CEILING: Real = 100.0     // safety: 1000% vol
+
+type SimSignal = Real where chain_order <= 1
+
+// ── Variance step ────────────────────────────────────────────
+// One Euler-Maruyama step of the variance dynamics under the
+// full-truncation scheme. The two "noise" arguments are the
+// pre-generated correlated Gaussian increments — the .eml does
+// not generate randomness; the host loop does.
+fn heston_variance_step(
+    variance: Real,
+    kappa: Real,
+    theta: Real,
+    xi: Real,
+    sqrt_dt: Real,
+    z2: Real,
+) -> SimSignal
+    where chain_order <= 1
+    requires (variance >= 0.0)
+    requires (kappa > 0.0)
+    requires (theta >= 0.0)
+    requires (xi >= 0.0)
+    requires (sqrt_dt > 0.0)
+{
+    let v_floored    = clamp(variance, VAR_FLOOR, VAR_CEILING);
+    let drift        = kappa * (theta - v_floored) * sqrt_dt * sqrt_dt;
+    let diffusion    = xi * sqrt(v_floored) * sqrt_dt * z2;
+    clamp(variance + drift + diffusion, VAR_FLOOR, VAR_CEILING)
+}
+
+// ── Spot step ────────────────────────────────────────────────
+// One log-Euler step of the spot under the same correlated
+// Brownian motion. Returns the new log-spot; callers that need
+// the price take exp on the way out (chain order rises by 1).
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "heston_log_spot_step_stable")
+fn heston_log_spot_step(
+    log_spot: Real,
+    variance: Real,
+    drift: Real,
+    sqrt_dt: Real,
+    z1: Real,
+) -> SimSignal
+    where chain_order <= 1
+    requires (variance >= 0.0)
+    requires (sqrt_dt > 0.0)
+{
+    let v_floored = clamp(variance, VAR_FLOOR, VAR_CEILING);
+    let dt        = sqrt_dt * sqrt_dt;
+    log_spot + (drift - HALF * v_floored) * dt + sqrt(v_floored) * sqrt_dt * z1
+}

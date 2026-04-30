@@ -1,6 +1,6 @@
 # Industry verticals — production-shape EML examples
 
-Eleven verticals across six domains. Each `<vertical>/<subdomain>/`
+Fifteen verticals across seven domains. Each `<vertical>/<subdomain>/`
 directory ships a working `.eml` source and a `build/` subdirectory
 containing **pre-generated artifacts** for every backend that
 applies — so you can read the C, Rust, Python, LLVM IR, WebAssembly
@@ -19,11 +19,17 @@ example without installing the toolchain.
 | Automotive      | `automotive/powertrain/motor_foc.eml` + `three_phase.eml`         | Field-oriented control + Park/Clarke transforms |
 | Defense         | `defense/navigation/ins.eml`                                      | Inertial navigation step |
 | Energy          | `energy/renewable/mppt.eml`                                       | Maximum-power-point tracking |
+| Finance         | `finance/pricing/black_scholes.eml` + `heston.eml` + `sabr.eml`   | SR 11-7 / FRTB — Black-Scholes call/put + Heston + SABR |
+| Finance (Greeks)| `finance/greeks/{delta,gamma,vega,theta}.eml`                     | First-order option sensitivities + put-call parity |
+| Finance (Risk)  | `finance/risk/{var_monte_carlo,cva,stress_test}.eml`              | Parametric VaR cell, CVA bucket, FRTB curvature shocks |
 | Manufacturing   | `manufacturing/process_control/plc_setpoint.eml`                  | Setpoint controller with anti-windup |
 | Medical         | `medical/devices/infusion_pump.eml`                               | IEC 62304-aligned dose envelope (Lean-verified) |
 | ML inference    | `ml/inference/binary_classifier.eml`                              | **Patent #01** — `sigmoid_alt` rewrites to canonical form, +1.08 digits |
+| Radar           | `radar/cfar_threshold.eml`                                        | Stub — single-cell CA-CFAR detection threshold |
 | Robotics        | `robotics/kinematics/arm_6dof.eml`                                | 6-DOF forward kinematics |
 | Scientific      | `scientific/physics/schrodinger_step.eml`                         | Single time-step of the time-evolution operator |
+| Semiconductor   | `semiconductor/shockley_diode.eml`                                | Stub — ideal-diode I-V curve for SPICE-class device models |
+| Telecom         | `telecom/pulse_compression.eml`                                   | Stub — single-tap chirped matched filter |
 
 ---
 

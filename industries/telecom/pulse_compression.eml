@@ -1,0 +1,40 @@
+// pulse_compression.eml -- single-channel matched-filter sample.
+//
+// Illustrative starter for the telecom vertical. Pulse
+// compression is the receive-side correlation of a known chirp
+// against the incoming sample stream; the matched filter output
+// at sample n is
+//
+//   y[n] = sum_k  ref[k] * x[n - k]
+//
+// In production this is a fixed-coefficient FIR. The .eml below
+// captures one tap of a chirp with phase rotation in the
+// reference -- chain order 2 (single sin/cos pair, rest is
+// arithmetic). The stdlib::signal::biquad family is the long-
+// term home for the streaming version once arrays land.
+
+module pulse_compression;
+
+const TAU: Real = 6.283185307179586
+
+type DSPSignal = Real where chain_order <= 2
+
+// One tap of a chirped matched filter. `phase` is the chirp's
+// instantaneous phase at this tap (callers precompute phase from
+// the linear chirp slope). The cos/sin pair gives the in-phase
+// and quadrature reference; the host loop weights and accumulates.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "pulse_tap_amplitude_bounded")
+fn pulse_tap(
+    sample_i: Real,
+    sample_q: Real,
+    phase: Real,
+) -> Real
+    where chain_order <= 2
+    requires (abs(sample_i) < 1.0e6)
+    requires (abs(sample_q) < 1.0e6)
+    requires (abs(phase) < TAU * 1024.0)
+{
+    // I*cos + Q*sin -- the de-rotated in-phase component.
+    sample_i * cos(phase) + sample_q * sin(phase)
+}

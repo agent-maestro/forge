@@ -1,0 +1,67 @@
+// cva.eml -- Credit Valuation Adjustment.
+//
+// CVA is the price of counterparty default risk. Standard form:
+//
+//   CVA = LGD * Σ_t  EE(t) * PD(t-1, t) * D(t)
+//
+// where:
+//   LGD  -- loss given default (e.g. 0.6 for senior unsecured).
+//   EE   -- expected positive exposure at time t.
+//   PD   -- conditional default probability between (t-1, t].
+//   D    -- discount factor to t.
+//
+// Production CVA engines pre-compute EE on a Monte-Carlo bushel
+// and PD from a hazard-rate term structure. This file ships the
+// per-bucket CVA cell — the unit that the bushel sums over.
+
+module cva;
+
+const HALF: Real = 0.5
+
+type RiskSignal = Real where chain_order <= 1
+
+// ── PD from a survival probability gap ───────────────────────
+// PD(t-1, t) = S(t-1) - S(t). Under the hazard-rate
+// representation, S(t) = exp(-Λ(t)), so PD = exp(-Λ_prev) -
+// exp(-Λ_now). Chain order 1.
+fn marginal_pd(cum_hazard_prev: Real, cum_hazard_now: Real) -> Real
+    where chain_order <= 1
+    requires (cum_hazard_prev <= cum_hazard_now)
+    ensures  (result >= 0.0)
+{
+    exp(-cum_hazard_prev) - exp(-cum_hazard_now)
+}
+
+// ── Discount factor under continuous compounding ─────────────
+fn discount_factor(rate: Real, time_to_t: Real) -> Real
+    where chain_order <= 1
+    requires (time_to_t >= 0.0)
+{
+    exp(-rate * time_to_t)
+}
+
+// ── Per-bucket CVA cell ──────────────────────────────────────
+// The contribution to CVA from a single (t-1, t] bucket. The
+// bushel-level loop sums these. Chain order 1.
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "cva_cell_non_negative")
+fn cva_cell(
+    expected_exposure: Real,
+    cum_hazard_prev: Real,
+    cum_hazard_now: Real,
+    rate: Real,
+    time_to_t: Real,
+    lgd: Real,
+) -> RiskSignal
+    where chain_order <= 1
+    requires (expected_exposure >= 0.0)
+    requires (cum_hazard_prev <= cum_hazard_now)
+    requires (lgd >= 0.0)
+    requires (lgd <= 1.0)
+    requires (time_to_t >= 0.0)
+    ensures  (result >= 0.0)
+{
+    let pd      = marginal_pd(cum_hazard_prev, cum_hazard_now);
+    let discount = discount_factor(rate, time_to_t);
+    lgd * expected_exposure * pd * discount
+}

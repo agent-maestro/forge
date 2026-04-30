@@ -1,0 +1,66 @@
+// stress_test.eml -- regulatory stress-test scaffold.
+//
+// FRTB SBA (Standardised Approach) and IMA (Internal Model
+// Approach) both require shocking risk-factor sensitivities by
+// prescribed magnitudes and recomputing P&L. This file ships
+// the scenario primitive: apply a vol shift and a spot shock to
+// a parametric vega/delta exposure and return the new P&L cell.
+//
+// The shocks themselves are inputs (per the FRTB risk-factor
+// table) -- the .eml does not embed regulator parameters, which
+// drift between regimes.
+
+module stress_test;
+
+const HALF: Real = 0.5
+
+type StressSignal = Real where chain_order <= 0
+
+// ── First-order P&L shift ────────────────────────────────────
+// Given delta and vega exposures and the prescribed shocks,
+// return the first-order Taylor-series P&L delta. Chain order 0
+// (pure linear arithmetic).
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "stress_pnl_linear")
+fn linear_pnl(
+    delta: Real,
+    vega: Real,
+    spot_shock_pct: Real,
+    vol_shock_abs: Real,
+) -> StressSignal
+    where chain_order <= 0
+{
+    delta * spot_shock_pct + vega * vol_shock_abs
+}
+
+// ── Second-order P&L shift ───────────────────────────────────
+// Adds the gamma + vanna terms that FRTB SBA bumps up to (curvature
+// charge). Chain order 0.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "stress_pnl_quadratic_dominates_linear")
+fn quadratic_pnl(
+    delta: Real,
+    gamma: Real,
+    vega: Real,
+    vanna: Real,
+    spot_shock_pct: Real,
+    vol_shock_abs: Real,
+) -> StressSignal
+    where chain_order <= 0
+{
+    let lin     = delta * spot_shock_pct + vega * vol_shock_abs;
+    let curve   = HALF * gamma * spot_shock_pct * spot_shock_pct
+                + vanna * spot_shock_pct * vol_shock_abs;
+    lin + curve
+}
+
+// ── Worst-of-multiple-scenarios cell ─────────────────────────
+// Given two candidate scenario P&Ls, return the worse one (more
+// negative). Used in FRTB SBA to roll up the curvature scenario
+// table.
+@target(fpga, clock_mhz = 250, precision = float64)
+fn worst_scenario_pnl(scenario_a: Real, scenario_b: Real) -> StressSignal
+    where chain_order <= 0
+{
+    clamp(scenario_a, -1.0e30, scenario_b)
+}

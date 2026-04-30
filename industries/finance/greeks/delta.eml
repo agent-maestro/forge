@@ -1,0 +1,75 @@
+// delta.eml -- Black-Scholes delta for European calls and puts.
+//
+// Delta is the first derivative of the option price with respect
+// to spot. Closed form under Black-Scholes:
+//
+//   delta_call = N(d1)
+//   delta_put  = N(d1) - 1
+//
+// where N is the standard-normal CDF and d1 is the textbook
+// Black-Scholes auxiliary. The CDF approximation is the same
+// GELU-paper tanh form used in pricing/black_scholes.eml; chain
+// order 2 (ln + tanh on the d1 path).
+
+module delta;
+
+const SQRT_2_OVER_PI: Real = 0.7978845608028654
+const GELU_C3:        Real = 0.044715
+const HALF:           Real = 0.5
+const TINY_T:         Real = 0.000274
+
+type GreekSignal = Real where chain_order <= 3
+
+fn norm_cdf(x: Real) -> Real
+    where chain_order <= 1
+{
+    HALF * (1.0 + tanh(SQRT_2_OVER_PI * (x + GELU_C3 * x * x * x)))
+}
+
+fn d1(spot: Real, strike: Real, rate: Real, vol: Real, time_to_expiry: Real)
+    -> Real
+    where chain_order <= 2
+{
+    let drift_term    = (rate + HALF * vol * vol) * time_to_expiry;
+    let log_moneyness = ln(spot / strike);
+    let vol_sqrt_t    = vol * sqrt(time_to_expiry);
+    (log_moneyness + drift_term) / vol_sqrt_t
+}
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "bs_call_delta_in_zero_one")
+fn call_delta(
+    spot: Real,
+    strike: Real,
+    rate: Real,
+    vol: Real,
+    time_to_expiry: Real,
+) -> GreekSignal
+    requires (spot > 0.0)
+    requires (strike > 0.0)
+    requires (vol > 0.0)
+    requires (time_to_expiry > TINY_T)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    norm_cdf(d1(spot, strike, rate, vol, time_to_expiry))
+}
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "bs_put_delta_in_minus_one_zero")
+fn put_delta(
+    spot: Real,
+    strike: Real,
+    rate: Real,
+    vol: Real,
+    time_to_expiry: Real,
+) -> GreekSignal
+    requires (spot > 0.0)
+    requires (strike > 0.0)
+    requires (vol > 0.0)
+    requires (time_to_expiry > TINY_T)
+    ensures  (result >= -1.0)
+    ensures  (result <= 0.0)
+{
+    norm_cdf(d1(spot, strike, rate, vol, time_to_expiry)) - 1.0
+}

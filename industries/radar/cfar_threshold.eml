@@ -1,0 +1,50 @@
+// cfar_threshold.eml -- one cell of cell-averaging CFAR.
+//
+// CFAR (Constant False Alarm Rate) sets the detection threshold
+// at each range cell using a local estimate of the noise floor.
+// The CA-CFAR (cell-averaging) variant computes the threshold as
+//
+//   threshold = scale * mean(window_samples)
+//
+// where `scale` is a regulator-tuned constant chosen so the false
+// alarm probability matches the target P_fa under the assumed
+// Rayleigh-distributed noise. For exponential noise with N
+// reference cells:
+//
+//   scale = N * (P_fa^(-1/N) - 1)
+//
+// which is chain order 1 (single power). The threshold cell
+// itself is a multiply.
+
+module cfar_threshold;
+
+type RadarSignal = Real where chain_order <= 1
+
+// Compute the CFAR threshold from a precomputed window mean and
+// the regulator-tuned scale factor. The host loop computes the
+// window mean across the reference cells; this kernel is the
+// per-cell multiplicative gate.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "cfar_threshold_non_negative")
+fn cfar_threshold(window_mean: Real, scale: Real) -> RadarSignal
+    where chain_order <= 0
+    requires (window_mean >= 0.0)
+    requires (scale > 0.0)
+    ensures  (result >= 0.0)
+{
+    scale * window_mean
+}
+
+// Per-Pfa scale factor. The pow() call lifts chain order to 1.
+// Embedding this on-chip frees the host loop from recomputing
+// the scale every dwell.
+@target(fpga, clock_mhz = 250, precision = float32)
+fn cfar_scale(p_fa: Real, n_ref: Real) -> RadarSignal
+    where chain_order <= 1
+    requires (p_fa > 0.0)
+    requires (p_fa < 1.0)
+    requires (n_ref >= 1.0)
+    ensures  (result > 0.0)
+{
+    n_ref * (pow(p_fa, -1.0 / n_ref) - 1.0)
+}

@@ -4,13 +4,21 @@ Used as the gold standard against which every other backend is
 compared in the equivalence harness. Always available -- requires
 only sympy + the parser+profiler.
 
-Limitations are inherited from `lang/profiler/ast_to_sympy.py`:
+Two evaluation paths:
 
-  - Functions whose body decomposes into a tuple ("tuple" status)
-    return a list of values per vector; callers must unpack.
-  - Functions that compile via the "complex_body" status (mut /
-    while / branching) cannot be evaluated through this path --
-    callers must skip them.
+  1. SymPy bridge (preferred): pure-arithmetic bodies with no
+     mutation / loops are lambdified via `ast_to_sympy` and
+     SymPy's `lambdify`. Cheap, high-fidelity, supports tuple
+     decomposition.
+
+  2. EML interpreter (Phase 2.5 fallback): when the body uses
+     `let mut` / `while` / assign, the SymPy bridge returns
+     `status="complex_body"` and we route through
+     `eml_interpreter.run_function` -- a direct tree-walking
+     evaluator that handles the imperative subset.
+
+Functions whose body decomposes into a tuple ("tuple" status)
+return a list of values per vector; callers must unpack.
 """
 
 from __future__ import annotations
@@ -69,10 +77,28 @@ def lambdify_function(
     """
     cr = convert_function_body(func, constants=constants)
     if cr.status == "complex_body":
-        raise PythonReferenceError(
-            f"function {func.name!r} has complex_body (mut/while)"
-            " -- can't lambdify",
+        # Phase 2.5 fallback: evaluate the imperative body directly
+        # via the EML tree-walking interpreter. Same calling
+        # convention as a lambdified SymPy expression so the harness
+        # treats both paths uniformly.
+        from lang.profiler.eml_interpreter import (
+            InterpreterError,
+            run_function as _interp_run,
         )
+
+        def _interpret(*args):
+            try:
+                return _interp_run(
+                    func, args,
+                    constants=constants,
+                    callees=callee_table or {},
+                )
+            except InterpreterError as e:
+                raise PythonReferenceError(
+                    f"interpreter failed on {func.name!r}: {e}"
+                ) from e
+
+        return _interpret
     if cr.status == "non_arithmetic":
         raise PythonReferenceError(
             f"function {func.name!r} body has no arithmetic content",

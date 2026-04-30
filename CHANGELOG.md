@@ -66,6 +66,42 @@ across phases 2, 3, and 4. Buildout 45% → 56%; docs 7% → 87%.
   - `industry_guides/{aerospace,automotive,medical,audio,robotics,ml_inference}.md`
 - **CLI dispatch graduates** python/llvm/wasm/vhdl/chisel out of
   `_PLANNED_TARGETS` -- every target is now live.
+- **Four new industry verticals** in `industries/`:
+  - `finance/` — full Quantitative Finance scaffold. Pricing
+    (`black_scholes.eml`, `heston.eml`, `sabr.eml`), Greeks
+    (`delta.eml`, `gamma.eml`, `vega.eml`, `theta.eml`), risk
+    (`var_monte_carlo.eml`, `cva.eml`, `stress_test.eml`), plus
+    SR 11-7 (`MODEL_VALIDATION.md`) and FRTB (`FRTB_COMPLIANCE.md`)
+    cert docs. The headline regulator claim is "one .eml source,
+    bit-exact across C / Rust / FPGA / Lean — model risk
+    committee evidence by construction".
+  - `telecom/` — stub with `pulse_compression.eml` (chirped
+    matched filter tap). Roadmap covers OFDM / MIMO / LDPC.
+  - `radar/` — stub with `cfar_threshold.eml` (CA-CFAR threshold
+    + scale). Roadmap covers Doppler / Kalman / SAR phase processing.
+  - `semiconductor/` — stub with `shockley_diode.eml` (ideal
+    diode I-V). Roadmap covers BSIM-class transistor models.
+  - `industries/README.md` updated to fifteen verticals across
+    seven domains; `tests/industry/test_finance.py` parametrizes
+    parse + profile + C / Rust / Lean compile across every
+    finance file; `test_other_verticals.py` extended with
+    telecom / radar / semiconductor entries.
+- **Phase 2.5 control-flow path** for the equivalence harness:
+  - `lang/profiler/eml_interpreter.py` -- direct tree-walking
+    evaluator for EML bodies that use `let mut` / `while` / assign.
+    Same calling convention as a lambdified SymPy expression so the
+    Python reference path treats both paths uniformly.
+  - `tools/equivalence/python_runner.py` falls back to the
+    interpreter when `convert_function_body` returns
+    `complex_body` instead of raising
+    `PythonReferenceError`. Unblocks
+    `orbit::kepler_solve` for cross-target equivalence checking.
+  - `tools/equivalence/rust_runner.py` coerces argv-derived f64s
+    to each param's actual Rust type, so signatures with non-f64
+    params (e.g. `n: u8`) compile under the dispatcher.
+  - `tests/equivalence/test_complex_body.py` -- bit-exact
+    Python↔Rust agreement for `kepler_solve` across three Newton
+    iteration scenarios.
 
 ### Changed
 

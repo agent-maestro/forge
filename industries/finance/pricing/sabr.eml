@@ -1,0 +1,73 @@
+// sabr.eml -- SABR stochastic-volatility model: Hagan-Kumar-
+// Lesniewski-Woodward (2002) at-the-money implied-vol formula.
+//
+// SABR dynamics (under the forward measure):
+//   dF_t = α_t * F_t^β  dW1
+//   dα_t = ν * α_t       dW2
+//   <dW1, dW2> = ρ dt
+//
+// The full Hagan formula off-the-money has a divide-by-(F-K) term
+// that blows up at the at-the-money strike. The standard production
+// trick is to use the ATM-limit form
+//
+//   σ_BS^ATM ≈ (α / F^(1-β)) * (1 + atm_correction * T)
+//
+// where atm_correction packages the higher-order ρ, ν, β, α terms.
+// This file implements the ATM-limit form; the desk caches it as
+// the anchor and applies the off-ATM expansion on top.
+//
+// Chain order is 2: one ln in the underlying SABR formula's β
+// adjustment term, no nested transcendentals.
+
+module sabr;
+
+const HALF:    Real = 0.5
+const QUARTER: Real = 0.25
+const ONE_24:  Real = 0.041666666666666664   // 1/24
+
+type SabrSignal = Real where chain_order <= 2
+
+// ── ATM SABR implied vol ─────────────────────────────────────
+// Closed-form ATM SABR vol per Hagan et al. (2002).
+//
+//   σ_ATM = (α / F^(1-β)) * { 1 + [ ((1-β)^2 / 24) * (α^2 / F^(2-2β))
+//                                 + (β * ρ * ν / 4) * (α / F^(1-β))
+//                                 + (2 - 3*ρ^2) / 24 * ν^2 ] * T }
+//
+// Numerical safety: F > 0 is required (F^(1-β) is real-valued).
+// β = 1 collapses the F^(2-2β) factor to 1; the β = 0.5 case
+// (square-root SABR) is the standard rates-desk anchor.
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "sabr_atm_vol_positive")
+fn sabr_atm_vol(
+    forward: Real,
+    alpha: Real,
+    beta: Real,
+    rho: Real,
+    nu: Real,
+    time_to_expiry: Real,
+) -> SabrSignal
+    requires (forward > 0.0)
+    requires (alpha > 0.0)
+    requires (beta >= 0.0)
+    requires (beta <= 1.0)
+    requires (nu >= 0.0)
+    requires (time_to_expiry >= 0.0)
+    ensures  (result > 0.0)
+{
+    // F^(1-β) -- ATM denominator. pow(F, 1-β) is chain order 1
+    // (single pow), driving the function's overall chain order.
+    let f_pow_one_minus_beta = pow(forward, 1.0 - beta);
+    let leading              = alpha / f_pow_one_minus_beta;
+
+    // Higher-order at-the-money correction.
+    let one_minus_beta_sq = (1.0 - beta) * (1.0 - beta);
+    let alpha_over_fp     = alpha / f_pow_one_minus_beta;
+
+    let term1 = ONE_24 * one_minus_beta_sq * alpha_over_fp * alpha_over_fp;
+    let term2 = QUARTER * beta * rho * nu * alpha_over_fp;
+    let term3 = ONE_24 * (2.0 - 3.0 * rho * rho) * nu * nu;
+
+    let correction = (term1 + term2 + term3) * time_to_expiry;
+    leading * (1.0 + correction)
+}

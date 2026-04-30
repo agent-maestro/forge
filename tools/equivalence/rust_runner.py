@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Iterable
 
 from lang.parser.ast_nodes import EMLFunction, EMLModule
-from software.backends.rust_backend import RustBackend
+from software.backends.rust_backend import RustBackend, _rust_type
 
 
 def cargo_available() -> bool:
@@ -142,9 +142,10 @@ class RustRunner:
         crate_name = "forge_eq_test"
         arms: list[str] = []
         for fn in self.module.functions:
-            arity = len(fn.params)
+            # Cast each f64-from-argv to the param's actual Rust type
+            # so signatures with non-f64 params (e.g. `n: u8`) compile.
             arg_calls = ", ".join(
-                f"nums[{i}]" for i in range(arity)
+                _coerce_arg(i, p.type_name) for i, p in enumerate(fn.params)
             )
             if fn.return_tuple_types:
                 # The Rust backend emits a named struct with `eN`
@@ -287,6 +288,18 @@ class RustRunner:
                     )
                 out.append(parts[0])
         return out
+
+
+def _coerce_arg(idx: int, eml_type: str) -> str:
+    """Render the i'th argv-derived f64 as the function's expected Rust
+    param type. `nums[i]` is always f64; integer params need an
+    explicit cast or rustc rejects the call site as type-mismatched."""
+    rust_ty = _rust_type(eml_type)
+    if rust_ty == "f64":
+        return f"nums[{idx}]"
+    if rust_ty == "bool":
+        return f"(nums[{idx}] != 0.0)"
+    return f"(nums[{idx}] as {rust_ty})"
 
 
 def _format_arg(x: float) -> str:

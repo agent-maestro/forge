@@ -1,0 +1,95 @@
+// theta.eml -- Black-Scholes theta. Theta is the negative
+// time-decay of an option's value. For a European call:
+//
+//   theta_call = -S * phi(d1) * sigma / (2 * sqrt(T))
+//                 - r * K * exp(-r*T) * N(d2)
+//
+// For a European put, parity gives:
+//
+//   theta_put  = -S * phi(d1) * sigma / (2 * sqrt(T))
+//                 + r * K * exp(-r*T) * N(-d2)
+//
+// We expose both. Chain order 2 (single ln + exp + tanh chains).
+
+module theta;
+
+const SQRT_2_OVER_PI: Real = 0.7978845608028654
+const GELU_C3:        Real = 0.044715
+const SQRT_2_PI_INV:  Real = 0.3989422804014327
+const HALF:           Real = 0.5
+const TINY_T:         Real = 0.000274
+
+type GreekSignal = Real where chain_order <= 3
+
+fn norm_cdf(x: Real) -> Real
+    where chain_order <= 1
+{
+    HALF * (1.0 + tanh(SQRT_2_OVER_PI * (x + GELU_C3 * x * x * x)))
+}
+
+fn norm_pdf(x: Real) -> Real
+    where chain_order <= 1
+{
+    SQRT_2_PI_INV * exp(-HALF * x * x)
+}
+
+fn d1(spot: Real, strike: Real, rate: Real, vol: Real, time_to_expiry: Real)
+    -> Real
+    where chain_order <= 2
+{
+    let drift_term    = (rate + HALF * vol * vol) * time_to_expiry;
+    let log_moneyness = ln(spot / strike);
+    let vol_sqrt_t    = vol * sqrt(time_to_expiry);
+    (log_moneyness + drift_term) / vol_sqrt_t
+}
+
+fn d2(spot: Real, strike: Real, rate: Real, vol: Real, time_to_expiry: Real)
+    -> Real
+    where chain_order <= 2
+{
+    d1(spot, strike, rate, vol, time_to_expiry) - vol * sqrt(time_to_expiry)
+}
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "bs_call_theta_negative_in_money")
+fn call_theta(
+    spot: Real,
+    strike: Real,
+    rate: Real,
+    vol: Real,
+    time_to_expiry: Real,
+) -> GreekSignal
+    requires (spot > 0.0)
+    requires (strike > 0.0)
+    requires (vol > 0.0)
+    requires (time_to_expiry > TINY_T)
+{
+    let d1_val   = d1(spot, strike, rate, vol, time_to_expiry);
+    let d2_val   = d2(spot, strike, rate, vol, time_to_expiry);
+    let discount = exp(-rate * time_to_expiry);
+    let term1    = -spot * norm_pdf(d1_val) * vol / (2.0 * sqrt(time_to_expiry));
+    let term2    = -rate * strike * discount * norm_cdf(d2_val);
+    term1 + term2
+}
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "bs_put_theta_via_parity")
+fn put_theta(
+    spot: Real,
+    strike: Real,
+    rate: Real,
+    vol: Real,
+    time_to_expiry: Real,
+) -> GreekSignal
+    requires (spot > 0.0)
+    requires (strike > 0.0)
+    requires (vol > 0.0)
+    requires (time_to_expiry > TINY_T)
+{
+    let d1_val   = d1(spot, strike, rate, vol, time_to_expiry);
+    let d2_val   = d2(spot, strike, rate, vol, time_to_expiry);
+    let discount = exp(-rate * time_to_expiry);
+    let term1    = -spot * norm_pdf(d1_val) * vol / (2.0 * sqrt(time_to_expiry));
+    let term2    = rate * strike * discount * norm_cdf(-d2_val);
+    term1 + term2
+}
