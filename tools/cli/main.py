@@ -119,6 +119,7 @@ def main(argv: list[str] | None = None) -> int:
         "c", "cpp", "rust", "python", "llvm", "wasm",
         "verilog", "systemverilog", "vhdl", "chisel", "lean",
         "ada", "matlab",
+        "coq", "isabelle", "ros2",
         "all",
     ], help=("Output target. 'all' runs every live backend "
             "(c, rust, lean, verilog) and writes <stem>.<ext> "
@@ -310,6 +311,56 @@ def main(argv: list[str] | None = None) -> int:
             results.append(("matlab", Path("<skipped>"), 0))
             print(f"  matlab skipped: {e}", file=sys.stderr)
 
+        # Coq (only if any @verify block)
+        try:
+            from software.verification.coq.coq_backend import CoqBackend
+            coq_src = CoqBackend(optimize=not args.no_optimize).compile(mod)
+            if coq_src:
+                coq_path = out_dir / f"{stem}.v"
+                coq_path.write_text(coq_src, encoding="utf-8")
+                results.append(("coq", coq_path, len(coq_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("coq", Path("<skipped>"), 0))
+            print(f"  coq skipped: {e}", file=sys.stderr)
+
+        # Isabelle/HOL (only if any @verify block)
+        try:
+            from software.verification.isabelle.isabelle_backend import (
+                IsabelleBackend,
+            )
+            isa_src = IsabelleBackend(
+                optimize=not args.no_optimize,
+            ).compile(mod)
+            if isa_src:
+                isa_path = out_dir / f"{stem}.thy"
+                isa_path.write_text(isa_src, encoding="utf-8")
+                results.append(("isabelle", isa_path, len(isa_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("isabelle", Path("<skipped>"), 0))
+            print(f"  isabelle skipped: {e}", file=sys.stderr)
+
+        # ROS2 package (CMakeLists.txt + package.xml + node)
+        try:
+            from software.backends.ros2_backend import Ros2Backend
+            ros = Ros2Backend(optimize=not args.no_optimize).compile_full(mod)
+            ros_dir = out_dir / ros.package_name
+            (ros_dir / "src").mkdir(parents=True, exist_ok=True)
+            (ros_dir / "CMakeLists.txt").write_text(
+                ros.cmakelists, encoding="utf-8")
+            (ros_dir / "package.xml").write_text(
+                ros.package_xml, encoding="utf-8")
+            (ros_dir / "src" / f"{ros.primary_fn}_node.cpp").write_text(
+                ros.node_source, encoding="utf-8")
+            results.append(
+                ("ros2",
+                 ros_dir,
+                 len(ros.cmakelists) + len(ros.package_xml)
+                 + len(ros.node_source))
+            )
+        except Exception as e:  # noqa: BLE001
+            results.append(("ros2", Path("<skipped>"), 0))
+            print(f"  ros2 skipped: {e}", file=sys.stderr)
+
         # Rust
         from software.backends.rust_backend import RustBackend
         rs_path = out_dir / f"{stem}.rs"
@@ -418,6 +469,78 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
         else:
             print(c_source, end="")
+        return 0
+
+    if args.target == "coq":
+        from software.verification.coq.coq_backend import (
+            CoqBackend, CompileError as CoqErr,
+        )
+        try:
+            coq_source = CoqBackend(optimize=not args.no_optimize).compile(mod)
+        except CoqErr as e:
+            print(f"compile error (coq backend): {e}", file=sys.stderr)
+            return 1
+        if not coq_source:
+            print("# coq: no @verify block found -- nothing to emit",
+                  file=sys.stderr)
+            return 0
+        if args.output:
+            args.output.write_text(coq_source, encoding="utf-8")
+            print(f"wrote {args.output} "
+                  f"({len(coq_source)} bytes)", file=sys.stderr)
+        else:
+            print(coq_source, end="")
+        return 0
+
+    if args.target == "isabelle":
+        from software.verification.isabelle.isabelle_backend import (
+            IsabelleBackend, CompileError as IsaErr,
+        )
+        try:
+            isa_source = IsabelleBackend(
+                optimize=not args.no_optimize,
+            ).compile(mod)
+        except IsaErr as e:
+            print(f"compile error (isabelle backend): {e}", file=sys.stderr)
+            return 1
+        if not isa_source:
+            print("# isabelle: no @verify block found -- nothing to emit",
+                  file=sys.stderr)
+            return 0
+        if args.output:
+            args.output.write_text(isa_source, encoding="utf-8")
+            print(f"wrote {args.output} "
+                  f"({len(isa_source)} bytes)", file=sys.stderr)
+        else:
+            print(isa_source, end="")
+        return 0
+
+    if args.target == "ros2":
+        from software.backends.ros2_backend import (
+            Ros2Backend, CompileError as Ros2Err,
+        )
+        try:
+            ros = Ros2Backend(optimize=not args.no_optimize).compile_full(mod)
+        except Ros2Err as e:
+            print(f"compile error (ros2 backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            # --output is a directory; write a complete ROS2 package
+            # tree underneath it.
+            pkg_dir = args.output / ros.package_name
+            (pkg_dir / "src").mkdir(parents=True, exist_ok=True)
+            (pkg_dir / "CMakeLists.txt").write_text(
+                ros.cmakelists, encoding="utf-8")
+            (pkg_dir / "package.xml").write_text(
+                ros.package_xml, encoding="utf-8")
+            node_path = pkg_dir / "src" / f"{ros.primary_fn}_node.cpp"
+            node_path.write_text(ros.node_source, encoding="utf-8")
+            print(f"wrote {pkg_dir}/  (CMakeLists.txt, package.xml, "
+                  f"src/{ros.primary_fn}_node.cpp)", file=sys.stderr)
+        else:
+            print(Ros2Backend(
+                optimize=not args.no_optimize,
+            ).compile(mod), end="")
         return 0
 
     if args.target == "matlab":
