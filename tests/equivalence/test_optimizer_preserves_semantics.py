@@ -39,7 +39,7 @@ CASES: list[tuple[str, str, list[tuple[float, ...]]]] = [
     ("lang/spec/stdlib/math.eml", "lerp", [
         (0.0, 10.0, 0.5), (1.5, 1.5, 0.7), (-3.0, 7.0, 0.25),
     ]),
-    ("lang/spec/stdlib/math.eml", "sigmoid", [
+    ("lang/spec/stdlib/ml.eml", "sigmoid", [
         (0.0,), (1.0,), (-2.5,),
     ]),
     ("lang/spec/stdlib/math.eml", "hypot2", [

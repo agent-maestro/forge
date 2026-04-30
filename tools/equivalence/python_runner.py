@@ -51,12 +51,18 @@ def lambdify_function(
     func: EMLFunction,
     *,
     constants: dict[str, float | int | bool] | None = None,
+    callee_table: dict | None = None,
 ):
     """Return a callable `(*args) -> float | tuple[float, ...]`.
 
     `constants` -- optional mapping of module-level const names to
     their literal values; passed through to the SymPy bridge so
     they inline as numeric literals rather than free symbols.
+
+    `callee_table` -- optional mapping of *user* function names
+    (from the same module) to their already-lambdified callables.
+    Lets `func` reference siblings that the inliner declined to
+    inline (e.g. functions with `let` bindings).
 
     Raises PythonReferenceError on functions whose body lies outside
     the SymPy-bridge's supported subset.
@@ -73,17 +79,19 @@ def lambdify_function(
         )
 
     param_syms = [sp.Symbol(p.name) for p in func.params]
+    # `modules` arg: math first, then any user-callable resolver dict
+    # so SymPy `Function` nodes for sibling calls evaluate correctly.
+    modules: tuple = ("math",)
+    if callee_table:
+        modules = (callee_table, "math")
 
     if cr.status == "ok":
-        f = sp.lambdify(
-            param_syms, cr.expression,
-            modules=("math",),
-        )
+        f = sp.lambdify(param_syms, cr.expression, modules=modules)
         return f
 
     # tuple
     fs = [
-        sp.lambdify(param_syms, e, modules=("math",))
+        sp.lambdify(param_syms, e, modules=modules)
         for e in cr.expression
     ]
     def _call(*args):
@@ -91,14 +99,52 @@ def lambdify_function(
     return _call
 
 
+def build_module_callee_table(
+    mod: EMLModule,
+    target_fn_name: str,
+    *,
+    constants: dict[str, float | int | bool] | None = None,
+) -> dict:
+    """Lambdify every function in `mod` that the target depends on
+    (transitively) and return them in a name -> callable dict.
+
+    Used by `cross_target_check` to resolve sibling CALLs that
+    the inliner declined to inline (e.g. functions with `let`
+    bindings). Functions whose body the SymPy bridge can't handle
+    are silently dropped -- if the target depends on one of those,
+    `lambdify_function` will fail with a NameError at evaluation
+    time, which propagates as a clearer error than this helper
+    silently swallowing it.
+    """
+    table: dict = {}
+    for fn in mod.functions:
+        if fn.name == target_fn_name:
+            continue
+        if fn.is_extern:
+            # Extern primitives have no SymPy body. Skip silently;
+            # if the target calls one, evaluation will surface a
+            # NameError that points at the right place.
+            continue
+        try:
+            table[fn.name] = lambdify_function(fn, constants=constants)
+        except PythonReferenceError:
+            # complex_body or unsupported -- skip; the target may
+            # still avoid this callee on its evaluation path.
+            continue
+    return table
+
+
 def run_python_reference(
     func: EMLFunction,
     vectors: Iterable[tuple[float, ...]],
     *,
     constants: dict[str, float | int | bool] | None = None,
+    callee_table: dict | None = None,
 ) -> list[float | tuple[float, ...]]:
     """Evaluate `func` at every input vector via the SymPy reference."""
-    f = lambdify_function(func, constants=constants)
+    f = lambdify_function(
+        func, constants=constants, callee_table=callee_table,
+    )
     out: list = []
     for vec in vectors:
         out.append(f(*vec))

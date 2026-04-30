@@ -58,10 +58,13 @@ CASES: list[tuple[str, str, list[tuple[float, ...]], float]] = [
         (1.0, 1.0),
         (0.0, 7.0),
     ], 1e-12),
-    ("math.eml", "sigmoid", [
+    # sigmoid + softplus moved from stdlib::math to stdlib::ml in 2026-04
+    # to keep math.eml as a numeric utilities module and let ML code
+    # write `use stdlib::ml;` for its activations.
+    ("ml.eml", "sigmoid", [
         (0.0,), (1.0,), (-1.0,), (5.0,), (-5.0,),
     ], 1e-12),
-    ("math.eml", "softplus", [
+    ("ml.eml", "softplus", [
         (0.0,), (1.0,), (-1.0,), (5.0,), (-2.5,),
     ], 1e-12),
     ("linalg.eml", "vec3_dot", [

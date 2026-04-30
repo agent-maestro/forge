@@ -116,8 +116,18 @@ def cross_target_check(
     # functions that reference e.g. GRAVITY_GAIN would leak as
     # free symbols).
     consts = constants_from_module(py_mod)
+    # Pre-lambdify every other module-local function so SymPy can
+    # resolve sibling CALLs that the inliner declined to inline
+    # (functions with `let` bindings, in particular). The callees
+    # themselves see the same constants table.
+    from tools.equivalence.python_runner import build_module_callee_table
+    callees = build_module_callee_table(
+        py_mod, function_name, constants=consts,
+    )
     try:
-        ref_outputs = run_python_reference(py_fn, vectors, constants=consts)
+        ref_outputs = run_python_reference(
+            py_fn, vectors, constants=consts, callee_table=callees,
+        )
     except PythonReferenceError as e:
         # No reference -> can't compare anything. Mark Python as
         # unavailable + return early.
