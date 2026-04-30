@@ -1,0 +1,63 @@
+// eyring.eml -- Eyring-Polanyi transition-state-theory rate.
+//
+//   k(T) = (kB * T / h) * exp(-ΔG‡ / (R * T))
+//
+// where:
+//   kB   Boltzmann constant (J/K)
+//   h    Planck constant (J·s)
+//   ΔG‡  Gibbs free energy of activation (J/mol)
+//   R    universal gas constant (J/(mol·K))
+//   T    absolute temperature (K)
+//
+// Eyring is the quantum-statistical refinement of Arrhenius — the
+// pre-exponential factor is now temperature-dependent (kB*T/h)
+// instead of an empirical constant. Used in physical-organic
+// chemistry, enzyme kinetics, and any work where ΔH‡ and ΔS‡ are
+// reported separately.
+//
+// Chain order = 1 (single exp around a chain-0 polynomial in 1/T;
+// the kB*T/h prefactor stays at chain 0).
+
+module eyring;
+
+const KB:     Real = 1.380649e-23         // Boltzmann constant (J/K)
+const H_PL:   Real = 6.62607015e-34       // Planck constant (J·s)
+const KB_OVER_H: Real = 2.083661912e10    // kB/h (1/(K·s)) precomputed
+const R_GAS:  Real = 8.314462618          // J/(mol·K)
+const T_MIN:  Real = 200.0
+const T_MAX:  Real = 2000.0
+const DG_MAX: Real = 1.0e6                // 1 MJ/mol
+
+type EyringRate = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "eyring_rate_positive")
+fn eyring_rate_constant(
+    delta_g_double_dagger: Real,
+    temperature: Real,
+) -> EyringRate
+    where chain_order <= 1
+    requires (delta_g_double_dagger >= 0.0)
+    requires (delta_g_double_dagger <= DG_MAX)
+    requires (temperature >= T_MIN)
+    requires (temperature <= T_MAX)
+    ensures  (result > 0.0)
+{
+    KB_OVER_H * temperature * exp(-delta_g_double_dagger / (R_GAS * temperature))
+}
+
+// Same rate but with ΔH‡ and ΔS‡ split out -- useful for fitting
+// Eyring plots:  ΔG‡ = ΔH‡ - T*ΔS‡
+fn eyring_rate_split(
+    delta_h_double_dagger: Real,
+    delta_s_double_dagger: Real,
+    temperature: Real,
+) -> EyringRate
+    where chain_order <= 1
+    requires (delta_h_double_dagger >= 0.0)
+    requires (temperature >= T_MIN)
+    requires (temperature <= T_MAX)
+{
+    let dg = delta_h_double_dagger - temperature * delta_s_double_dagger;
+    KB_OVER_H * temperature * exp(-dg / (R_GAS * temperature))
+}

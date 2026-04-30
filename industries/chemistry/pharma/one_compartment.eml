@@ -1,0 +1,76 @@
+// one_compartment.eml -- One-compartment IV-bolus pharmacokinetics.
+//
+//   C(t) = (D / V) * exp(-k_e * t)
+//
+// where:
+//   C(t)  plasma concentration at time t (mg/L)
+//   D     bolus dose (mg)
+//   V     volume of distribution (L)
+//   k_e   elimination rate constant (1/h)
+//   t     time post-dose (h)
+//
+// The simplest pharmacokinetic model. Used to fit therapeutic
+// drug-monitoring data when the absorption phase has resolved
+// (IV bolus, IV infusion long after end-of-infusion, post-Cmax
+// after PO administration with rapid absorption).
+//
+// Chain order = 1 (single exp). f64 routing is forced for dose-
+// adjustment software (FDA expects bit-exact reproducibility).
+
+module one_compartment;
+
+const T_MAX:   Real = 1.0e3                // 1000 h post-dose
+const KE_MAX:  Real = 100.0
+const V_MIN:   Real = 0.1                  // 0.1 L (paediatric floor)
+const V_MAX:   Real = 1.0e3
+const D_MAX:   Real = 1.0e6                // 1 g
+
+type PlasmaConcentration = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 50, precision = float64)
+@verify(lean, theorem = "iv_bolus_decay_monotone")
+fn plasma_concentration(
+    dose: Real,
+    volume_of_distribution: Real,
+    elimination_rate: Real,
+    time: Real,
+) -> PlasmaConcentration
+    where chain_order <= 1
+    requires (dose >= 0.0)
+    requires (dose <= D_MAX)
+    requires (volume_of_distribution >= V_MIN)
+    requires (volume_of_distribution <= V_MAX)
+    requires (elimination_rate >= 0.0)
+    requires (elimination_rate <= KE_MAX)
+    requires (time >= 0.0)
+    requires (time <= T_MAX)
+    ensures  (result >= 0.0)
+{
+    let c0 = dose / volume_of_distribution;
+    c0 * exp(-elimination_rate * time)
+}
+
+// Half-life from elimination rate.
+fn half_life(
+    elimination_rate: Real,
+) -> Real
+    where chain_order <= 0
+    requires (elimination_rate > 0.0)
+    ensures  (result > 0.0)
+{
+    0.6931471805599453 / elimination_rate
+}
+
+// AUC from 0 to ∞ for IV bolus: AUC = D / (V * k_e) = C0 / k_e.
+fn auc_inf(
+    dose: Real,
+    volume_of_distribution: Real,
+    elimination_rate: Real,
+) -> Real
+    where chain_order <= 0
+    requires (dose >= 0.0)
+    requires (volume_of_distribution > 0.0)
+    requires (elimination_rate > 0.0)
+{
+    dose / (volume_of_distribution * elimination_rate)
+}

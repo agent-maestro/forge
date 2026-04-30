@@ -1,0 +1,65 @@
+// gaussian_peak.eml -- Gaussian peak profile.
+//
+//   G(ν; ν0, σ) = (1 / (σ * sqrt(2π))) * exp(-(ν - ν0)² / (2 σ²))
+//
+// where:
+//   ν    frequency / wavenumber / m/z (mass spectrometry)
+//   ν0   peak centre
+//   σ    standard deviation (FWHM = 2·sqrt(2·ln 2)·σ ≈ 2.355·σ)
+//
+// Gaussian lineshapes arise from inhomogeneous broadening:
+// Doppler broadening at low pressure, instrumental resolution
+// in mass spectrometry and chromatography, ensemble-averaging
+// over slowly-varying environments.
+//
+// Chain order = 1 (single exp around chain-0 polynomial in ν).
+
+module gaussian_peak;
+
+const SQRT_2PI: Real = 2.5066282746310002 // √(2π)
+const SIGMA_MAX: Real = 1.0e6
+
+type LineShape = Real where chain_order <= 1
+
+@verify(lean, theorem = "gaussian_peak_at_centre")
+fn gaussian_density(
+    frequency: Real,
+    centre: Real,
+    sigma: Real,
+) -> LineShape
+    where chain_order <= 1
+    requires (sigma > 0.0)
+    requires (sigma <= SIGMA_MAX)
+    ensures  (result > 0.0)
+{
+    let detuning = frequency - centre;
+    let exponent = -detuning * detuning / (2.0 * sigma * sigma);
+    exp(exponent) / (sigma * SQRT_2PI)
+}
+
+// Convert FWHM (the value experimentalists actually report) to σ.
+fn fwhm_to_sigma(
+    fwhm: Real,
+) -> Real
+    where chain_order <= 0
+    requires (fwhm >= 0.0)
+{
+    let scale = 2.3548200450309493         // 2 * sqrt(2 * ln(2))
+    fwhm / scale
+}
+
+// Area-normalised form scaled by an explicit area `S`.
+fn gaussian_area_normalised(
+    frequency: Real,
+    centre: Real,
+    sigma: Real,
+    area: Real,
+) -> Real
+    where chain_order <= 1
+    requires (sigma > 0.0)
+    requires (area >= 0.0)
+{
+    let detuning = frequency - centre;
+    let exponent = -detuning * detuning / (2.0 * sigma * sigma);
+    area * exp(exponent) / (sigma * SQRT_2PI)
+}

@@ -1,0 +1,76 @@
+// tafel.eml -- Tafel equation for high-overpotential electrode kinetics.
+//
+//   η = a + b * log10(|i|)
+//
+// or equivalently:
+//
+//   η = (R·T)/(α·F) * ln(|i| / i0)
+//
+// where:
+//   η    overpotential (V)
+//   a, b Tafel intercept and slope (V, V/decade)
+//   i    current density (A/m²)
+//   i0   exchange current density (A/m²)
+//   α    transfer coefficient
+//
+// The Tafel form is what Butler-Volmer collapses to in the
+// large-η limit (one exponential dominates the other). Used by
+// corrosion engineers and electrochemists for graphical α and i0
+// extraction from polarisation curves.
+//
+// Chain order = 1 (single log).
+
+module tafel;
+
+const R_GAS:   Real = 8.314462618
+const F_FARAD: Real = 96485.33212
+const T_MIN:   Real = 200.0
+const T_MAX:   Real = 1000.0
+
+type Overpotential = Real where chain_order <= 1
+
+@verify(lean, theorem = "tafel_monotone_in_current")
+fn overpotential_from_current(
+    intercept_a: Real,
+    slope_b: Real,
+    current_density: Real,
+) -> Overpotential
+    where chain_order <= 1
+    requires (current_density > 0.0)
+{
+    intercept_a + slope_b * log10(current_density)
+}
+
+// Mechanistic form: extract η from i / i0 and α / T.
+fn overpotential_mechanistic(
+    current_density: Real,
+    exchange_current_density: Real,
+    alpha: Real,
+    temperature: Real,
+) -> Overpotential
+    where chain_order <= 1
+    requires (current_density > 0.0)
+    requires (exchange_current_density > 0.0)
+    requires (alpha > 0.0)
+    requires (alpha <= 1.0)
+    requires (temperature >= T_MIN)
+    requires (temperature <= T_MAX)
+{
+    let prefactor = R_GAS * temperature / (alpha * F_FARAD);
+    prefactor * log(current_density / exchange_current_density)
+}
+
+// Tafel slope (V/decade) for a given α and T. Used as a sanity
+// check on α extracted from a polarisation curve.
+fn tafel_slope(
+    alpha: Real,
+    temperature: Real,
+) -> Real
+    where chain_order <= 0
+    requires (alpha > 0.0)
+    requires (alpha <= 1.0)
+    requires (temperature >= T_MIN)
+{
+    let ln10 = 2.302585092994046
+    ln10 * R_GAS * temperature / (alpha * F_FARAD)
+}

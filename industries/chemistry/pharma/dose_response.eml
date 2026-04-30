@@ -1,0 +1,75 @@
+// dose_response.eml -- Hill-form dose-response curve.
+//
+//   E(C) = E_max * C^n / (EC50^n + C^n)
+//
+// where:
+//   E(C)  pharmacological effect at concentration C
+//   E_max maximum response at saturating concentration
+//   EC50  concentration producing half-maximal effect
+//   C     drug concentration
+//   n     Hill / cooperativity coefficient (often 1)
+//
+// The fundamental dose-response curve in pharmacology. n = 1 gives
+// the rectangular hyperbolic Emax model (the shape FDA expects for
+// most receptor-binding curves). n > 1 captures positive
+// cooperativity (GPCR dimerisation, ion-channel gating).
+//
+// Used in:
+//   - PK/PD modelling for new molecular entities.
+//   - IC50 / EC50 fitting from in-vitro screens.
+//   - Drug-drug interaction prediction (E_max competitive
+//     interaction analysis).
+//
+// Chain order ≤ 2: the pow(C, n) for fractional n decomposes to
+// exp(n*log(C)) -- two chain steps. For n = 1 the optimizer
+// reduces it to chain 0 (rational).
+
+module dose_response;
+
+const C_MAX:    Real = 1.0e3
+const N_MAX:    Real = 8.0
+const EC50_MAX: Real = 1.0e3
+
+type Effect = Real where chain_order <= 2
+
+@verify(lean, theorem = "dose_response_saturating")
+fn effect(
+    e_max: Real,
+    concentration: Real,
+    ec50: Real,
+    hill_coefficient: Real,
+) -> Effect
+    where chain_order <= 2
+    requires (e_max >= 0.0)
+    requires (concentration >= 0.0)
+    requires (concentration <= C_MAX)
+    requires (ec50 > 0.0)
+    requires (ec50 <= EC50_MAX)
+    requires (hill_coefficient > 0.0)
+    requires (hill_coefficient <= N_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= e_max)
+{
+    let c_n = pow(concentration, hill_coefficient);
+    let k_n = pow(ec50, hill_coefficient);
+    e_max * c_n / (k_n + c_n)
+}
+
+// Inhibitor variant (sigmoidal IC50 curve):
+//   E = E0 * (1 - C^n / (IC50^n + C^n))
+fn inhibitor_effect(
+    e_baseline: Real,
+    concentration: Real,
+    ic50: Real,
+    hill_coefficient: Real,
+) -> Effect
+    where chain_order <= 2
+    requires (e_baseline >= 0.0)
+    requires (concentration >= 0.0)
+    requires (ic50 > 0.0)
+    requires (hill_coefficient > 0.0)
+{
+    let c_n = pow(concentration, hill_coefficient);
+    let k_n = pow(ic50, hill_coefficient);
+    e_baseline * k_n / (k_n + c_n)
+}

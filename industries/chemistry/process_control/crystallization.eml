@@ -1,0 +1,81 @@
+// crystallization.eml -- Crystallisation-process primitives.
+//
+// Supersaturation (driving force for nucleation and growth):
+//
+//   S = C / C_sat                              (relative)
+//   σ = (C - C_sat) / C_sat                    (absolute, σ = S - 1)
+//
+// where:
+//   C       solute concentration in solution
+//   C_sat   saturation (solubility) concentration
+//
+// Crystal growth rate (power-law nucleation-and-growth model):
+//
+//   G = k_g * (C - C_sat)^g
+//
+// where:
+//   G    linear growth rate (m/s)
+//   k_g  growth-rate constant
+//   g    growth exponent (typically 1–2)
+//
+// Used in:
+//   - Pharmaceutical API crystallisation (particle-size targets).
+//   - Bulk-chemicals separations (sugar, salt, urea).
+//   - Cooling-crystallisation control loops.
+//
+// Chain order = 0 for absolute / relative supersaturation.
+// Chain order ≤ 2 for growth rate (pow with non-integer exponent).
+
+module crystallization;
+
+const C_MAX:  Real = 1.0e6
+const KG_MAX: Real = 1.0e3
+const G_MAX:  Real = 5.0                   // growth-exponent ceiling
+
+type Supersaturation = Real where chain_order <= 0
+type GrowthRate      = Real where chain_order <= 2
+
+@verify(lean, theorem = "supersaturation_zero_at_solubility")
+fn relative_supersaturation(
+    concentration: Real,
+    saturation_concentration: Real,
+) -> Supersaturation
+    where chain_order <= 0
+    requires (concentration >= 0.0)
+    requires (saturation_concentration > 0.0)
+    ensures  (result >= 0.0 || concentration < saturation_concentration)
+{
+    concentration / saturation_concentration
+}
+
+@verify(lean, theorem = "absolute_supersaturation_zero_at_solubility")
+fn absolute_supersaturation(
+    concentration: Real,
+    saturation_concentration: Real,
+) -> Supersaturation
+    where chain_order <= 0
+    requires (concentration >= 0.0)
+    requires (saturation_concentration > 0.0)
+{
+    (concentration - saturation_concentration) / saturation_concentration
+}
+
+@verify(lean, theorem = "growth_rate_nonneg_above_solubility")
+fn power_law_growth_rate(
+    growth_constant: Real,
+    concentration: Real,
+    saturation_concentration: Real,
+    growth_exponent: Real,
+) -> GrowthRate
+    where chain_order <= 2
+    requires (growth_constant >= 0.0)
+    requires (growth_constant <= KG_MAX)
+    requires (concentration >= 0.0)
+    requires (saturation_concentration > 0.0)
+    requires (growth_exponent > 0.0)
+    requires (growth_exponent <= G_MAX)
+    ensures  (result >= 0.0)
+{
+    let driving_force = max(concentration - saturation_concentration, 0.0);
+    growth_constant * pow(driving_force, growth_exponent)
+}

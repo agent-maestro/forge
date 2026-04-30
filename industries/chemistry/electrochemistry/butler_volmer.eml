@@ -1,0 +1,78 @@
+// butler_volmer.eml -- Butler-Volmer electrode-kinetics equation.
+//
+//   i = i0 * [ exp(α_a * F * η / (R * T))  -  exp(-α_c * F * η / (R * T)) ]
+//
+// where:
+//   i    current density (A/m²)
+//   i0   exchange current density (A/m²)
+//   α_a  anodic charge-transfer coefficient (typically 0.5)
+//   α_c  cathodic charge-transfer coefficient (typically 0.5)
+//   η    overpotential, η = E - E_eq (V)
+//   F    Faraday constant (C/mol)
+//   R    gas constant (J/(mol·K))
+//   T    temperature (K)
+//
+// The fundamental electrode-kinetics rate equation. Used in:
+//   - Battery / fuel-cell modelling (Tafel limits at large η,
+//     linear Ohmic limit at small η).
+//   - Corrosion engineering.
+//   - Electroplating control.
+//
+// Chain order = 2. Two distinct exponentials whose ratio is
+// independently observable — the profiler counts each as a chain
+// step. Tafel limits collapse to chain 1 when one exp dominates.
+
+module butler_volmer;
+
+const R_GAS:   Real = 8.314462618
+const F_FARAD: Real = 96485.33212
+const T_MIN:   Real = 200.0
+const T_MAX:   Real = 1000.0
+const ETA_MAX: Real = 1.0                 // 1 V overpotential ceiling
+
+type CurrentDensity = Real where chain_order <= 2
+
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "butler_volmer_zero_at_zero_overpotential")
+fn current_density(
+    exchange_current_density: Real,
+    alpha_anodic: Real,
+    alpha_cathodic: Real,
+    overpotential: Real,
+    temperature: Real,
+) -> CurrentDensity
+    where chain_order <= 2
+    requires (exchange_current_density > 0.0)
+    requires (alpha_anodic > 0.0)
+    requires (alpha_anodic <= 1.0)
+    requires (alpha_cathodic > 0.0)
+    requires (alpha_cathodic <= 1.0)
+    requires (overpotential >= -ETA_MAX)
+    requires (overpotential <=  ETA_MAX)
+    requires (temperature >= T_MIN)
+    requires (temperature <= T_MAX)
+{
+    let beta = F_FARAD * overpotential / (R_GAS * temperature);
+    exchange_current_density * (exp(alpha_anodic * beta) - exp(-alpha_cathodic * beta))
+}
+
+// Symmetric form (α_a = α_c = α): collapses to
+//   i = 2·i0 * sinh(α·F·η/(R·T))
+// Numerically better-behaved for small η.
+fn current_density_symmetric(
+    exchange_current_density: Real,
+    alpha: Real,
+    overpotential: Real,
+    temperature: Real,
+) -> CurrentDensity
+    where chain_order <= 2
+    requires (exchange_current_density > 0.0)
+    requires (alpha > 0.0)
+    requires (alpha <= 1.0)
+    requires (overpotential >= -ETA_MAX)
+    requires (overpotential <=  ETA_MAX)
+    requires (temperature >= T_MIN)
+{
+    let beta = alpha * F_FARAD * overpotential / (R_GAS * temperature);
+    2.0 * exchange_current_density * sinh(beta)
+}

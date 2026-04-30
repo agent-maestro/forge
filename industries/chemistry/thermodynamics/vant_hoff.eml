@@ -1,0 +1,64 @@
+// vant_hoff.eml -- van 't Hoff equation for K(T).
+//
+//   d(ln K) / d(1/T) = -ΔH° / R
+//
+// integrated form (assuming ΔH° constant over [T1, T2]):
+//
+//   ln(K2 / K1) = -(ΔH° / R) * (1/T2 - 1/T1)
+//   K2 = K1 * exp((ΔH° / R) * (1/T1 - 1/T2))
+//
+// where:
+//   K1, K2  equilibrium constants at T1, T2
+//   ΔH°     standard reaction enthalpy (J/mol)
+//   R       gas constant (J/(mol·K))
+//
+// Used to extrapolate equilibrium constants between temperatures
+// in the absence of a full thermodynamic dataset. The
+// "constant-ΔH°" assumption is the standard chemistry-textbook
+// shortcut; for high-precision work, ΔCp corrections enter and
+// chain order can rise.
+//
+// Chain order = 1 (single exp around a chain-0 expression in 1/T).
+
+module vant_hoff;
+
+const R_GAS: Real = 8.314462618
+const T_MIN: Real = 200.0
+const T_MAX: Real = 2000.0
+const DH_MAX: Real = 1.0e6
+
+type ExtrapolatedK = Real where chain_order <= 1
+
+@verify(lean, theorem = "vant_hoff_predict_k")
+fn predict_k(
+    k1: Real,
+    delta_h: Real,
+    t1: Real,
+    t2: Real,
+) -> ExtrapolatedK
+    where chain_order <= 1
+    requires (k1 > 0.0)
+    requires (delta_h >= -DH_MAX)
+    requires (delta_h <=  DH_MAX)
+    requires (t1 >= T_MIN)
+    requires (t1 <= T_MAX)
+    requires (t2 >= T_MIN)
+    requires (t2 <= T_MAX)
+    ensures  (result > 0.0)
+{
+    let inv_dt = 1.0 / t1 - 1.0 / t2;
+    k1 * exp((delta_h / R_GAS) * inv_dt)
+}
+
+// Linearised van 't Hoff plot: ln(K) vs 1/T has slope -ΔH°/R.
+// Used for graphical extraction of ΔH° from a K-vs-T dataset.
+fn ln_k_at_inverse_t(
+    intercept: Real,
+    slope: Real,
+    inverse_t: Real,
+) -> Real
+    where chain_order <= 0
+    requires (inverse_t > 0.0)
+{
+    intercept + slope * inverse_t
+}
