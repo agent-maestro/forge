@@ -117,8 +117,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="Path to a .eml source file")
     parser.add_argument("--target", choices=[
         "c", "cpp", "rust", "python", "llvm", "wasm",
-        "verilog", "vhdl", "chisel", "lean",
-        "ada",
+        "verilog", "systemverilog", "vhdl", "chisel", "lean",
+        "ada", "matlab",
         "all",
     ], help=("Output target. 'all' runs every live backend "
             "(c, rust, lean, verilog) and writes <stem>.<ext> "
@@ -299,6 +299,17 @@ def main(argv: list[str] | None = None) -> int:
             results.append(("ada", Path("<skipped>"), 0))
             print(f"  ada skipped: {e}", file=sys.stderr)
 
+        # MATLAB
+        try:
+            from software.backends.matlab_backend import MatlabBackend
+            m_path = out_dir / f"{stem}.m"
+            m_src = MatlabBackend(optimize=not args.no_optimize).compile(mod)
+            m_path.write_text(m_src, encoding="utf-8")
+            results.append(("matlab", m_path, len(m_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("matlab", Path("<skipped>"), 0))
+            print(f"  matlab skipped: {e}", file=sys.stderr)
+
         # Rust
         from software.backends.rust_backend import RustBackend
         rs_path = out_dir / f"{stem}.rs"
@@ -357,6 +368,16 @@ def main(argv: list[str] | None = None) -> int:
             v_path.write_text(v_src, encoding="utf-8")
             results.append(("verilog", v_path, len(v_src)))
 
+            from hardware.hdl_gen.systemverilog_backend import (
+                SystemVerilogBackend,
+            )
+            sv_src = SystemVerilogBackend(
+                optimize=not args.no_optimize,
+            ).compile(mod, plan)
+            sv_path = out_dir / f"{stem}.sv"
+            sv_path.write_text(sv_src, encoding="utf-8")
+            results.append(("systemverilog", sv_path, len(sv_src)))
+
             vhd_src = VHDLBackend(optimize=not args.no_optimize).compile(mod, plan)
             vhd_path = out_dir / f"{stem}.vhd"
             vhd_path.write_text(vhd_src, encoding="utf-8")
@@ -397,6 +418,25 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
         else:
             print(c_source, end="")
+        return 0
+
+    if args.target == "matlab":
+        from software.backends.matlab_backend import (
+            MatlabBackend, CompileError as MatlabErr,
+        )
+        try:
+            m_source = MatlabBackend(optimize=not args.no_optimize).compile(mod)
+        except MatlabErr as e:
+            print(f"compile error (matlab backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(m_source, encoding="utf-8")
+            print(f"wrote {args.output} "
+                  f"({len(m_source)} bytes, "
+                  f"{m_source.count(chr(10))} lines)",
+                  file=sys.stderr)
+        else:
+            print(m_source, end="")
         return 0
 
     if args.target == "ada":
@@ -455,6 +495,33 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
         else:
             print(rust_source, end="")
+        return 0
+
+    if args.target == "systemverilog":
+        from hardware.allocator import FPGAAllocator
+        from hardware.allocator import CompileError as AllocErr
+        from hardware.hdl_gen.systemverilog_backend import (
+            SystemVerilogBackend, CompileError as SVErr,
+        )
+        try:
+            plan = FPGAAllocator().allocate(
+                mod, constraints={"target": args.fpga_target},
+            )
+            sv_source = SystemVerilogBackend(
+                optimize=not args.no_optimize,
+            ).compile(mod, plan)
+        except (AllocErr, SVErr) as e:
+            print(f"compile error (systemverilog backend): {e}",
+                  file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(sv_source, encoding="utf-8")
+            print(f"wrote {args.output} "
+                  f"({len(sv_source)} bytes, "
+                  f"{sv_source.count(chr(10))} lines)",
+                  file=sys.stderr)
+        else:
+            print(sv_source, end="")
         return 0
 
     if args.target == "verilog":
