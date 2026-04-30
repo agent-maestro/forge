@@ -58,8 +58,10 @@ fn f(x: Real) -> Real
     mod = parse_source(src, "<test>")
     profiler.profile_module(mod)
     out = backend.compile_module(mod)
-    assert "import MonogateEML.Tactics" in out
-    assert "open Real" in out
+    assert "import MachLib.EML" in out
+    assert "import MachLib.Trig" in out
+    assert "open MachLib" in out
+    assert "open MachLib.Real" in out
     # Function definition rendered
     assert "def f (x : Real) : Real :=" in out
     # Theorem statement
@@ -68,8 +70,8 @@ fn f(x: Real) -> Real
     assert "h1 :" in out
     # `result` substituted with the function call
     assert "(f x)" in out
-    # Proof attempt
-    assert "MonogateEML.Tactics.eml_auto" in out
+    # Proof body
+    assert "sorry" in out
 
 
 # ── Comprehensive demo ──────────────────────────────────────────────
@@ -128,9 +130,9 @@ def test_unary_minus_dispatch(profiler, backend):
     assert "(-x)" in out
 
 
-def test_runtime_import_emitted(profiler, backend):
-    """LeanBackend should import + open MonogateEML.Runtime so
-    sigmoid/softplus/etc. resolve without explicit qualifiers."""
+def test_machlib_imports_emitted(profiler, backend):
+    """LeanBackend imports the MachLib foundations only — no Mathlib,
+    no MonogateEML.Runtime. Phase 1 retarget."""
     src = '''module t;
 @verify(lean, theorem = "thm")
 fn f(x: Real) -> Real
@@ -141,13 +143,17 @@ fn f(x: Real) -> Real
     mod = parse_source(src, "<test>")
     profiler.profile_module(mod)
     out = backend.compile_module(mod)
-    assert "import MonogateEML.Runtime" in out
-    assert "open MonogateEML.Runtime" in out
+    assert "import MachLib.EML" in out
+    assert "import MachLib.Trig" in out
+    assert "Mathlib" not in out
+    assert "MonogateEML" not in out
 
 
-def test_stdlib_call_routes_through_runtime(profiler, backend):
-    """A CALL to `sigmoid(x)` should render as `(mg_sigmoid x)`
-    so the open'd Runtime namespace resolves it."""
+def test_stdlib_call_passes_through_unmangled(profiler, backend):
+    """A CALL to `sigmoid(x)` renders as `(sigmoid x)` — the
+    Runtime namespace rewrite (`mg_sigmoid`) is gone in the
+    MachLib retarget; downstream MachLib stdlib provides the
+    definition."""
     src = '''module t;
 @verify(lean, theorem = "thm")
 fn f(x: Real) -> Real
@@ -158,7 +164,8 @@ fn f(x: Real) -> Real
     mod = parse_source(src, "<test>")
     profiler.profile_module(mod)
     out = backend.compile_module(mod)
-    assert "(mg_sigmoid x)" in out
+    assert "(sigmoid x)" in out
+    assert "mg_sigmoid" not in out
 
 
 # ── Complex bodies become opaque ────────────────────────────────────
