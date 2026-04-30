@@ -2,9 +2,9 @@
 
 ## Overview
 
-- Verticals: **23** functions across **12** modules
+- Verticals: **81** functions across **26** modules
 - Stdlib:    **58** functions across **5** modules
-- Vertical worst-case: chain=4, cycles=20, nodes=54
+- Vertical worst-case: chain=4, cycles=76, nodes=54
 - Stdlib worst-case:   chain=6, cycles=32
 
 ## Verticals
@@ -14,14 +14,46 @@
 | `additive_voice` | `envelope` | 1 | 8 | 8 | 4 | 0 |
 | `additive_voice` | `partial` | 2 | 9 | 8 | 4 | 1 |
 | `additive_voice` | `voice_sample` | 0 | 54 | 8 | 4 | 0 |
+| `aes` | `aes_sbox` | 0 | 6 | 4 | 2 | 0 |
+| `aes` | `affine_transform` | -1 | 0 | 0 | 0 | 0 |
+| `aes` | `gf256_inverse` | 0 | 35 | 16 | 8 | 0 |
+| `aes` | `gf256_mul` | -1 | 0 | 0 | 0 | 0 |
+| `aes` | `gf256_square` | -1 | 0 | 0 | 0 | 0 |
 | `arm_6dof` | `arm_endpoint_x` | 4 | 16 | 12 | 6 | 2 |
 | `arm_6dof` | `joint_xy` | 2 | 14 | 16 | 8 | 0 |
 | `autopilot` | `autopilot_step` | 0 | 24 | 12 | 6 | 0 |
 | `autopilot` | `gravity_compensation` | 2 | 5 | 8 | 4 | 1 |
 | `autopilot` | `rate_controller` | 0 | 13 | 4 | 2 | 0 |
 | `biquad_lowpass` | `biquad_lowpass_step` | 0 | 20 | 2 | 1 | 0 |
+| `chacha20` | `quarter_round` | 0 | 46 | 76 | 38 | 0 |
+| `chacha20` | `rotl` | -1 | 0 | 0 | 0 | 0 |
+| `chacha20` | `wadd` | -1 | 0 | 0 | 0 | 0 |
+| `chacha20` | `wxor` | -1 | 0 | 0 | 0 | 0 |
+| `dilithium` | `dilithium_butterfly` | -1 | 0 | 0 | 0 | 0 |
+| `dilithium` | `ntt_butterfly` | 0 | 4 | 2 | 1 | 0 |
+| `dilithium` | `verify_byte` | 0 | 5 | 2 | 1 | 0 |
+| `dilithium` | `verify_dilithium3_byte` | -1 | 0 | 0 | 0 | 0 |
+| `ecdsa` | `montgomery_ladder_p256_x` | -1 | 0 | 0 | 0 | 0 |
+| `ecdsa` | `scalar_mul_x` | 0 | 4 | 2 | 1 | 0 |
+| `ecdsa` | `sign_p256_r` | -1 | 0 | 0 | 0 | 0 |
+| `ecdsa` | `sign_r` | 0 | 5 | 2 | 1 | 0 |
+| `ed25519` | `edwards_add_complete_y` | -1 | 0 | 0 | 0 | 0 |
+| `ed25519` | `edwards_add_y` | 0 | 4 | 2 | 1 | 0 |
+| `ed25519` | `sign_ed25519_r` | -1 | 0 | 0 | 0 | 0 |
+| `ed25519` | `sign_r` | 0 | 4 | 2 | 1 | 0 |
+| `falcon` | `falcon_butterfly` | -1 | 0 | 0 | 0 | 0 |
+| `falcon` | `gaussian_sample` | -1 | 0 | 0 | 0 | 0 |
+| `falcon` | `ntt_butterfly` | 0 | 4 | 2 | 1 | 0 |
+| `groth16` | `miller_loop_bls12_381_x` | -1 | 0 | 0 | 0 | 0 |
+| `groth16` | `miller_loop_x` | 0 | 4 | 2 | 1 | 0 |
+| `groth16` | `verify_byte` | 0 | 5 | 2 | 1 | 0 |
+| `groth16` | `verify_groth16_byte` | -1 | 0 | 0 | 0 | 0 |
 | `infusion_pump` | `motor_command` | 0 | 17 | 10 | 5 | 0 |
 | `ins` | `attitude_step` | 0 | 22 | 8 | 4 | 0 |
+| `kyber` | `cooley_tukey_butterfly` | -1 | 0 | 0 | 0 | 0 |
+| `kyber` | `decapsulate_byte` | 0 | 4 | 2 | 1 | 0 |
+| `kyber` | `decapsulate_kyber768_byte` | -1 | 0 | 0 | 0 | 0 |
+| `kyber` | `ntt_butterfly` | 0 | 4 | 2 | 1 | 0 |
 | `ml_binary_classifier` | `binary_cross_entropy` | 2 | 15 | 10 | 5 | 0 |
 | `ml_binary_classifier` | `classify` | 0 | 17 | 4 | 2 | 0 |
 | `ml_binary_classifier` | `score` | 0 | 10 | 4 | 2 | 0 |
@@ -30,10 +62,36 @@
 | `motor_foc_automotive` | `pi_step` | 0 | 8 | 2 | 1 | 0 |
 | `mppt` | `mppt_step` | 1 | 18 | 14 | 7 | 0 |
 | `plc_setpoint` | `actuator_command` | 0 | 19 | 10 | 5 | 0 |
+| `plonk` | `evaluate_gate` | 0 | 20 | 10 | 5 | 0 |
+| `plonk` | `fadd` | -1 | 0 | 0 | 0 | 0 |
+| `plonk` | `fmul` | -1 | 0 | 0 | 0 | 0 |
+| `plonk` | `kzg_open_at` | 0 | 4 | 2 | 1 | 0 |
+| `plonk` | `kzg_open_one` | -1 | 0 | 0 | 0 | 0 |
+| `rsa` | `modexp_montgomery` | 0 | 5 | 2 | 1 | 0 |
+| `rsa` | `montgomery_ladder` | -1 | 0 | 0 | 0 | 0 |
 | `schrodinger_step` | `laplacian` | 0 | 10 | 6 | 3 | 0 |
 | `schrodinger_step` | `psi_real_step` | 0 | 16 | 6 | 3 | 0 |
+| `sha256` | `big_sigma0` | -1 | 0 | 0 | 0 | 0 |
+| `sha256` | `big_sigma1` | -1 | 0 | 0 | 0 | 0 |
+| `sha256` | `ch` | -1 | 0 | 0 | 0 | 0 |
+| `sha256` | `maj` | -1 | 0 | 0 | 0 | 0 |
+| `sha256` | `sha256_round` | 0 | 37 | 12 | 6 | 0 |
+| `sha256` | `wadd` | -1 | 0 | 0 | 0 | 0 |
+| `sha256` | `wadd5` | -1 | 0 | 0 | 0 | 0 |
+| `sha3` | `chi_lane` | -1 | 0 | 0 | 0 | 0 |
+| `sha3` | `iota_lane` | -1 | 0 | 0 | 0 | 0 |
+| `sha3` | `keccak_round_lane` | 0 | 7 | 8 | 4 | 0 |
+| `sha3` | `rho_pi_lane` | -1 | 0 | 0 | 0 | 0 |
+| `sha3` | `theta_lane` | -1 | 0 | 0 | 0 | 0 |
+| `stark` | `fri_fold` | -1 | 0 | 0 | 0 | 0 |
+| `stark` | `fri_fold_step` | 0 | 5 | 2 | 1 | 0 |
+| `stark` | `verify_byte` | 0 | 4 | 2 | 1 | 0 |
+| `stark` | `verify_stark_byte` | -1 | 0 | 0 | 0 | 0 |
 | `three_phase` | `clarke` | 0 | 18 | 8 | 4 | 0 |
 | `three_phase` | `park` | 2 | 27 | 20 | 10 | 0 |
+| `x25519` | `montgomery_ladder_x25519` | -1 | 0 | 0 | 0 | 0 |
+| `x25519` | `scalar_clamp` | -1 | 0 | 0 | 0 | 0 |
+| `x25519` | `x25519` | 0 | 5 | 4 | 2 | 0 |
 
 ## Stdlib
 
@@ -112,18 +170,18 @@
 
 | Function | fpga_cycles |
 |----------|------:|
+| `chacha20::quarter_round` | 76 |
 | `three_phase::park` | 20 |
+| `aes::gf256_inverse` | 16 |
 | `arm_6dof::joint_xy` | 16 |
 | `mppt::mppt_step` | 14 |
-| `arm_6dof::arm_endpoint_x` | 12 |
-| `autopilot::autopilot_step` | 12 |
 
 ## Highest node count (verticals)
 
 | Function | node_count |
 |----------|------:|
 | `additive_voice::voice_sample` | 54 |
+| `chacha20::quarter_round` | 46 |
+| `sha256::sha256_round` | 37 |
+| `aes::gf256_inverse` | 35 |
 | `three_phase::park` | 27 |
-| `autopilot::autopilot_step` | 24 |
-| `ins::attitude_step` | 22 |
-| `biquad_lowpass::biquad_lowpass_step` | 20 |

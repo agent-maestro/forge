@@ -172,12 +172,26 @@ class LLVMBackend:
         Plus user CALLs into peers (we forward-declare every defined
         function to allow any-order references)."""
         used: set[NodeKind] = set()
+        # Runtime symbols emitted by the ml_routing optimizer pass
+        # arrive as CALL nodes. Track which libmonogate symbols are
+        # referenced by name + arity so we can declare them too.
+        used_runtime_calls: dict[str, int] = {}
+
+        defined_names = {fn.name for fn in funcs if not fn.is_extern}
 
         def walk(n: ASTNode | None):
             if n is None:
                 return
             if n.kind in _BUILTIN_TO_LLVM:
                 used.add(n.kind)
+            elif n.kind == NodeKind.CALL:
+                name = str(n.value)
+                # Skip user-defined peers (they're emitted below).
+                # Treat unknown names that look like runtime symbols
+                # (mg_* prefix) as libmonogate forwards.
+                if (name.startswith("mg_")
+                        and name not in defined_names):
+                    used_runtime_calls[name] = len(n.children)
             for c in n.children:
                 walk(c)
 
@@ -192,6 +206,12 @@ class LLVMBackend:
         for kind in sorted(used, key=lambda k: k.name):
             sym = _BUILTIN_TO_LLVM[kind]
             arity = _BUILTIN_ARITY[kind]
+            args = ", ".join(["double"] * arity)
+            out.append(f"declare double @{sym}({args})")
+        # Also declare any libmonogate runtime symbol reached via CALL
+        # (sourced from the ml_routing pass: mg_sigmoid_route, etc.).
+        for sym in sorted(used_runtime_calls):
+            arity = used_runtime_calls[sym]
             args = ", ".join(["double"] * arity)
             out.append(f"declare double @{sym}({args})")
         return out

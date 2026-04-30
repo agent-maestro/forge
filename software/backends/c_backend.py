@@ -72,6 +72,14 @@ _BUILTIN_TO_C: dict[NodeKind, str] = {
     NodeKind.CLAMP: "mg_clamp",
 }
 
+# When the optimizer marks a function `drift_risk=HIGH`, these
+# NodeKinds dispatch to libmonogate's SuperBEST routing variants
+# instead of the naive form. Picks the canonical sub-domain form
+# (Padé near zero, sign() at saturation, etc.) -- Patent #01.
+_BUILTIN_TO_C_HIGH_DRIFT: dict[NodeKind, str] = {
+    NodeKind.TANH: "mg_tanh_route",
+}
+
 
 # Map EML-lang type names to C types. Anything not in this map
 # (i.e. a user-declared alias or a custom type) defaults to `double`
@@ -115,6 +123,9 @@ class CBackend:
     def __init__(self, indent: str = "    ", *, optimize: bool = True):
         self.indent = indent
         self.optimize = optimize
+        # Per-function drift level set during _emit_function.
+        # "HIGH" routes drift-prone ops (tanh) to mg_*_route variants.
+        self._drift_risk: str = "LOW"
 
     # ── Public API ────────────────────────────────────────────
 
@@ -189,6 +200,29 @@ class CBackend:
         ]
 
     def _emit_function(self, fn: EMLFunction) -> list[str]:
+        # Record drift risk so _emit_expr can route TANH (and any
+        # future drift-prone NodeKind) to the libmonogate _route variant.
+        self._drift_risk = (
+            (fn.profile or {}).get("fp16_drift_risk", "LOW") or "LOW"
+        )
+
+        # Extern fns are forward declarations -- the implementation
+        # is provided by some other compilation unit (libmonogate, a
+        # vendor lib, hand-written C).
+        if fn.is_extern:
+            if fn.return_tuple_types:
+                ret_type = self._tuple_type_name(fn.name)
+            else:
+                ret_type = _c_type(fn.return_type or "Real")
+            params_c = ", ".join(
+                f"{_c_type(p.type_name)} {p.name}" for p in fn.params
+            ) or "void"
+            return [
+                f"/* extern: {fn.name} -- declaration only, "
+                f"implementation provided externally */",
+                f"extern {ret_type} {fn.name}({params_c});",
+            ]
+
         out: list[str] = self._profile_comment(fn)
 
         # Signature
@@ -369,9 +403,12 @@ class CBackend:
             # the user needs to assign to a struct value explicitly.
             return f"{{{elems}}}"
 
-        # Built-in function call
+        # Built-in function call -- dispatch to libmonogate.
+        # Drift-prone ops route through mg_*_route on HIGH-drift fns.
         if kind in _BUILTIN_TO_C:
             args = ", ".join(self._emit_expr(c) for c in node.children)
+            if self._drift_risk == "HIGH" and kind in _BUILTIN_TO_C_HIGH_DRIFT:
+                return f"{_BUILTIN_TO_C_HIGH_DRIFT[kind]}({args})"
             return f"{_BUILTIN_TO_C[kind]}({args})"
 
         # User function call

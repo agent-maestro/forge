@@ -1,71 +1,160 @@
 {
-  "_comment": "23-operator EML family. Each entry: name, decomposition (in terms of exp/ln/+/-/*), domain restrictions. SCAFFOLD -- expand to full 23 as the canonical list stabilizes upstream.",
+  "_comment": "EML operator catalog. Each entry: name, decomposition, domain restrictions, chain order. The 9 'core' family operators mirror the canonical reduction theorems; the 'derived' set covers activations and growth dynamics built from the core. Routing entries pick canonical forms by sub-domain (Patent #01).",
   "_canonical_source": "monogate-research/data/operators.json (TBD)",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "operators": [
     {
       "name": "eml",
       "arity": 2,
       "decomposition": "exp(x) - ln(y)",
       "domain": "y > 0",
-      "chain_order": 1
+      "chain_order": 1,
+      "category": "core"
     },
     {
       "name": "eal",
       "arity": 2,
       "decomposition": "exp(x) + ln(y)",
       "domain": "y > 0",
-      "chain_order": 1
+      "chain_order": 1,
+      "category": "core"
     },
     {
       "name": "exl",
       "arity": 2,
       "decomposition": "exp(x) * ln(y)",
       "domain": "y > 0",
-      "chain_order": 1
+      "chain_order": 1,
+      "category": "core"
     },
     {
       "name": "edl",
       "arity": 2,
       "decomposition": "exp(x) / ln(y)",
       "domain": "y > 0, y != 1",
-      "chain_order": 1
+      "chain_order": 1,
+      "category": "core"
     },
     {
       "name": "epl",
       "arity": 2,
       "decomposition": "exp(x) ^ ln(y)",
       "domain": "y > 0",
-      "chain_order": 1
+      "chain_order": 1,
+      "category": "core"
     },
     {
       "name": "lediv",
       "arity": 2,
       "decomposition": "ln(exp(x) / y)",
       "domain": "y > 0",
-      "chain_order": 1
+      "chain_order": 1,
+      "category": "core"
     },
     {
       "name": "elsb",
       "arity": 2,
       "decomposition": "exp(x - ln(y)) = exp(x) / y",
       "domain": "y > 0",
-      "chain_order": 1
+      "chain_order": 1,
+      "category": "core"
     },
     {
       "name": "elad",
       "arity": 2,
       "decomposition": "exp(ln(x) + y) = x * exp(y)",
       "domain": "x > 0",
-      "chain_order": 1
+      "chain_order": 1,
+      "category": "core"
     },
     {
       "name": "deml",
       "arity": 2,
       "decomposition": "exp(-x) - ln(y)",
       "domain": "y > 0",
-      "chain_order": 1
+      "chain_order": 1,
+      "category": "core"
+    },
+    {
+      "name": "sigmoid",
+      "arity": 1,
+      "decomposition": "1 / (1 + exp(-x))",
+      "domain": "all reals",
+      "chain_order": 1,
+      "category": "activation"
+    },
+    {
+      "name": "softplus",
+      "arity": 1,
+      "decomposition": "ln(1 + exp(x))",
+      "domain": "all reals",
+      "chain_order": 2,
+      "category": "activation"
+    },
+    {
+      "name": "logistic",
+      "arity": 4,
+      "decomposition": "K / (1 + exp(-r * (t - x0)))",
+      "domain": "all reals",
+      "chain_order": 1,
+      "category": "growth"
+    },
+    {
+      "name": "gompertz",
+      "arity": 4,
+      "decomposition": "K * exp(-exp(-r * (t - x0)))",
+      "domain": "all reals",
+      "chain_order": 2,
+      "category": "growth"
+    },
+    {
+      "name": "relu",
+      "arity": 1,
+      "decomposition": "max(0, x)",
+      "domain": "all reals",
+      "chain_order": 0,
+      "category": "activation"
+    },
+    {
+      "name": "div",
+      "arity": 2,
+      "decomposition": "x / y",
+      "domain": "y != 0",
+      "chain_order": 0,
+      "category": "arithmetic"
+    },
+    {
+      "name": "safe_div",
+      "arity": 2,
+      "decomposition": "saturating x/y at +/- DBL_MAX when |y| < 1e-300",
+      "domain": "all reals",
+      "chain_order": 0,
+      "category": "arithmetic"
+    },
+    {
+      "name": "tanh_route",
+      "arity": 1,
+      "decomposition": "x for |x|<1e-8; sign(x) for |x|>20; exp form otherwise",
+      "domain": "all reals",
+      "chain_order": 1,
+      "category": "routing"
+    },
+    {
+      "name": "sigmoid_route",
+      "arity": 1,
+      "decomposition": "1/(1+exp(-x)) for x>=0; exp(x)/(1+exp(x)) for x<0 (overflow-safe)",
+      "domain": "all reals",
+      "chain_order": 1,
+      "category": "routing"
+    },
+    {
+      "name": "softplus_route",
+      "arity": 1,
+      "decomposition": "x for x>20; exp(x) for x<-20; ln(1+exp(x)) otherwise (overflow-safe)",
+      "domain": "all reals",
+      "chain_order": 2,
+      "category": "routing"
     }
   ],
-  "_todo": "Add the remaining 14 operators once the canonical list is locked upstream."
+  "_todo": "Add the remaining family operators (14 of 23) once the canonical list is locked upstream. Routing entries cover the most common SuperBEST decisions surfaced by benchmark/c-backend; expand as more activations land."
 }

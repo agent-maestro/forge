@@ -5,6 +5,8 @@
   "patterns": [
     { "include": "#comments" },
     { "include": "#keywords" },
+    { "include": "#stdlib_builtins" },
+    { "include": "#libmonogate_runtime" },
     { "include": "#types" },
     { "include": "#numbers" }
   ],
@@ -18,16 +20,37 @@
     "keywords": {
       "patterns": [{
         "name": "keyword.control.eml",
-        "match": "\\b(module|import|const|fn|let|where|forall|domain|precision|chain_order|return|if|else|while|for)\\b"
+        "match": "\\b(module|import|use|as|const|type|fn|extern|let|mut|where|forall|domain|precision|chain_order|requires|ensures|return|if|else|while|for)\\b"
+      }, {
+        "name": "constant.language.eml",
+        "match": "\\b(true|false)\\b"
       }, {
         "name": "keyword.other.eml",
-        "match": "@(verify|builtin)"
+        "match": "@(verify|builtin|target)"
+      }]
+    },
+    "stdlib_builtins": {
+      "patterns": [{
+        "name": "support.function.builtin.eml",
+        "comment": "Built-in transcendentals + arithmetic (parser-recognized BUILTIN_NAMES)",
+        "match": "\\b(exp|ln|log|sin|cos|tan|sqrt|pow|eml|abs|clamp|asin|acos|atan|sinh|cosh|tanh)\\b(?=\\s*\\()"
+      }, {
+        "name": "support.function.stdlib.eml",
+        "comment": "stdlib::ml + stdlib::math activations + growth (resolved by importing use stdlib::ml; / stdlib::math;)",
+        "match": "\\b(sigmoid|softplus|relu|leaky_relu|gelu|swish|logistic|gompertz|safe_div|lerp|smoothstep|hypot2|hypot3)\\b(?=\\s*\\()"
+      }]
+    },
+    "libmonogate_runtime": {
+      "patterns": [{
+        "name": "support.function.runtime.eml",
+        "comment": "libmonogate runtime symbols (mg_*) — emitted by the ml_routing optimizer pass for HIGH-drift functions, or written by hand to call the C/Rust runtime directly. SuperBEST-routed variants (Patent #01) live under mg_*_route.",
+        "match": "\\bmg_[a-z][a-z0-9_]*\\b(?=\\s*\\()"
       }]
     },
     "types": {
       "patterns": [{
         "name": "support.type.eml",
-        "match": "\\b(f64|f32|f16|bf16|fixed|i32|i64|u8|u32|u64|bool|void)\\b"
+        "match": "\\b(Real|f64|f32|f16|bf16|fixed|i8|i16|i32|i64|u8|u16|u32|u64|bool|void)\\b"
       }]
     },
     "numbers": {

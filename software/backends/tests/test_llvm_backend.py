@@ -76,3 +76,18 @@ def test_target_triple_emitted_when_set():
     Profiler().profile_module(mod)
     ir = LLVMBackend(target_triple="wasm32-unknown-unknown").compile(mod)
     assert 'target triple = "wasm32-unknown-unknown"' in ir
+
+
+def test_ml_routing_runtime_call_gets_declare():
+    """When ml_routing rewrites sigmoid to mg_sigmoid_route, the LLVM
+    backend must emit a `declare` line so the IR verifies."""
+    from lang.parser import parse_source
+    from lang.optimizer import optimize_module
+    src = "fn f(x: f64) -> f64 { 1.0 / (1.0 + exp(-x)) }\n"
+    mod = parse_source(src, "<t>")
+    Profiler().profile_module(mod)
+    mod.functions[0].profile["fp16_drift_risk"] = "HIGH"
+    mod = optimize_module(mod, ml_routing=True)
+    ir = LLVMBackend(optimize=False).compile(mod)
+    assert "declare double @mg_sigmoid_route(double)" in ir
+    assert "call double @mg_sigmoid_route(" in ir

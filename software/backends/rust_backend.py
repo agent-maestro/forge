@@ -195,6 +195,21 @@ class RustBackend:
         return out
 
     def _emit_function(self, fn: EMLFunction) -> list[str]:
+        # Extern fns are FFI declarations -- the implementation is
+        # provided by another crate or linked .a/.so/.dll.
+        if fn.is_extern:
+            if fn.return_tuple_types:
+                ret_type = self._tuple_type_name(fn.name)
+            else:
+                ret_type = _rust_type(fn.return_type or "Real")
+            params_rust = ", ".join(
+                f"{p.name}: {_rust_type(p.type_name)}" for p in fn.params
+            )
+            return [
+                f"// extern: {fn.name} -- FFI declaration only",
+                f'extern "C" {{ pub fn {fn.name}({params_rust}) -> {ret_type}; }}',
+            ]
+
         out: list[str] = self._profile_comment(fn)
 
         if fn.return_tuple_types:

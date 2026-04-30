@@ -79,3 +79,64 @@ fn leaky_relu(x: f64, alpha: f64) -> f64
 {
     clamp(x, alpha * x, 1.0e30)
 }
+
+// ── Exponential ReLU family (chain order 1) ──────────────────
+
+// ELU (Exponential Linear Unit). Smooths the ReLU kink with an
+// exponential tail below zero -- mean activation closer to zero
+// reduces internal covariate shift. `alpha` is the saturation
+// magnitude (typically 1.0).
+//
+// Chain order 1: a single exp call.
+fn elu(x: f64, alpha: f64) -> f64
+    where chain_order <= 1
+{
+    clamp(x, 0.0, 1.0e30) + clamp(alpha * (exp(clamp(x, -1.0e30, 0.0)) - 1.0), -1.0e30, 0.0)
+}
+
+// SELU (Scaled ELU). Self-normalizing -- the fixed-point
+// (alpha, scale) constants are chosen so a deep stack of
+// SELU-activated linear layers preserves zero mean / unit
+// variance. Chain order 1.
+fn selu(x: f64) -> f64
+    where chain_order <= 1
+{
+    1.0507009873554805 * elu(x, 1.6732632423543772)
+}
+
+// Mish (Misra 2019). Smooth, non-monotonic, self-gated --
+// outperforms swish / GELU on some vision benchmarks.
+// `mish(x) = x * tanh(softplus(x))`. Chain order 2 (tanh
+// composes through ln+exp via softplus).
+fn mish(x: f64) -> f64
+    where chain_order <= 2
+{
+    x * tanh(ln(1.0 + exp(x)))
+}
+
+// ── Hard / linear approximations (chain order 0) ─────────────
+
+// Hard sigmoid. Piecewise-linear approximation to sigmoid;
+// clamps to [0, 1] with linear midband. Cheap on FPGA / int8.
+fn hard_sigmoid(x: f64) -> f64
+    where chain_order <= 0
+{
+    clamp(0.2 * x + 0.5, 0.0, 1.0)
+}
+
+// Hard tanh. Piecewise-linear approximation to tanh; clamps
+// to [-1, 1]. Same FPGA-friendly profile as hard_sigmoid.
+fn hard_tanh(x: f64) -> f64
+    where chain_order <= 0
+{
+    clamp(x, -1.0, 1.0)
+}
+
+// Hard swish. Piecewise approximation to swish for mobile
+// inference. `x * relu6(x+3) / 6` -- written here using
+// clamp since EML doesn't expose a relu6 builtin.
+fn hard_swish(x: f64) -> f64
+    where chain_order <= 0
+{
+    x * clamp(x + 3.0, 0.0, 6.0) / 6.0
+}

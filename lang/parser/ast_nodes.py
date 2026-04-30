@@ -160,6 +160,13 @@ class EMLFunction:
     module (e.g. "stdlib::control"). Local functions leave it None.
     The tree-shaker uses this to decide what's safe to drop."""
 
+    is_extern: bool = False
+    """When True the function is an opaque external declaration
+    (`extern fn name(args) -> T`). Has no body; profiler / inliner /
+    tree-shaker treat it as a leaf. Used by industry verticals
+    (crypto, hardware) to declare primitives whose implementation
+    lives outside EML-lang's reach."""
+
 
 @dataclass
 class EMLConstant:

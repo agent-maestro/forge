@@ -19,7 +19,7 @@ from dataclasses import dataclass
 # identifier regex is emitted as an IDENT token.
 KEYWORDS: frozenset[str] = frozenset({
     "module", "import", "use", "as",
-    "const", "type", "fn", "let", "mut", "while", "where",
+    "const", "type", "fn", "extern", "let", "mut", "while", "where",
     "domain", "precision", "chain_order", "requires", "ensures",
     "return", "if", "else",
     "true", "false",
