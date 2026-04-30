@@ -1,0 +1,42 @@
+// mercator_projection.eml -- single-point Mercator projection.
+//
+// The standard ("conformal") Mercator projection from geodetic
+// latitude/longitude to map (x, y) on a unit sphere:
+//
+//   x = lon
+//   y = ln(tan(pi/4 + lat/2))
+//
+// The y component composes ln through tan -- chain order 3.
+// This is the canonical rationale for Forge's chain-order tracker
+// having a 3-deep pathway: a trig followed by a log on a single
+// scalar input. Receivers and map-tile renderers both compute
+// this kernel; precision matters because tile boundaries fold
+// log-near-pole singularities into pixels at high zoom levels.
+//
+// Domain: lat is bounded away from ±π/2 to avoid the log
+// singularity. Standard Web Mercator clamps at ±85.05113°.
+
+module mercator_projection;
+
+const PI_OVER_4: Real = 0.7853981633974483    // π / 4
+const HALF:      Real = 0.5
+const MAX_LAT:   Real = 1.4844222297453324    // 85.05113° in radians
+
+type GeoSignal = Real where chain_order <= 3
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "mercator_y_finite_in_domain")
+fn mercator_y(lat: Real) -> GeoSignal
+    where chain_order <= 3
+    requires (abs(lat) < MAX_LAT)
+{
+    ln(tan(PI_OVER_4 + HALF * lat))
+}
+
+@target(fpga, clock_mhz = 200, precision = float64)
+fn mercator_x(lon: Real) -> GeoSignal
+    where chain_order <= 0
+    requires (abs(lon) < 6.283185307)        // |lon| < 2π
+{
+    lon
+}

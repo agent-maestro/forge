@@ -1,0 +1,46 @@
+// monopulse.eml -- amplitude-comparison monopulse angle estimation.
+//
+// A monopulse radar splits its receive aperture into sum (Σ) and
+// difference (Δ) channels. The on-boresight target ratio Δ/Σ is a
+// nearly-linear function of the off-boresight angle, so a single
+// pulse yields an angle estimate without scanning. Per Skolnik
+// chapter 9, the canonical estimator is
+//
+//   theta_est = arctan(Δ_real / Σ_real) * k_slope
+//
+// where k_slope is the antenna's monopulse slope constant
+// (radians of off-boresight per unit Δ/Σ ratio).
+//
+// We expose the angle and the magnitude separately so the
+// downstream tracker can weight by signal strength.
+//
+// Chain order: 1 (single arctan -- the divide is non-Pfaffian
+// only at Σ_real = 0, which is gated by `requires`).
+
+module monopulse;
+
+type MonopulseSignal = Real where chain_order <= 1
+
+// Off-boresight angle estimate (radians). The host pre-multiplies
+// the monopulse slope k_slope into the result if a calibrated
+// angle in radians is needed.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "monopulse_angle_finite")
+fn monopulse_angle(delta_real: Real, sum_real: Real) -> MonopulseSignal
+    where chain_order <= 1
+    requires (sum_real > 0.0)
+{
+    atan(delta_real / sum_real)
+}
+
+// Sum-channel magnitude (proxy for SNR; the tracker weights
+// estimates by this). Chain order 0 -- pure linear combination
+// after the host pre-computes the channel magnitudes.
+@target(fpga, clock_mhz = 200, precision = float32)
+fn sum_magnitude(sum_real: Real, sum_imag: Real) -> Real
+    where chain_order <= 1
+    requires (sum_real >= 0.0)
+    requires (sum_imag >= 0.0)
+{
+    sqrt(sum_real * sum_real + sum_imag * sum_imag)
+}

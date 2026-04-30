@@ -1,0 +1,64 @@
+// range_doppler.eml -- single-bin output of a pulse-Doppler
+// matched filter.
+//
+// Pulse-Doppler radars repeat their transmit pulse N times and
+// coherently sum the returns weighted by a Doppler hypothesis.
+// For range bin `r` and Doppler hypothesis `f_d`, the matched
+// filter output is
+//
+//   y(r, f_d) = Σ_n  s_n(r) * exp(-j * 2π * f_d * n * T_PRI)
+//
+// where `T_PRI` is the pulse-repetition interval and `n` indexes
+// the pulse number. This file implements the per-pulse
+// contribution to a range-Doppler cell -- the host loop
+// accumulates over pulses and range bins.
+//
+// Chain order: 1 (sin/cos applied to a chain-0 polynomial in
+// the inputs). The phase argument `2π * f_d * n * T_PRI` is
+// computed by the host and arrives as a single Real.
+//
+// On a Xilinx Versal AI engine this kernel runs at 1 GHz
+// per cell; 4096 range bins × 256 Doppler hypotheses fits in a
+// single AI engine cluster.
+
+module range_doppler;
+
+const TWO_PI: Real = 6.283185307179586
+
+type DopplerSignal = Real where chain_order <= 1
+
+// Real part of one pulse's contribution to a Doppler-bin.
+// Inputs are the pulse sample (real, imaginary) and the
+// pre-computed phase (radians). The host pre-multiplies
+// `2π * f_d * n * T_PRI` into `phase` so the kernel only does
+// one cos / sin evaluation per cell.
+@target(fpga, clock_mhz = 1000, precision = float32)
+@verify(lean, theorem = "doppler_real_bounded_by_magnitude")
+fn doppler_real(s_real: Real, s_imag: Real, phase: Real) -> DopplerSignal
+    where chain_order <= 1
+    requires (phase >= -1000.0)
+    requires (phase <=  1000.0)
+{
+    s_real * cos(phase) + s_imag * sin(phase)
+}
+
+@target(fpga, clock_mhz = 1000, precision = float32)
+@verify(lean, theorem = "doppler_imag_bounded_by_magnitude")
+fn doppler_imag(s_real: Real, s_imag: Real, phase: Real) -> DopplerSignal
+    where chain_order <= 1
+    requires (phase >= -1000.0)
+    requires (phase <=  1000.0)
+{
+    s_imag * cos(phase) - s_real * sin(phase)
+}
+
+// Pre-compute the per-pulse phase ramp. The host calls this once
+// per dwell and feeds the result into the per-cell kernels above.
+@target(fpga, clock_mhz = 250, precision = float32)
+fn pulse_phase(f_d: Real, n: Real, t_pri: Real) -> Real
+    where chain_order <= 0
+    requires (n >= 0.0)
+    requires (t_pri > 0.0)
+{
+    TWO_PI * f_d * n * t_pri
+}

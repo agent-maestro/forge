@@ -128,6 +128,21 @@ def superbest_function(fn: EMLFunction) -> EMLFunction:
     if any(len(repr(float(f))) > 8 for f in floats):
         return fn
 
+    # Skip when the body has free symbols beyond the function's
+    # parameters. Those are user-named module-level constants
+    # (e.g. finance/black_scholes.eml's `SQRT_2_OVER_PI`,
+    # `GELU_C3`, `HALF`). recommend_form's family templates use
+    # literal numeric coefficients -- they cannot match symbolic
+    # names. Calling recommend_form on such expressions costs
+    # 30+s of pattern-matching that always returns None.
+    #
+    # Users who want SuperBEST routing on a body with named
+    # constants should inline the constants (literal floats) or
+    # let constant-folding fold them earlier in the optimizer.
+    param_names = {p.name for p in fn.params}
+    if any(s.name not in param_names for s in expr.free_symbols):
+        return fn
+
     # `recommend_form` keys on the SymPy node-class structure
     # and is sensitive to Float vs Rational coefficients (it
     # matches `tanh(x/2)/2 + 1/2`, not `0.5*tanh(0.5*x) + 0.5`).

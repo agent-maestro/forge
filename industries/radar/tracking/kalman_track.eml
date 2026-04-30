@@ -1,0 +1,83 @@
+// kalman_track.eml -- single-axis Kalman track update for a
+// constant-velocity radar target.
+//
+// State: x = (position, velocity).  Measurement: z = position.
+//
+//   Prediction:
+//     x_pred  = F * x         where F = [[1, dt], [0, 1]]
+//     P_pred  = F * P * F^T + Q
+//
+//   Update:
+//     y       = z - H * x_pred       (innovation)
+//     S       = H * P_pred * H^T + R
+//     K       = P_pred * H^T * S^-1
+//     x_new   = x_pred + K * y
+//     P_new   = (I - K * H) * P_pred
+//
+// We expose the per-step kernel (one prediction + one update on a
+// scalar measurement) and break it into named pieces so the FPGA
+// pipeline can map each block to a separate stage. Chain order is
+// 1 (the divide in K = P / S is a single transcendental step).
+
+module kalman_track;
+
+type TrackSignal = Real where chain_order <= 1
+
+// Predicted position after one Δt step (constant-velocity model).
+// Pure linear -- chain order 0.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "track_position_predict_linear")
+fn predict_position(x_pos: Real, x_vel: Real, dt: Real) -> TrackSignal
+    where chain_order <= 0
+    requires (dt >= 0.0)
+{
+    x_pos + x_vel * dt
+}
+
+// Innovation y = z - x_pred (scalar).
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "track_innovation_zero_when_aligned")
+fn innovation(z_meas: Real, x_pred: Real) -> TrackSignal
+    where chain_order <= 0
+{
+    z_meas - x_pred
+}
+
+// Kalman gain K = P / (P + R).
+//
+// `p_pred` is the predicted position-variance (P[0][0] post-
+// prediction); `r_meas` is the measurement variance (sensor noise).
+// Chain order 1: a single divide.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "track_gain_in_unit_interval")
+fn kalman_gain(p_pred: Real, r_meas: Real) -> TrackSignal
+    where chain_order <= 1
+    requires (p_pred >= 0.0)
+    requires (r_meas > 0.0)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    p_pred / (p_pred + r_meas)
+}
+
+// Updated position estimate x_new = x_pred + K * y.
+@target(fpga, clock_mhz = 200, precision = float32)
+fn update_position(x_pred: Real, gain: Real, innov: Real) -> TrackSignal
+    where chain_order <= 0
+    requires (gain >= 0.0)
+    requires (gain <= 1.0)
+{
+    x_pred + gain * innov
+}
+
+// Updated position-variance P_new = (1 - K) * P_pred.
+@target(fpga, clock_mhz = 200, precision = float32)
+fn update_variance(gain: Real, p_pred: Real) -> TrackSignal
+    where chain_order <= 0
+    requires (gain >= 0.0)
+    requires (gain <= 1.0)
+    requires (p_pred >= 0.0)
+    ensures  (result >= 0.0)
+{
+    (1.0 - gain) * p_pred
+}
