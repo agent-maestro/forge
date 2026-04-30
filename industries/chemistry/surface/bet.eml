@@ -1,0 +1,61 @@
+// bet.eml -- Brunauer-Emmett-Teller (BET) multilayer adsorption.
+//
+//   V / V_m = (C * x) / ((1 - x) * (1 - x + C * x))
+//
+// where:
+//   x = P/P0    relative pressure (0 < x < 1)
+//   V          adsorbed volume at pressure P
+//   V_m        monolayer-equivalent adsorbed volume
+//   C          BET constant (related to first-layer adsorption energy)
+//
+// The standard isotherm for surface-area determination of porous
+// solids by N₂ adsorption at 77 K. Valid in the relative-pressure
+// window 0.05 ≤ x ≤ 0.35.
+//
+// Used in:
+//   - Catalyst surface-area characterisation.
+//   - Pharmaceutical solid-state physical-property testing.
+//   - Activated-carbon and zeolite quality control.
+//
+// Chain order = 0 (rational in x).
+
+module bet;
+
+const C_MAX: Real = 1.0e4
+const X_MIN: Real = 1.0e-6
+const X_MAX: Real = 0.99
+
+type AdsorbedRatio = Real where chain_order <= 0
+
+@verify(lean, theorem = "bet_diverges_at_p0")
+fn ratio_to_monolayer(
+    relative_pressure: Real,
+    bet_constant: Real,
+) -> AdsorbedRatio
+    where chain_order <= 0
+    requires (relative_pressure >= X_MIN)
+    requires (relative_pressure <= X_MAX)
+    requires (bet_constant > 0.0)
+    requires (bet_constant <= C_MAX)
+    ensures  (result >= 0.0)
+{
+    let one_minus_x = 1.0 - relative_pressure;
+    let cx = bet_constant * relative_pressure;
+    cx / (one_minus_x * (one_minus_x + cx))
+}
+
+// Linearised BET plot for V_m and C extraction:
+//   x / (V * (1 - x)) = (1/(V_m * C)) + ((C-1)/(V_m * C)) * x
+// Returns the y-axis value at a given x and observed adsorbed
+// volume V.
+fn linearised_bet_y(
+    relative_pressure: Real,
+    adsorbed_volume: Real,
+) -> Real
+    where chain_order <= 0
+    requires (relative_pressure >= X_MIN)
+    requires (relative_pressure <= X_MAX)
+    requires (adsorbed_volume > 0.0)
+{
+    relative_pressure / (adsorbed_volume * (1.0 - relative_pressure))
+}

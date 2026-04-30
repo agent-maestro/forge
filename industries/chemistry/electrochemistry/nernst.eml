@@ -1,0 +1,68 @@
+// nernst.eml -- Nernst equation for electrode potential.
+//
+//   E = E° - (R * T / (n * F)) * ln(Q)
+//
+// where:
+//   E    cell / electrode potential under non-standard conditions (V)
+//   E°   standard electrode potential (V)
+//   R    gas constant (J/(mol·K))
+//   T    temperature (K)
+//   n    number of electrons transferred
+//   F    Faraday constant (C/mol)
+//   Q    reaction quotient (dimensionless)
+//
+// At room temperature (298.15 K) the prefactor (R·T/F) ≈ 0.0257 V
+// and the equation collapses to
+//
+//   E = E° - (0.0592 / n) * log10(Q)
+//
+// Used in: pH electrodes, ion-selective electrodes, battery
+// state-of-charge estimation, corrosion potential prediction.
+//
+// Chain order = 1 (single log around chain-0 reaction quotient).
+
+module nernst;
+
+const R_GAS:    Real = 8.314462618
+const F_FARAD:  Real = 96485.33212
+const T_MIN:    Real = 200.0
+const T_MAX:    Real = 1000.0
+const E0_MAX:   Real = 5.0                // V; covers all stable couples
+const N_MAX:    Real = 8.0                // electrons; >8 is unphysical
+
+type ElectrodePotential = Real where chain_order <= 1
+
+@verify(lean, theorem = "nernst_monotone_in_q")
+fn electrode_potential(
+    standard_potential: Real,
+    n_electrons: Real,
+    temperature: Real,
+    reaction_quotient: Real,
+) -> ElectrodePotential
+    where chain_order <= 1
+    requires (standard_potential >= -E0_MAX)
+    requires (standard_potential <=  E0_MAX)
+    requires (n_electrons > 0.0)
+    requires (n_electrons <= N_MAX)
+    requires (temperature >= T_MIN)
+    requires (temperature <= T_MAX)
+    requires (reaction_quotient > 0.0)
+{
+    let prefactor = R_GAS * temperature / (n_electrons * F_FARAD);
+    standard_potential - prefactor * log(reaction_quotient)
+}
+
+// pH electrode at 298.15 K -- the canonical instrument application.
+// Returns measured pH given a reference electrode reading and the
+// observed cell potential.
+fn pH_from_potential(
+    e_observed: Real,
+    e_reference: Real,
+) -> Real
+    where chain_order <= 0
+    requires (e_observed >= -E0_MAX)
+    requires (e_observed <=  E0_MAX)
+{
+    let nernst_slope = 0.05916                // V/decade at 298.15 K
+    (e_reference - e_observed) / nernst_slope
+}

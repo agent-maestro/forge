@@ -1,0 +1,93 @@
+// beer_lambert.eml -- Beer-Lambert absorption law.
+//
+//   A = ε * l * c                       (absorbance, dimensionless)
+//   T = exp(-A)                         (transmittance, fraction in [0,1])
+//   I = I0 * exp(-ε * l * c)            (transmitted intensity)
+//
+// where:
+//   A   absorbance (often called optical density)
+//   ε   molar absorptivity / extinction coefficient (M⁻¹·cm⁻¹)
+//   l   path length (cm)
+//   c   analyte concentration (M)
+//   T   transmittance, I/I0
+//   I0  incident intensity, I transmitted intensity
+//
+// The fundamental optical-absorption law. Used in:
+//   - UV-Vis spectrophotometry (analytical chemistry workhorse).
+//   - HPLC detection.
+//   - Process-monitoring optical sensors.
+//   - Raman / IR / NIR spectroscopy (with appropriate ε).
+//
+// Chain order: A is chain 0 (linear); transmittance is chain 1
+// (single exp).
+
+module beer_lambert;
+
+const A_MAX: Real = 6.0                   // OD 6 ceiling -- beyond, signal is gone
+const C_MAX: Real = 1.0e3                 // 1000 M; broad ceiling
+const L_MAX: Real = 100.0                 // 100 cm path -- typical max for cells
+
+type Absorbance      = Real where chain_order <= 0
+type Transmittance   = Real where chain_order <= 1
+
+@verify(lean, theorem = "beer_lambert_linear_in_concentration")
+fn absorbance(
+    molar_absorptivity: Real,
+    path_length: Real,
+    concentration: Real,
+) -> Absorbance
+    where chain_order <= 0
+    requires (molar_absorptivity >= 0.0)
+    requires (path_length >= 0.0)
+    requires (path_length <= L_MAX)
+    requires (concentration >= 0.0)
+    requires (concentration <= C_MAX)
+    ensures  (result >= 0.0)
+{
+    molar_absorptivity * path_length * concentration
+}
+
+@verify(lean, theorem = "transmittance_in_unit_interval")
+fn transmittance(
+    absorbance_value: Real,
+) -> Transmittance
+    where chain_order <= 1
+    requires (absorbance_value >= 0.0)
+    requires (absorbance_value <= A_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    exp(-absorbance_value)
+}
+
+// Direct intensity form for sensor-data pipelines that have I0
+// and I in raw-counts: avoids the explicit A intermediate.
+fn transmitted_intensity(
+    incident_intensity: Real,
+    molar_absorptivity: Real,
+    path_length: Real,
+    concentration: Real,
+) -> Real
+    where chain_order <= 1
+    requires (incident_intensity >= 0.0)
+    requires (molar_absorptivity >= 0.0)
+    requires (path_length >= 0.0)
+    requires (concentration >= 0.0)
+{
+    incident_intensity * exp(-molar_absorptivity * path_length * concentration)
+}
+
+// Inverse: extract concentration from a measured A.
+//   c = A / (ε * l)
+fn concentration_from_absorbance(
+    absorbance_value: Real,
+    molar_absorptivity: Real,
+    path_length: Real,
+) -> Real
+    where chain_order <= 0
+    requires (absorbance_value >= 0.0)
+    requires (molar_absorptivity > 0.0)
+    requires (path_length > 0.0)
+{
+    absorbance_value / (molar_absorptivity * path_length)
+}

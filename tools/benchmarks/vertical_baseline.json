@@ -69,6 +69,20 @@
     "node_count": 14,
     "trig_units": 0
   },
+  "arrhenius::effective_activation_energy": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "arrhenius::rate_constant": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
   "autopilot::autopilot_step": {
     "chain_order": 0,
     "fpga_cycles": 12,
@@ -88,6 +102,48 @@
     "fpga_cycles": 4,
     "mac_units": 2,
     "node_count": 13,
+    "trig_units": 0
+  },
+  "beer_lambert::absorbance": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "beer_lambert::concentration_from_absorbance": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "beer_lambert::transmittance": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "beer_lambert::transmitted_intensity": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "bet::linearised_bet_y": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "bet::ratio_to_monolayer": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 16,
     "trig_units": 0
   },
   "biquad_lowpass::biquad_lowpass_step": {
@@ -132,6 +188,34 @@
     "node_count": 17,
     "trig_units": 0
   },
+  "boltzmann::maxwell_boltzmann_density": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 22,
+    "trig_units": 0
+  },
+  "boltzmann::population_ratio": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "butler_volmer::current_density": {
+    "chain_order": 2,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 21,
+    "trig_units": 0
+  },
+  "butler_volmer::current_density_symmetric": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 17,
+    "trig_units": 0
+  },
   "cfar_threshold::cfar_scale": {
     "chain_order": 1,
     "fpga_cycles": 10,
@@ -172,6 +256,55 @@
     "fpga_cycles": 0,
     "mac_units": 0,
     "node_count": 0,
+    "trig_units": 0
+  },
+  "clausius_clapeyron::boiling_point_at_pressure": {
+    "chain_order": 0,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 17,
+    "trig_units": 0
+  },
+  "clausius_clapeyron::predict_pressure": {
+    "chain_order": 1,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 17,
+    "trig_units": 0
+  },
+  "cottrell::cottrell_slope": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 13,
+    "trig_units": 0
+  },
+  "cottrell::diffusion_current": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 17,
+    "trig_units": 0
+  },
+  "crystallization::absolute_supersaturation": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "crystallization::power_law_growth_rate": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "crystallization::relative_supersaturation": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
     "trig_units": 0
   },
   "cva::cva_cell": {
@@ -251,6 +384,62 @@
     "node_count": 0,
     "trig_units": 0
   },
+  "distillation::antoine_pressure": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "distillation::raoult_vapour_fraction": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "distillation::relative_volatility": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "dose_response::effect": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "dose_response::inhibitor_effect": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "drug_clearance::clearance": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "drug_clearance::crcl_female": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "drug_clearance::crcl_male": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 14,
+    "trig_units": 0
+  },
   "ecdsa::montgomery_ladder_p256_x": {
     "chain_order": -1,
     "fpga_cycles": 0,
@@ -307,6 +496,20 @@
     "node_count": 4,
     "trig_units": 0
   },
+  "eyring::eyring_rate_constant": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "eyring::eyring_rate_split": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 18,
+    "trig_units": 0
+  },
   "falcon::falcon_butterfly": {
     "chain_order": -1,
     "fpga_cycles": 0,
@@ -326,6 +529,83 @@
     "fpga_cycles": 2,
     "mac_units": 1,
     "node_count": 4,
+    "trig_units": 0
+  },
+  "fick_first_law::flux": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 5,
+    "trig_units": 0
+  },
+  "fick_first_law::membrane_flux": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "fick_second_law::msd_one_dimensional": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "fick_second_law::point_source_concentration": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 27,
+    "trig_units": 0
+  },
+  "first_order::concentration_at": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "first_order::half_life": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "first_order::time_to_fraction": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "flory_huggins::chi_critical_symmetric": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "flory_huggins::delta_g_per_site": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 20,
+    "trig_units": 0
+  },
+  "freundlich::adsorbed_amount": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "freundlich::linearised_log_q": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 3,
     "trig_units": 0
   },
   "gamma_correct::gamma_correct": {
@@ -361,6 +641,48 @@
     "fpga_cycles": 8,
     "mac_units": 4,
     "node_count": 10,
+    "trig_units": 0
+  },
+  "gaussian_peak::fwhm_to_sigma": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "gaussian_peak::gaussian_area_normalised": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 24,
+    "trig_units": 0
+  },
+  "gaussian_peak::gaussian_density": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 22,
+    "trig_units": 0
+  },
+  "gibbs::delta_g": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "gibbs::delta_g_from_k": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "gibbs::equilibrium_constant": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 8,
     "trig_units": 0
   },
   "groth16::miller_loop_bls12_381_x": {
@@ -403,6 +725,20 @@
     "fpga_cycles": 16,
     "mac_units": 8,
     "node_count": 33,
+    "trig_units": 0
+  },
+  "hill::hill_logit": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "hill::hill_velocity": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 16,
     "trig_units": 0
   },
   "infusion_pump::motor_command": {
@@ -482,6 +818,62 @@
     "node_count": 4,
     "trig_units": 0
   },
+  "langmuir::adsorbed_amount": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "langmuir::coverage": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "langmuir::linearised_pressure_over_n": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "lorentzian::lorentzian_area_normalised": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 20,
+    "trig_units": 0
+  },
+  "lorentzian::lorentzian_density": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "lorentzian::lorentzian_peak_height": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "mark_houwink::intrinsic_viscosity": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "mark_houwink::molecular_weight_from_viscosity": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 8,
+    "trig_units": 0
+  },
   "mercator_projection::mercator_x": {
     "chain_order": 0,
     "fpga_cycles": 0,
@@ -495,6 +887,27 @@
     "mac_units": 7,
     "node_count": 8,
     "trig_units": 1
+  },
+  "michaelis_menten::eadie_hofstee": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "michaelis_menten::lineweaver_burk": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "michaelis_menten::velocity": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 8,
+    "trig_units": 0
   },
   "ml_binary_classifier::binary_cross_entropy": {
     "chain_order": 2,
@@ -557,6 +970,76 @@
     "fpga_cycles": 14,
     "mac_units": 7,
     "node_count": 18,
+    "trig_units": 0
+  },
+  "nernst::electrode_potential": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 15,
+    "trig_units": 0
+  },
+  "nernst::pH_from_potential": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "one_compartment::auc_inf": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "one_compartment::half_life": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "one_compartment::plasma_concentration": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "ph_control::concentration_from_pH": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "ph_control::henderson_hasselbalch": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "ph_control::pH_from_concentration": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "pk_absorption::plasma_concentration": {
+    "chain_order": 2,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 26,
+    "trig_units": 0
+  },
+  "pk_absorption::time_to_cmax": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 9,
     "trig_units": 0
   },
   "plc_setpoint::actuator_command": {
@@ -629,6 +1112,20 @@
     "node_count": 8,
     "trig_units": 0
   },
+  "reactor_temperature::reaction_heat_load": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "reactor_temperature::required_cooling_duty": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 7,
+    "trig_units": 0
+  },
   "rsa::modexp_montgomery": {
     "chain_order": 0,
     "fpga_cycles": 2,
@@ -683,6 +1180,27 @@
     "fpga_cycles": 6,
     "mac_units": 3,
     "node_count": 16,
+    "trig_units": 0
+  },
+  "second_order::concentration_at": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "second_order::half_life": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "second_order::inverse_concentration": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
     "trig_units": 0
   },
   "sha256::big_sigma0": {
@@ -832,6 +1350,27 @@
     "node_count": 5,
     "trig_units": 0
   },
+  "tafel::overpotential_from_current": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "tafel::overpotential_mechanistic": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 15,
+    "trig_units": 0
+  },
+  "tafel::tafel_slope": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 12,
+    "trig_units": 0
+  },
   "theta::call_theta": {
     "chain_order": 2,
     "fpga_cycles": 8,
@@ -888,6 +1427,41 @@
     "node_count": 27,
     "trig_units": 0
   },
+  "two_compartment::auc_inf": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "two_compartment::initial_concentration": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "two_compartment::plasma_concentration": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "vant_hoff::ln_k_at_inverse_t": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "vant_hoff::predict_k": {
+    "chain_order": 1,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 17,
+    "trig_units": 0
+  },
   "var_monte_carlo::log_return_step": {
     "chain_order": 0,
     "fpga_cycles": 4,
@@ -928,6 +1502,20 @@
     "fpga_cycles": 8,
     "mac_units": 4,
     "node_count": 10,
+    "trig_units": 0
+  },
+  "voigt::pseudo_voigt": {
+    "chain_order": 1,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 54,
+    "trig_units": 0
+  },
+  "voigt::voigt_eta": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 29,
     "trig_units": 0
   },
   "x25519::montgomery_ladder_x25519": {

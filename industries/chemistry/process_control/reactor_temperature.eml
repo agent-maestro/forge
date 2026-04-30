@@ -1,0 +1,82 @@
+// reactor_temperature.eml -- Continuous-stirred-tank-reactor
+// (CSTR) jacket-temperature controller.
+//
+// The plant: a jacketed CSTR with a first-order exothermic reaction
+// driven by Arrhenius kinetics. The jacket coolant flow rate is
+// the manipulated variable; reactor bulk temperature is the
+// controlled variable. The reaction-rate term -- the source of
+// runaway risk -- is Arrhenius:
+//
+//   q_rxn(T) = ΔH_rxn * V * C_A * A_pe * exp(-Ea / (R * T))
+//
+// where:
+//   q_rxn(T) heat of reaction (W) at bulk temperature T
+//   ΔH_rxn   reaction enthalpy (J/mol; negative for exothermic)
+//   V        reactor volume (m³)
+//   C_A      reactant A concentration (mol/m³)
+//   A_pe     pre-exponential factor
+//   Ea       activation energy (J/mol)
+//   R        gas constant (J/(mol·K))
+//   T        bulk temperature (K)
+//
+// This file evaluates q_rxn(T) -- the term that drives runaway
+// reactions and must be cancelled by adequate jacket cooling. The
+// outer PI loop (lives in the host) demands a cooling duty
+// q_cool ≥ q_rxn(T) at the operating temperature.
+//
+// Chain order = 1 (single exp). f64 routing forced -- runaway is
+// the failure mode, and exp accumulates relative error fast at
+// elevated T.
+
+module reactor_temperature;
+
+const R_GAS:     Real = 8.314462618
+const T_MIN:     Real = 250.0              // K
+const T_MAX:     Real = 800.0              // K (above this, vessel limits apply)
+const C_MAX:     Real = 1.0e4
+const V_MAX:     Real = 1.0e3              // m³
+const EA_MAX:    Real = 5.0e5
+const HRXN_MAX:  Real = 1.0e6              // |ΔH_rxn| ceiling
+
+type ThermalLoad = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 50, precision = float64)
+@verify(lean, theorem = "reaction_heat_monotone_in_temperature")
+fn reaction_heat_load(
+    delta_h_rxn: Real,
+    reactor_volume: Real,
+    concentration_a: Real,
+    pre_exp_factor: Real,
+    activation_energy: Real,
+    temperature: Real,
+) -> ThermalLoad
+    where chain_order <= 1
+    requires (delta_h_rxn >= -HRXN_MAX)
+    requires (delta_h_rxn <=  HRXN_MAX)
+    requires (reactor_volume > 0.0)
+    requires (reactor_volume <= V_MAX)
+    requires (concentration_a >= 0.0)
+    requires (concentration_a <= C_MAX)
+    requires (pre_exp_factor > 0.0)
+    requires (activation_energy >= 0.0)
+    requires (activation_energy <= EA_MAX)
+    requires (temperature >= T_MIN)
+    requires (temperature <= T_MAX)
+{
+    let rate_coeff = pre_exp_factor * exp(-activation_energy / (R_GAS * temperature));
+    delta_h_rxn * reactor_volume * concentration_a * rate_coeff
+}
+
+// Required cooling duty given a reaction-heat load and a
+// safety margin (typical 1.5× for SR&ED-class hazardous
+// reactions).
+fn required_cooling_duty(
+    reaction_heat: Real,
+    safety_factor: Real,
+) -> Real
+    where chain_order <= 0
+    requires (safety_factor >= 1.0)
+    ensures  (result >= 0.0)
+{
+    max(0.0, -reaction_heat * safety_factor)
+}

@@ -1,0 +1,75 @@
+// langmuir.eml -- Langmuir adsorption isotherm.
+//
+//   θ = K * P / (1 + K * P)
+//
+// where:
+//   θ   fractional surface coverage (0–1)
+//   K   Langmuir equilibrium constant (1/Pa or 1/M)
+//   P   adsorbate pressure (or concentration)
+//
+// The fundamental adsorption isotherm under the assumptions:
+//   - monolayer coverage,
+//   - all sites equivalent,
+//   - no adsorbate-adsorbate interactions.
+//
+// Used in:
+//   - Catalyst characterisation (BET surface area before chemisorption).
+//   - Activated-carbon water purification.
+//   - Pharmaceutical solid-state characterisation.
+//
+// Chain order = 0 (rational).
+
+module langmuir;
+
+const K_MAX: Real = 1.0e6
+const P_MAX: Real = 1.0e8                  // 100 MPa ceiling
+
+type FractionalCoverage = Real where chain_order <= 0
+
+@verify(lean, theorem = "langmuir_saturating")
+fn coverage(
+    langmuir_constant: Real,
+    pressure: Real,
+) -> FractionalCoverage
+    where chain_order <= 0
+    requires (langmuir_constant >= 0.0)
+    requires (langmuir_constant <= K_MAX)
+    requires (pressure >= 0.0)
+    requires (pressure <= P_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    let kp = langmuir_constant * pressure;
+    kp / (1.0 + kp)
+}
+
+// Adsorbed amount given a maximum (monolayer) capacity n_max:
+//   n = n_max * θ = n_max * K * P / (1 + K * P)
+fn adsorbed_amount(
+    monolayer_capacity: Real,
+    langmuir_constant: Real,
+    pressure: Real,
+) -> Real
+    where chain_order <= 0
+    requires (monolayer_capacity >= 0.0)
+    requires (langmuir_constant >= 0.0)
+    requires (pressure >= 0.0)
+    ensures  (result >= 0.0)
+    ensures  (result <= monolayer_capacity)
+{
+    let kp = langmuir_constant * pressure;
+    monolayer_capacity * kp / (1.0 + kp)
+}
+
+// Linearised plot for K extraction: P/n vs P is linear with slope
+// 1/n_max, intercept 1/(K * n_max).
+fn linearised_pressure_over_n(
+    pressure: Real,
+    adsorbed_amount: Real,
+) -> Real
+    where chain_order <= 0
+    requires (pressure >= 0.0)
+    requires (adsorbed_amount > 0.0)
+{
+    pressure / adsorbed_amount
+}

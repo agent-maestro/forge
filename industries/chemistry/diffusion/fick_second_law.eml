@@ -1,0 +1,61 @@
+// fick_second_law.eml -- Fick's second law (1-D, point-source solution).
+//
+// The PDE
+//   ∂C/∂t = D * ∂²C/∂x²
+// has, for an instantaneous point source releasing mass M at x = 0
+// and t = 0, the closed-form solution
+//
+//   C(x, t) = (M / (2 * sqrt(π * D * t))) * exp(-x² / (4 * D * t))
+//
+// where:
+//   C    concentration at position x, time t (mol/m³)
+//   M    instantaneous-source strength (mol/m²)
+//   D    diffusion coefficient (m²/s)
+//
+// The plume of a contaminant in groundwater, the spreading of a
+// drug from a depot injection, the broadening of a chromatographic
+// peak — all governed by this Gaussian-in-x kernel.
+//
+// Chain order = 2: a sqrt of the prefactor and an exp on the
+// argument, neither subsumed into the other.
+
+module fick_second_law;
+
+const PI:    Real = 3.141592653589793
+const D_MAX: Real = 1.0e-3
+const T_MIN: Real = 1.0e-9                // 1 ns floor
+
+type Concentration = Real where chain_order <= 2
+
+@verify(lean, theorem = "diffusion_kernel_normalised")
+fn point_source_concentration(
+    source_strength: Real,
+    position: Real,
+    time: Real,
+    diffusion_coefficient: Real,
+) -> Concentration
+    where chain_order <= 2
+    requires (source_strength >= 0.0)
+    requires (time >= T_MIN)
+    requires (diffusion_coefficient >= 0.0)
+    requires (diffusion_coefficient <= D_MAX)
+    ensures  (result >= 0.0)
+{
+    let four_dt = 4.0 * diffusion_coefficient * time;
+    let prefactor = source_strength / (2.0 * sqrt(PI * diffusion_coefficient * time));
+    prefactor * exp(-position * position / four_dt)
+}
+
+// Mean-square-displacement for the same kernel:
+//   <x²> = 2*D*t  (1-D)  /  4*D*t (2-D)  /  6*D*t (3-D)
+fn msd_one_dimensional(
+    diffusion_coefficient: Real,
+    time: Real,
+) -> Real
+    where chain_order <= 0
+    requires (diffusion_coefficient >= 0.0)
+    requires (time >= 0.0)
+    ensures  (result >= 0.0)
+{
+    2.0 * diffusion_coefficient * time
+}

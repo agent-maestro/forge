@@ -1,0 +1,49 @@
+// fick_first_law.eml -- Fick's first law of diffusion (1-D, steady state).
+//
+//   J = -D * (dC/dx)
+//
+// where:
+//   J    diffusion flux (mol/(m²·s))
+//   D    diffusion coefficient (m²/s)
+//   dC/dx concentration gradient (mol/m⁴)
+//
+// In production code the gradient is supplied as an already-computed
+// scalar; this file evaluates the algebraic flux. Used in:
+//   - Membrane drug-delivery devices (transdermal patches).
+//   - Process-engineering mass transport.
+//   - Chromatographic plate-height calculations (mobile-phase
+//     longitudinal diffusion).
+//
+// Chain order = 0 (linear).
+
+module fick_first_law;
+
+const D_MAX: Real = 1.0e-3                // m²/s -- a solid upper bound
+
+type Flux = Real where chain_order <= 0
+
+@verify(lean, theorem = "fick_flux_opposes_gradient")
+fn flux(
+    diffusion_coefficient: Real,
+    concentration_gradient: Real,
+) -> Flux
+    where chain_order <= 0
+    requires (diffusion_coefficient >= 0.0)
+    requires (diffusion_coefficient <= D_MAX)
+{
+    -diffusion_coefficient * concentration_gradient
+}
+
+// Membrane permeability form: J = P * (C_donor - C_receiver)
+// where P = D / l (effective permeability, m/s) for a membrane of
+// thickness l. Used in transdermal-patch design.
+fn membrane_flux(
+    permeability: Real,
+    donor_concentration: Real,
+    receiver_concentration: Real,
+) -> Flux
+    where chain_order <= 0
+    requires (permeability >= 0.0)
+{
+    permeability * (donor_concentration - receiver_concentration)
+}

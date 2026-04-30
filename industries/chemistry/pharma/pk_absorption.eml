@@ -1,0 +1,75 @@
+// pk_absorption.eml -- Oral absorption pharmacokinetics
+// (one-compartment model with first-order absorption).
+//
+//   C(t) = (k_a * F * D) / (V * (k_a - k_e))
+//          * (exp(-k_e * t) - exp(-k_a * t))
+//
+// where:
+//   C(t)  plasma concentration at time t (mg/L)
+//   k_a   absorption rate constant (1/h)
+//   k_e   elimination rate constant (1/h)
+//   F     bioavailability (dimensionless, 0-1)
+//   D     dose (mg)
+//   V     volume of distribution (L)
+//
+// The standard Bateman absorption-elimination kernel for any
+// extravascular dose (PO, IM, SC) where absorption is rate-limiting
+// or comparable to elimination. Cmax and Tmax are derived from this
+// shape; flip-flop kinetics arise when k_a < k_e.
+//
+// Chain order = 2 (two distinct exp). f64 mandatory for dose
+// adjustment.
+
+module pk_absorption;
+
+const T_MAX:     Real = 1.0e3
+const RATE_MAX:  Real = 100.0
+const V_MIN:     Real = 0.1
+const V_MAX:     Real = 1.0e3
+
+type PlasmaConcentration = Real where chain_order <= 2
+
+@target(fpga, clock_mhz = 50, precision = float64)
+@verify(lean, theorem = "po_absorption_rises_then_decays")
+fn plasma_concentration(
+    dose: Real,
+    bioavailability: Real,
+    volume_of_distribution: Real,
+    absorption_rate: Real,
+    elimination_rate: Real,
+    time: Real,
+) -> PlasmaConcentration
+    where chain_order <= 2
+    requires (dose >= 0.0)
+    requires (bioavailability >= 0.0)
+    requires (bioavailability <= 1.0)
+    requires (volume_of_distribution >= V_MIN)
+    requires (volume_of_distribution <= V_MAX)
+    requires (absorption_rate >= 0.0)
+    requires (absorption_rate <= RATE_MAX)
+    requires (elimination_rate >= 0.0)
+    requires (elimination_rate <= RATE_MAX)
+    requires (absorption_rate != elimination_rate)
+    requires (time >= 0.0)
+    requires (time <= T_MAX)
+    ensures  (result >= 0.0)
+{
+    let prefactor = absorption_rate * bioavailability * dose
+                    / (volume_of_distribution * (absorption_rate - elimination_rate));
+    prefactor * (exp(-elimination_rate * time) - exp(-absorption_rate * time))
+}
+
+// Time of maximum concentration (Tmax) for the Bateman kernel:
+//   t_max = ln(k_a / k_e) / (k_a - k_e)
+fn time_to_cmax(
+    absorption_rate: Real,
+    elimination_rate: Real,
+) -> Real
+    where chain_order <= 1
+    requires (absorption_rate > 0.0)
+    requires (elimination_rate > 0.0)
+    requires (absorption_rate != elimination_rate)
+    ensures  (result >= 0.0)
+{
+    log(absorption_rate / elimination_rate) / (absorption_rate - elimination_rate)
+}

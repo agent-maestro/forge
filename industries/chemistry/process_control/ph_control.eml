@@ -1,0 +1,65 @@
+// ph_control.eml -- pH and acid-base equilibrium primitives.
+//
+//   pH = -log10([H+])
+//   [H+] = 10^(-pH)
+//
+// where:
+//   [H+] hydrogen-ion molar concentration (M)
+//
+// Used everywhere a process needs pH control:
+//   - Bioreactor and fermentation control.
+//   - Wastewater neutralisation.
+//   - Pharmaceutical formulation buffers.
+//
+// The Henderson-Hasselbalch equation gives the buffer relation:
+//
+//   pH = pKa + log10([A⁻] / [HA])
+//
+// Used for pH adjustment in formulation design.
+//
+// Chain order = 1 (single log, single exp10).
+
+module ph_control;
+
+const PH_MIN: Real = -2.0                  // strong-acid floor (10 M HCl)
+const PH_MAX: Real = 16.0                  // strong-base ceiling
+const C_MIN:  Real = 1.0e-15
+const C_MAX:  Real = 1.0e3
+
+type pHValue = Real where chain_order <= 1
+
+@verify(lean, theorem = "ph_decreases_with_proton_concentration")
+fn pH_from_concentration(
+    proton_concentration: Real,
+) -> pHValue
+    where chain_order <= 1
+    requires (proton_concentration >= C_MIN)
+    requires (proton_concentration <= C_MAX)
+{
+    -log10(proton_concentration)
+}
+
+@verify(lean, theorem = "proton_concentration_positive")
+fn concentration_from_pH(
+    ph_value: Real,
+) -> Real
+    where chain_order <= 1
+    requires (ph_value >= PH_MIN)
+    requires (ph_value <= PH_MAX)
+    ensures  (result > 0.0)
+{
+    exp10(-ph_value)
+}
+
+// Henderson-Hasselbalch: pH from buffer composition.
+fn henderson_hasselbalch(
+    pka: Real,
+    conjugate_base_concentration: Real,
+    weak_acid_concentration: Real,
+) -> pHValue
+    where chain_order <= 1
+    requires (conjugate_base_concentration > 0.0)
+    requires (weak_acid_concentration > 0.0)
+{
+    pka + log10(conjugate_base_concentration / weak_acid_concentration)
+}

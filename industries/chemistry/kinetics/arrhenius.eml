@@ -1,0 +1,68 @@
+// arrhenius.eml -- Arrhenius reaction-rate equation.
+//
+// The canonical chain-1 chemistry primitive:
+//
+//   k(T) = A * exp(-Ea / (R * T))
+//
+// where:
+//   A   pre-exponential factor (frequency factor, same units as k)
+//   Ea  activation energy (J/mol)
+//   R   universal gas constant (J/(mol·K))
+//   T   absolute temperature (K)
+//
+// Used everywhere a temperature-dependent rate constant is needed:
+// catalysis, batch-reactor design, shelf-life prediction, food
+// stability, polymer cure kinetics.
+//
+// Chain order = 1 (single exp around a chain-0 polynomial in 1/T).
+// f32 is acceptable for plant-floor work; f64 for kinetics
+// modelling near rate-limiting steps.
+
+module arrhenius;
+
+const R_GAS:  Real = 8.314462618          // J/(mol·K)
+const T_MIN:  Real = 200.0                // 200 K floor (rejects sub-cryogenic)
+const T_MAX:  Real = 2000.0               // 2000 K ceiling (rejects plasma)
+const EA_MAX: Real = 1.0e6                // 1 MJ/mol (covers all known reactions)
+
+type RateConstant = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "arrhenius_monotone_in_temperature")
+fn rate_constant(
+    pre_exp_factor: Real,
+    activation_energy: Real,
+    temperature: Real,
+) -> RateConstant
+    where chain_order <= 1
+    requires (pre_exp_factor > 0.0)
+    requires (activation_energy >= 0.0)
+    requires (activation_energy <= EA_MAX)
+    requires (temperature >= T_MIN)
+    requires (temperature <= T_MAX)
+    ensures  (result >= 0.0)
+{
+    pre_exp_factor * exp(-activation_energy / (R_GAS * temperature))
+}
+
+// Effective activation energy from two rate constants at two
+// temperatures (Arrhenius plot: slope of ln(k) vs 1/T).
+//   Ea = -R * ln(k2/k1) / (1/T2 - 1/T1)
+fn effective_activation_energy(
+    k1: Real,
+    k2: Real,
+    t1: Real,
+    t2: Real,
+) -> Real
+    where chain_order <= 1
+    requires (k1 > 0.0)
+    requires (k2 > 0.0)
+    requires (t1 >= T_MIN)
+    requires (t1 <= T_MAX)
+    requires (t2 >= T_MIN)
+    requires (t2 <= T_MAX)
+    requires (t1 != t2)
+{
+    let inv_dt = 1.0 / t1 - 1.0 / t2;
+    -R_GAS * log(k2 / k1) / inv_dt
+}

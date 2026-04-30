@@ -1,0 +1,71 @@
+// cottrell.eml -- Cottrell equation for diffusion-limited current.
+//
+//   i(t) = (n * F * A * C) * sqrt(D / (π * t))
+//
+// where:
+//   i(t) instantaneous diffusion-limited current (A)
+//   n    number of electrons transferred
+//   F    Faraday constant (C/mol)
+//   A    electrode area (m²)
+//   C    bulk concentration of the analyte (mol/m³)
+//   D    diffusion coefficient (m²/s)
+//   π    pi
+//   t    time after potential step (s)
+//
+// The diffusion-limited transient that follows a step in
+// potential at a planar electrode. Used in:
+//   - Chronoamperometry / cyclic voltammetry analyte
+//     determination.
+//   - Diffusion-coefficient measurement.
+//   - Sensor design (signal-decay characterisation).
+//
+// Chain order = 1 (single sqrt around chain-0 polynomial).
+
+module cottrell;
+
+const F_FARAD: Real = 96485.33212
+const PI:      Real = 3.141592653589793
+const T_MIN:   Real = 1.0e-6              // 1 µs after potential step
+const T_MAX:   Real = 1.0e3                // 1000 s before convection takes over
+
+type DiffusionCurrent = Real where chain_order <= 1
+
+@verify(lean, theorem = "cottrell_decays_with_time")
+fn diffusion_current(
+    n_electrons: Real,
+    electrode_area: Real,
+    bulk_concentration: Real,
+    diffusion_coefficient: Real,
+    time: Real,
+) -> DiffusionCurrent
+    where chain_order <= 1
+    requires (n_electrons > 0.0)
+    requires (electrode_area > 0.0)
+    requires (bulk_concentration >= 0.0)
+    requires (diffusion_coefficient > 0.0)
+    requires (time >= T_MIN)
+    requires (time <= T_MAX)
+    ensures  (result >= 0.0)
+{
+    let prefactor = n_electrons * F_FARAD * electrode_area * bulk_concentration;
+    prefactor * sqrt(diffusion_coefficient / (PI * time))
+}
+
+// Cottrell linearisation: i vs 1/sqrt(t) is linear with slope
+//   m = n * F * A * C * sqrt(D / π)
+// Useful for D extraction once n, A, C are known.
+fn cottrell_slope(
+    n_electrons: Real,
+    electrode_area: Real,
+    bulk_concentration: Real,
+    diffusion_coefficient: Real,
+) -> Real
+    where chain_order <= 1
+    requires (n_electrons > 0.0)
+    requires (electrode_area > 0.0)
+    requires (bulk_concentration >= 0.0)
+    requires (diffusion_coefficient > 0.0)
+{
+    n_electrons * F_FARAD * electrode_area * bulk_concentration
+        * sqrt(diffusion_coefficient / PI)
+}

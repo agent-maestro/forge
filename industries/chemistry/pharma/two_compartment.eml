@@ -1,0 +1,81 @@
+// two_compartment.eml -- Two-compartment IV-bolus pharmacokinetics.
+//
+//   C(t) = A * exp(-α t) + B * exp(-β t)
+//
+// where:
+//   α, β  hybrid disposition rate constants (1/h), α > β
+//   A, B  hybrid coefficients (mg/L) such that A + B = D/V_central
+//   D     bolus dose (mg)
+//   t     time post-dose (h)
+//
+// The two-compartment model captures distribution between a central
+// (well-perfused) compartment and a peripheral (slowly-equilibrating)
+// compartment. The bi-exponential decay is the disposition signature
+// of a drug that doesn't reach instantaneous distribution equilibrium
+// — most lipophilic drugs and many antibodies fit this shape.
+//
+// Used everywhere therapeutic drug monitoring software lives:
+// vancomycin, gentamicin, theophylline, cyclosporine,
+// monoclonal-antibody PK.
+//
+// Chain order = 2 (two independent exp). f64 mandatory.
+
+module two_compartment;
+
+const T_MAX:   Real = 1.0e3
+const RATE_MAX: Real = 100.0
+
+type PlasmaConcentration = Real where chain_order <= 2
+
+@target(fpga, clock_mhz = 50, precision = float64)
+@verify(lean, theorem = "two_compartment_alpha_dominates_early")
+fn plasma_concentration(
+    a_coeff: Real,
+    alpha_rate: Real,
+    b_coeff: Real,
+    beta_rate: Real,
+    time: Real,
+) -> PlasmaConcentration
+    where chain_order <= 2
+    requires (a_coeff >= 0.0)
+    requires (b_coeff >= 0.0)
+    requires (alpha_rate >= 0.0)
+    requires (alpha_rate <= RATE_MAX)
+    requires (beta_rate >= 0.0)
+    requires (beta_rate <= RATE_MAX)
+    requires (time >= 0.0)
+    requires (time <= T_MAX)
+    ensures  (result >= 0.0)
+{
+    a_coeff * exp(-alpha_rate * time) + b_coeff * exp(-beta_rate * time)
+}
+
+// Initial concentration after IV bolus: C(0) = A + B = D/V_central.
+fn initial_concentration(
+    a_coeff: Real,
+    b_coeff: Real,
+) -> Real
+    where chain_order <= 0
+    requires (a_coeff >= 0.0)
+    requires (b_coeff >= 0.0)
+    ensures  (result >= 0.0)
+{
+    a_coeff + b_coeff
+}
+
+// AUC from 0 to ∞ for the bi-exponential model:
+//   AUC = A/α + B/β
+fn auc_inf(
+    a_coeff: Real,
+    alpha_rate: Real,
+    b_coeff: Real,
+    beta_rate: Real,
+) -> Real
+    where chain_order <= 0
+    requires (a_coeff >= 0.0)
+    requires (b_coeff >= 0.0)
+    requires (alpha_rate > 0.0)
+    requires (beta_rate > 0.0)
+{
+    a_coeff / alpha_rate + b_coeff / beta_rate
+}

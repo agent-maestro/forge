@@ -1,0 +1,75 @@
+// clausius_clapeyron.eml -- Clausius-Clapeyron vapour-pressure equation.
+//
+//   dP / dT = ΔHvap / (T * ΔV)        (general form, gas + liquid)
+//
+// integrated (ideal-gas, ΔV ≈ V_gas = RT/P, ΔHvap constant):
+//
+//   ln(P2 / P1) = -(ΔHvap / R) * (1/T2 - 1/T1)
+//   P2 = P1 * exp((ΔHvap / R) * (1/T1 - 1/T2))
+//
+// where:
+//   P1, P2  vapour pressures at T1, T2 (Pa)
+//   ΔHvap   enthalpy of vaporisation (J/mol)
+//   R       gas constant (J/(mol·K))
+//
+// Used in:
+//   - Distillation column design (Antoine is the engineering go-to;
+//     Clausius-Clapeyron is the physically grounded form).
+//   - Pharma stability shelf-life under accelerated conditions
+//     (ICH Q1A).
+//   - Atmospheric chemistry (water-vapour saturation pressure).
+//
+// Chain order = 1 (same shape as van 't Hoff; the math is
+// structurally identical).
+
+module clausius_clapeyron;
+
+const R_GAS: Real = 8.314462618
+const T_MIN: Real = 200.0
+const T_MAX: Real = 1000.0
+const DH_VAP_MAX: Real = 1.0e6
+
+type VapourPressure = Real where chain_order <= 1
+
+@verify(lean, theorem = "clausius_clapeyron_predict_p")
+fn predict_pressure(
+    p1: Real,
+    delta_h_vap: Real,
+    t1: Real,
+    t2: Real,
+) -> VapourPressure
+    where chain_order <= 1
+    requires (p1 > 0.0)
+    requires (delta_h_vap > 0.0)
+    requires (delta_h_vap <= DH_VAP_MAX)
+    requires (t1 >= T_MIN)
+    requires (t1 <= T_MAX)
+    requires (t2 >= T_MIN)
+    requires (t2 <= T_MAX)
+    ensures  (result > 0.0)
+{
+    let inv_dt = 1.0 / t1 - 1.0 / t2;
+    p1 * exp((delta_h_vap / R_GAS) * inv_dt)
+}
+
+// Predict the boiling point at a non-standard pressure given the
+// reference boiling point and ΔHvap. Solves the Clausius-Clapeyron
+// equation for T2:
+//
+//   1/T2 = 1/T1 - (R/ΔHvap) * ln(P2/P1)
+fn boiling_point_at_pressure(
+    t1: Real,
+    p1: Real,
+    p2: Real,
+    delta_h_vap: Real,
+) -> Real
+    where chain_order <= 1
+    requires (t1 >= T_MIN)
+    requires (t1 <= T_MAX)
+    requires (p1 > 0.0)
+    requires (p2 > 0.0)
+    requires (delta_h_vap > 0.0)
+{
+    let inv_t2 = 1.0 / t1 - (R_GAS / delta_h_vap) * log(p2 / p1);
+    1.0 / inv_t2
+}

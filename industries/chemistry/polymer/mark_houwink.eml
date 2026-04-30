@@ -1,0 +1,64 @@
+// mark_houwink.eml -- Mark-Houwink-Sakurada equation for polymer
+// intrinsic viscosity vs molecular weight.
+//
+//   [η] = K * M^a
+//
+// where:
+//   [η]  intrinsic viscosity (mL/g or dL/g, depending on convention)
+//   K, a empirical solvent / temperature-specific parameters
+//   M    viscosity-average molecular weight (g/mol)
+//
+// Used to determine M_v from a measured intrinsic viscosity in a
+// well-characterised solvent / temperature pair. K and a are
+// tabulated for thousands of polymer / solvent / temperature
+// combinations (e.g. Polymer Handbook, Brandrup-Immergut).
+//
+// Typical exponents:
+//   a = 0.5   (theta solvent, random coil)
+//   a = 0.7-0.8  (good solvent, swollen coil)
+//   a = 1.0   (rigid rod limit)
+//
+// Chain order = 1: pow(M, a) for fractional a -> exp(a * log(M)).
+
+module mark_houwink;
+
+const M_MAX:   Real = 1.0e9                // 10⁹ g/mol covers anything
+const K_MAX:   Real = 1.0e3
+const A_MAX:   Real = 1.0                  // rigid-rod ceiling
+
+type IntrinsicViscosity = Real where chain_order <= 2
+
+@verify(lean, theorem = "mark_houwink_monotone_in_m")
+fn intrinsic_viscosity(
+    k_param: Real,
+    a_exponent: Real,
+    molecular_weight: Real,
+) -> IntrinsicViscosity
+    where chain_order <= 2
+    requires (k_param >= 0.0)
+    requires (k_param <= K_MAX)
+    requires (a_exponent >= 0.0)
+    requires (a_exponent <= A_MAX)
+    requires (molecular_weight > 0.0)
+    requires (molecular_weight <= M_MAX)
+    ensures  (result >= 0.0)
+{
+    k_param * pow(molecular_weight, a_exponent)
+}
+
+// Inverse: extract molecular weight from a measured intrinsic
+// viscosity.
+//   M = ([η] / K)^(1/a)
+fn molecular_weight_from_viscosity(
+    measured_viscosity: Real,
+    k_param: Real,
+    a_exponent: Real,
+) -> Real
+    where chain_order <= 2
+    requires (measured_viscosity >= 0.0)
+    requires (k_param > 0.0)
+    requires (a_exponent > 0.0)
+    requires (a_exponent <= A_MAX)
+{
+    pow(measured_viscosity / k_param, 1.0 / a_exponent)
+}

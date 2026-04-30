@@ -1,0 +1,68 @@
+// lorentzian.eml -- Lorentzian (Cauchy) peak profile.
+//
+//   L(ν; ν0, γ) = (1/π) * γ / ((ν - ν0)² + γ²)
+//
+// where:
+//   ν    frequency / wavenumber / chemical shift / Larmor frequency
+//   ν0   peak centre
+//   γ    half-width at half-maximum (HWHM)
+//
+// Lorentzian lineshapes arise from homogeneous broadening:
+// natural linewidths (radiative decay), pressure broadening at
+// modest densities, NMR T2 relaxation. The Voigt profile
+// (Gaussian ⊗ Lorentzian) is more common in IR/Raman where both
+// homogeneous and Doppler broadening contribute.
+//
+// Chain order = 0 (rational function in ν).
+
+module lorentzian;
+
+const PI:        Real = 3.141592653589793
+const GAMMA_MAX: Real = 1.0e6             // covers anything reasonable
+
+type LineShape = Real where chain_order <= 0
+
+@verify(lean, theorem = "lorentzian_peak_at_centre")
+fn lorentzian_density(
+    frequency: Real,
+    centre: Real,
+    half_width: Real,
+) -> LineShape
+    where chain_order <= 0
+    requires (half_width > 0.0)
+    requires (half_width <= GAMMA_MAX)
+    ensures  (result > 0.0)
+{
+    let detuning = frequency - centre;
+    let denom = detuning * detuning + half_width * half_width;
+    half_width / (PI * denom)
+}
+
+// Peak height (the value at ν = ν0). Used as a fast normalisation
+// reference when fitting peak-amplitude time series.
+fn lorentzian_peak_height(
+    half_width: Real,
+) -> Real
+    where chain_order <= 0
+    requires (half_width > 0.0)
+    ensures  (result > 0.0)
+{
+    1.0 / (PI * half_width)
+}
+
+// Area-normalised form scaled by an explicit area `S` (so that
+// integrating the lineshape over all ν returns S).
+fn lorentzian_area_normalised(
+    frequency: Real,
+    centre: Real,
+    half_width: Real,
+    area: Real,
+) -> Real
+    where chain_order <= 0
+    requires (half_width > 0.0)
+    requires (area >= 0.0)
+{
+    let detuning = frequency - centre;
+    let denom = detuning * detuning + half_width * half_width;
+    area * half_width / (PI * denom)
+}

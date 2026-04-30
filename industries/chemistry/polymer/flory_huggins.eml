@@ -1,0 +1,67 @@
+// flory_huggins.eml -- Flory-Huggins polymer-solution thermodynamics.
+//
+// Mixing free energy per lattice site:
+//
+//   ΔG_mix / (RT) = (φ1/N1) * ln(φ1) + (φ2/N2) * ln(φ2) + χ * φ1 * φ2
+//
+// where:
+//   φ1, φ2  volume fractions of components (φ1 + φ2 = 1)
+//   N1, N2  degree of polymerisation (N = 1 for solvent)
+//   χ       Flory-Huggins interaction parameter
+//
+// The foundational mixing-thermodynamics expression for polymer
+// solutions and blends. Below the critical point, χ controls
+// phase separation and miscibility windows.
+//
+// Used in:
+//   - Polymer-solvent compatibility screening.
+//   - Drug-polymer formulation (amorphous solid-dispersion design).
+//   - Membrane separation (governing solvent uptake).
+//
+// Chain order = 1 (two log calls, parallel; chain order is the
+// max not the sum).
+
+module flory_huggins;
+
+const N_MAX:   Real = 1.0e6                // 10⁶ degree of polymerisation
+const PHI_MIN: Real = 1.0e-9
+const CHI_MAX: Real = 100.0
+
+type FreeEnergy = Real where chain_order <= 1
+
+@verify(lean, theorem = "flory_huggins_symmetric_under_phi_swap")
+fn delta_g_per_site(
+    phi_1: Real,
+    n_1: Real,
+    phi_2: Real,
+    n_2: Real,
+    chi: Real,
+) -> FreeEnergy
+    where chain_order <= 1
+    requires (phi_1 >= PHI_MIN)
+    requires (phi_1 <= 1.0)
+    requires (phi_2 >= PHI_MIN)
+    requires (phi_2 <= 1.0)
+    requires (n_1 >= 1.0)
+    requires (n_1 <= N_MAX)
+    requires (n_2 >= 1.0)
+    requires (n_2 <= N_MAX)
+    requires (chi >= -CHI_MAX)
+    requires (chi <=  CHI_MAX)
+{
+    (phi_1 / n_1) * log(phi_1)
+        + (phi_2 / n_2) * log(phi_2)
+        + chi * phi_1 * phi_2
+}
+
+// Critical interaction parameter for symmetric polymer blend
+// (N1 = N2 = N): χ_crit = 2 / N. Above χ_crit phase separation
+// occurs.
+fn chi_critical_symmetric(
+    degree_of_polymerisation: Real,
+) -> Real
+    where chain_order <= 0
+    requires (degree_of_polymerisation > 0.0)
+{
+    2.0 / degree_of_polymerisation
+}

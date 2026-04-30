@@ -1,0 +1,91 @@
+// drug_clearance.eml -- Clearance and renal-function pharmacokinetics.
+//
+// Total body clearance:
+//   CL = D * F / AUC
+//
+// where:
+//   CL  clearance (L/h)
+//   D   dose (mg)
+//   F   bioavailability (dimensionless, 0–1)
+//   AUC area under the concentration-time curve (mg·h/L)
+//
+// Renal clearance estimated from creatinine clearance via the
+// Cockcroft-Gault equation:
+//
+//   CrCL_male  = (140 - age) * weight / (72 * S_Cr)
+//   CrCL_female = CrCL_male * 0.85
+//
+// where:
+//   age    years
+//   weight kg
+//   S_Cr   serum creatinine (mg/dL)
+//
+// Used everywhere drug-dose adjustment by renal function lives:
+// every aminoglycoside, every direct oral anticoagulant, every
+// chemotherapy regimen with a Calvert-style AUC target.
+//
+// Chain order = 0 (everything is rational / linear).
+
+module drug_clearance;
+
+const D_MAX:    Real = 1.0e6
+const AUC_MIN:  Real = 1.0e-9
+const AGE_MIN:  Real = 0.0
+const AGE_MAX:  Real = 130.0
+const WT_MIN:   Real = 0.5                 // 500 g neonatal floor
+const WT_MAX:   Real = 500.0
+const SCR_MIN:  Real = 0.1                 // mg/dL
+
+type ClearanceRate = Real where chain_order <= 0
+
+@verify(lean, theorem = "clearance_proportional_to_dose")
+fn clearance(
+    dose: Real,
+    bioavailability: Real,
+    auc: Real,
+) -> ClearanceRate
+    where chain_order <= 0
+    requires (dose >= 0.0)
+    requires (dose <= D_MAX)
+    requires (bioavailability >= 0.0)
+    requires (bioavailability <= 1.0)
+    requires (auc >= AUC_MIN)
+    ensures  (result >= 0.0)
+{
+    dose * bioavailability / auc
+}
+
+// Cockcroft-Gault male estimate (mL/min).
+@verify(lean, theorem = "cockcroft_gault_decreases_with_age")
+fn crcl_male(
+    age_years: Real,
+    weight_kg: Real,
+    serum_creatinine: Real,
+) -> Real
+    where chain_order <= 0
+    requires (age_years >= AGE_MIN)
+    requires (age_years <= AGE_MAX)
+    requires (weight_kg >= WT_MIN)
+    requires (weight_kg <= WT_MAX)
+    requires (serum_creatinine >= SCR_MIN)
+    ensures  (result >= 0.0)
+{
+    let age_factor = max(140.0 - age_years, 0.0);
+    age_factor * weight_kg / (72.0 * serum_creatinine)
+}
+
+// Female correction: 85% of the male value.
+fn crcl_female(
+    age_years: Real,
+    weight_kg: Real,
+    serum_creatinine: Real,
+) -> Real
+    where chain_order <= 0
+    requires (age_years >= AGE_MIN)
+    requires (weight_kg >= WT_MIN)
+    requires (serum_creatinine >= SCR_MIN)
+    ensures  (result >= 0.0)
+{
+    let male_value = crcl_male(age_years, weight_kg, serum_creatinine);
+    0.85 * male_value
+}

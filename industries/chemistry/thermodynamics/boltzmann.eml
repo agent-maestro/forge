@@ -1,0 +1,63 @@
+// boltzmann.eml -- Boltzmann distribution.
+//
+//   n_i / n_0 = exp(-(E_i - E_0) / (kB * T))
+//
+// where:
+//   n_i, n_0   population of state i / reference state
+//   E_i, E_0   energy of state i / reference state (J)
+//   kB         Boltzmann constant (J/K)
+//   T          absolute temperature (K)
+//
+// The fundamental equilibrium population law of statistical
+// mechanics. Used everywhere from spectral-line intensity ratios
+// to chemical-equilibrium calculations to Maxwell-Boltzmann
+// velocity distributions.
+//
+// Chain order = 1 (single exp around chain-0 polynomial in 1/T).
+
+module boltzmann;
+
+const KB:    Real = 1.380649e-23          // Boltzmann constant (J/K)
+const T_MIN: Real = 0.001                 // 1 mK floor
+const T_MAX: Real = 1.0e8                 // 100 MK ceiling (covers stellar)
+
+type PopulationRatio = Real where chain_order <= 1
+
+@verify(lean, theorem = "boltzmann_ratio_positive")
+fn population_ratio(
+    energy_difference: Real,
+    temperature: Real,
+) -> PopulationRatio
+    where chain_order <= 1
+    requires (energy_difference >= 0.0)
+    requires (temperature >= T_MIN)
+    requires (temperature <= T_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    exp(-energy_difference / (KB * temperature))
+}
+
+// Maxwell-Boltzmann speed distribution evaluated at speed v
+// (probability density, kg/(m·s) units). Used in kinetic theory
+// of gases.
+//
+// f(v) = 4π * (m / (2π·kB·T))^(3/2) * v^2 * exp(-m·v^2 / (2·kB·T))
+//
+// We accept the prefactor as a pre-computed scalar to keep this
+// callable on FPGAs (no need to evaluate pow(., 1.5)).
+fn maxwell_boltzmann_density(
+    prefactor: Real,                     // 4π * (m/(2π·kB·T))^(3/2)
+    mass: Real,
+    speed: Real,
+    temperature: Real,
+) -> Real
+    where chain_order <= 1
+    requires (prefactor > 0.0)
+    requires (mass > 0.0)
+    requires (speed >= 0.0)
+    requires (temperature >= T_MIN)
+{
+    let exponent = -mass * speed * speed / (2.0 * KB * temperature);
+    prefactor * speed * speed * exp(exponent)
+}

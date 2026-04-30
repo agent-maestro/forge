@@ -1,0 +1,79 @@
+// distillation.eml -- Vapour-liquid equilibrium primitives for
+// distillation column design.
+//
+// Antoine equation -- pure-component vapour pressure as a function
+// of temperature:
+//
+//   log10(P) = A - B / (C + T)
+//   P = 10^(A - B / (C + T))                  (Pa or kPa, by convention)
+//
+// where:
+//   P    vapour pressure
+//   T    temperature (°C, by convention; Kelvin variants exist)
+//   A, B, C  empirical Antoine constants (component-specific)
+//
+// Antoine fits are tabulated in NIST and DIPPR for thousands of
+// compounds; they are the engineering go-to for VLE in the
+// 0.01–10 bar range.
+//
+// Relative volatility α_ij = P_i_sat / P_j_sat is the workhorse
+// number for column design (McCabe-Thiele, Fenske-Underwood).
+//
+// Chain order = 1 (single exp10 around chain-0 rational in T).
+
+module distillation;
+
+const T_MIN: Real = -273.0                 // °C floor
+const T_MAX: Real = 500.0                  // °C ceiling
+const P_MAX: Real = 1.0e9                  // 10 GPa absurd-but-safe ceiling
+
+type VapourPressure = Real where chain_order <= 1
+
+@verify(lean, theorem = "antoine_increases_with_temperature")
+fn antoine_pressure(
+    a_const: Real,
+    b_const: Real,
+    c_const: Real,
+    temperature: Real,
+) -> VapourPressure
+    where chain_order <= 1
+    requires (temperature >= T_MIN)
+    requires (temperature <= T_MAX)
+    requires (b_const >= 0.0)
+    requires (c_const + temperature != 0.0)
+    ensures  (result > 0.0)
+{
+    let exponent = a_const - b_const / (c_const + temperature);
+    exp10(exponent)
+}
+
+// Relative volatility α = P_i / P_j. The driving number for
+// column-tray-count estimation (Fenske: N_min = ln(α) / ln(αbar)).
+fn relative_volatility(
+    pressure_light: Real,
+    pressure_heavy: Real,
+) -> Real
+    where chain_order <= 0
+    requires (pressure_light > 0.0)
+    requires (pressure_heavy > 0.0)
+{
+    pressure_light / pressure_heavy
+}
+
+// Raoult's-law vapour-phase mole fraction:
+//   y_i = (x_i * P_i_sat) / P_total
+// for an ideal binary at temperature where P_i_sat is pre-computed.
+fn raoult_vapour_fraction(
+    liquid_mole_fraction: Real,
+    saturation_pressure: Real,
+    total_pressure: Real,
+) -> Real
+    where chain_order <= 0
+    requires (liquid_mole_fraction >= 0.0)
+    requires (liquid_mole_fraction <= 1.0)
+    requires (saturation_pressure >= 0.0)
+    requires (total_pressure > 0.0)
+    ensures  (result >= 0.0)
+{
+    liquid_mole_fraction * saturation_pressure / total_pressure
+}

@@ -1,0 +1,69 @@
+// first_order.eml -- First-order reaction kinetics.
+//
+//   C(t) = C0 * exp(-k * t)
+//
+// where:
+//   C(t)  concentration at time t
+//   C0    initial concentration
+//   k     first-order rate constant (1/s)
+//   t     elapsed time (s)
+//
+// Half-life: t_half = ln(2) / k.
+//
+// First-order kinetics is the workhorse rate law for radioactive
+// decay, drug elimination from a single compartment, gas-phase
+// unimolecular reactions, and most enzyme reactions in the
+// substrate-deficit limit.
+//
+// Chain order = 1 (single exp around chain-0 product k*t).
+
+module first_order;
+
+const T_MAX: Real = 1.0e8                 // ~3 years (long enough for any pharma half-life)
+const K_MAX: Real = 1.0e3                 // 1000 1/s (femtosecond regime starts here)
+
+type ConcSignal = Real where chain_order <= 1
+
+@verify(lean, theorem = "first_order_decay_monotone")
+fn concentration_at(
+    initial_concentration: Real,
+    rate_constant: Real,
+    time: Real,
+) -> ConcSignal
+    where chain_order <= 1
+    requires (initial_concentration >= 0.0)
+    requires (rate_constant >= 0.0)
+    requires (rate_constant <= K_MAX)
+    requires (time >= 0.0)
+    requires (time <= T_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= initial_concentration)
+{
+    initial_concentration * exp(-rate_constant * time)
+}
+
+// Half-life (s) -- first-order kinetics only.
+fn half_life(
+    rate_constant: Real,
+) -> Real
+    where chain_order <= 0
+    requires (rate_constant > 0.0)
+    ensures  (result > 0.0)
+{
+    0.6931471805599453 / rate_constant
+}
+
+// Time-to-fraction: how long until C/C0 reaches `fraction`?
+//   t = -ln(fraction) / k
+fn time_to_fraction(
+    fraction_remaining: Real,
+    rate_constant: Real,
+) -> Real
+    where chain_order <= 1
+    requires (fraction_remaining > 0.0)
+    requires (fraction_remaining <= 1.0)
+    requires (rate_constant > 0.0)
+    ensures  (result >= 0.0)
+{
+    -log(fraction_remaining) / rate_constant
+}

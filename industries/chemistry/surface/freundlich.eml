@@ -1,0 +1,59 @@
+// freundlich.eml -- Freundlich adsorption isotherm.
+//
+//   q = K * C^(1/n)
+//
+// where:
+//   q   amount adsorbed per unit mass of adsorbent (mg/g)
+//   C   equilibrium adsorbate concentration in solution (mg/L)
+//   K   Freundlich capacity parameter
+//   n   heterogeneity index (n > 1 typical for favourable
+//       adsorption; 1/n < 1 ⇒ concave-down isotherm)
+//
+// Empirical isotherm — works on heterogeneous surfaces where the
+// Langmuir assumptions fail. Standard for:
+//   - Activated-carbon environmental remediation (water,
+//     wastewater treatment).
+//   - Soil-contaminant transport modelling.
+//   - Activated-charcoal pharmaceutical antidote formulation.
+//
+// Chain order = 1: pow(C, 1/n) for non-integer 1/n decomposes to
+// exp((1/n) * log(C)).
+
+module freundlich;
+
+const K_MAX: Real = 1.0e6
+const N_MAX: Real = 8.0
+const C_MAX: Real = 1.0e6
+
+type AdsorbedAmount = Real where chain_order <= 2
+
+@verify(lean, theorem = "freundlich_monotone_in_concentration")
+fn adsorbed_amount(
+    freundlich_k: Real,
+    concentration: Real,
+    heterogeneity_index: Real,
+) -> AdsorbedAmount
+    where chain_order <= 2
+    requires (freundlich_k >= 0.0)
+    requires (freundlich_k <= K_MAX)
+    requires (concentration >= 0.0)
+    requires (concentration <= C_MAX)
+    requires (heterogeneity_index > 0.0)
+    requires (heterogeneity_index <= N_MAX)
+    ensures  (result >= 0.0)
+{
+    freundlich_k * pow(concentration, 1.0 / heterogeneity_index)
+}
+
+// Linearised plot for K and n extraction:
+//   log(q) = log(K) + (1/n) * log(C)
+// Used for parameter fitting from a log-log plot of equilibrium
+// adsorption data.
+fn linearised_log_q(
+    adsorbed_amount: Real,
+) -> Real
+    where chain_order <= 1
+    requires (adsorbed_amount > 0.0)
+{
+    log10(adsorbed_amount)
+}

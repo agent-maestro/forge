@@ -1,0 +1,65 @@
+// hill.eml -- Hill equation for cooperative binding.
+//
+//   v = Vmax * S^n / (K^n + S^n)
+//
+// where:
+//   v     fractional saturation or reaction velocity
+//   S     ligand / substrate concentration
+//   K     half-saturation constant (S at v = Vmax/2)
+//   n     Hill coefficient (cooperativity index)
+//
+// n > 1: positive cooperativity (e.g. haemoglobin O2 binding, n ≈ 2.7).
+// n = 1: degenerates to Michaelis-Menten / Langmuir.
+// n < 1: negative cooperativity.
+//
+// Chain order = 2: pow(x, n) for non-integer n decomposes to
+// exp(n * log(x)), which puts a log inside an exp -- two distinct
+// Pfaffian-chain steps. For integer n the optimizer can reduce
+// this to a pure rational (chain 0), but we declare chain 2 in
+// the type so the f64 routing kicks in for biological n=2.7-style
+// fits.
+
+module hill;
+
+const S_MAX: Real = 1.0e3
+const N_MAX: Real = 8.0                   // Hill coefficients above 8 are not biology
+
+type HillSignal = Real where chain_order <= 2
+
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "hill_monotone_in_substrate")
+fn hill_velocity(
+    vmax: Real,
+    substrate: Real,
+    half_saturation: Real,
+    hill_coefficient: Real,
+) -> HillSignal
+    where chain_order <= 2
+    requires (vmax > 0.0)
+    requires (substrate >= 0.0)
+    requires (substrate <= S_MAX)
+    requires (half_saturation > 0.0)
+    requires (half_saturation <= S_MAX)
+    requires (hill_coefficient > 0.0)
+    requires (hill_coefficient <= N_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= vmax)
+{
+    let s_n = pow(substrate, hill_coefficient);
+    let k_n = pow(half_saturation, hill_coefficient);
+    vmax * s_n / (k_n + s_n)
+}
+
+// Linearised Hill plot: log(v / (Vmax - v)) = n * log(S) - n * log(K)
+// Slope is the Hill coefficient; useful for cooperativity fitting.
+fn hill_logit(
+    velocity_obs: Real,
+    vmax: Real,
+) -> Real
+    where chain_order <= 1
+    requires (vmax > 0.0)
+    requires (velocity_obs > 0.0)
+    requires (velocity_obs < vmax)
+{
+    log(velocity_obs / (vmax - velocity_obs))
+}

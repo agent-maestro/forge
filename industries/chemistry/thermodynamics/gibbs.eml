@@ -1,0 +1,73 @@
+// gibbs.eml -- Gibbs free energy and equilibrium constant.
+//
+//   ΔG = ΔH - T * ΔS
+//   ΔG = -R * T * ln(K)        (link to equilibrium constant)
+//   K  = exp(-ΔG / (R * T))    (inverse form)
+//
+// where:
+//   ΔG  Gibbs free energy of reaction (J/mol)
+//   ΔH  enthalpy of reaction (J/mol)
+//   ΔS  entropy of reaction (J/(mol·K))
+//   T   temperature (K)
+//   R   gas constant (J/(mol·K))
+//   K   equilibrium constant (dimensionless)
+//
+// The fundamental thermodynamic identity for spontaneity and
+// equilibrium. Used in process design (will it react?), pharma
+// formulation (drug stability), and reactor sizing (how far does
+// it go?).
+//
+// Chain order: ΔG and ΔS forms are chain 0 (linear in inputs).
+// equilibrium_constant is chain 1 (single exp).
+
+module gibbs;
+
+const R_GAS: Real = 8.314462618
+const T_MIN: Real = 200.0
+const T_MAX: Real = 2000.0
+const DG_MAX: Real = 1.0e6
+
+type EnergySignal = Real where chain_order <= 0
+type EquilibriumK = Real where chain_order <= 1
+
+@verify(lean, theorem = "gibbs_linear_in_temperature")
+fn delta_g(
+    delta_h: Real,
+    delta_s: Real,
+    temperature: Real,
+) -> EnergySignal
+    where chain_order <= 0
+    requires (temperature >= T_MIN)
+    requires (temperature <= T_MAX)
+{
+    delta_h - temperature * delta_s
+}
+
+@verify(lean, theorem = "equilibrium_constant_positive")
+fn equilibrium_constant(
+    delta_g_value: Real,
+    temperature: Real,
+) -> EquilibriumK
+    where chain_order <= 1
+    requires (temperature >= T_MIN)
+    requires (temperature <= T_MAX)
+    requires (delta_g_value >= -DG_MAX)
+    requires (delta_g_value <=  DG_MAX)
+    ensures  (result > 0.0)
+{
+    exp(-delta_g_value / (R_GAS * temperature))
+}
+
+// Reverse: extract ΔG from a measured K.
+//   ΔG = -R * T * ln(K)
+fn delta_g_from_k(
+    equilibrium_k: Real,
+    temperature: Real,
+) -> Real
+    where chain_order <= 1
+    requires (equilibrium_k > 0.0)
+    requires (temperature >= T_MIN)
+    requires (temperature <= T_MAX)
+{
+    -R_GAS * temperature * log(equilibrium_k)
+}

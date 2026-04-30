@@ -1,0 +1,86 @@
+// voigt.eml -- Voigt profile (Gaussian ⊗ Lorentzian).
+//
+// The Voigt profile is the convolution of a Gaussian (Doppler
+// broadening) with a Lorentzian (natural / pressure broadening):
+//
+//   V(ν; σ, γ) = (G * L)(ν)
+//
+// There is no closed form. Production spectroscopy software uses
+// the pseudo-Voigt approximation (Thompson-Cox-Hastings 1987,
+// Ida-Ando-Toraya 2000):
+//
+//   V(ν) ≈ η * L(ν; FWHM_V) + (1 - η) * G(ν; FWHM_V)
+//
+// where:
+//   FWHM_V  = (FWHM_G⁵ + 2.69269·FWHM_G⁴·FWHM_L
+//             + 2.42843·FWHM_G³·FWHM_L²
+//             + 4.47163·FWHM_G²·FWHM_L³
+//             + 0.07842·FWHM_G·FWHM_L⁴ + FWHM_L⁵) ^ (1/5)
+//   η       = 1.36603·(FWHM_L/FWHM_V) − 0.47719·(FWHM_L/FWHM_V)²
+//             + 0.11116·(FWHM_L/FWHM_V)³
+//
+// We accept η and FWHM_V as pre-computed scalars (the caller does
+// the once-per-fit polynomial step), keeping this kernel chain 1
+// (one exp inside the Gaussian leg).
+//
+// Used everywhere there's both Doppler and natural / pressure
+// broadening: high-resolution IR, atmospheric absorption,
+// X-ray diffraction (with FWHM in 2θ).
+
+module voigt;
+
+const PI:        Real = 3.141592653589793
+const SQRT_2PI:  Real = 2.5066282746310002
+
+type LineShape = Real where chain_order <= 1
+
+// Pseudo-Voigt at frequency ν, given pre-computed mixing
+// parameter η and combined FWHM_V.
+@verify(lean, theorem = "voigt_peak_at_centre")
+fn pseudo_voigt(
+    frequency: Real,
+    centre: Real,
+    fwhm_combined: Real,
+    eta: Real,
+) -> LineShape
+    where chain_order <= 1
+    requires (fwhm_combined > 0.0)
+    requires (eta >= 0.0)
+    requires (eta <= 1.0)
+    ensures  (result >= 0.0)
+{
+    let detuning = frequency - centre;
+    let half_fwhm = 0.5 * fwhm_combined;
+    let lorentz_denom = detuning * detuning + half_fwhm * half_fwhm;
+    let lorentzian = half_fwhm / (PI * lorentz_denom);
+    // Gaussian σ from the combined FWHM:  σ = FWHM / (2*sqrt(2*ln 2))
+    let sigma = fwhm_combined / 2.3548200450309493;
+    let exponent = -detuning * detuning / (2.0 * sigma * sigma);
+    let gaussian = exp(exponent) / (sigma * SQRT_2PI);
+    eta * lorentzian + (1.0 - eta) * gaussian
+}
+
+// Helper: compute the η mixing parameter from pure FWHMs. Returns
+// a value in [0, 1]: 0 = pure Gaussian, 1 = pure Lorentzian.
+//
+// This is chain 1: pow(ratio, k) for fractional k expands to
+// exp(k*log(ratio)) inside the polynomial. We split it out from
+// pseudo_voigt so the inner kernel stays chain 1 + benefits from
+// hot-loop optimisation.
+fn voigt_eta(
+    fwhm_lorentzian: Real,
+    fwhm_combined: Real,
+) -> Real
+    where chain_order <= 1
+    requires (fwhm_combined > 0.0)
+    requires (fwhm_lorentzian >= 0.0)
+    requires (fwhm_lorentzian <= fwhm_combined)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    let r = fwhm_lorentzian / fwhm_combined;
+    let r2 = r * r;
+    let r3 = r2 * r;
+    let raw = 1.36603 * r - 0.47719 * r2 + 0.11116 * r3;
+    clamp(raw, 0.0, 1.0)
+}

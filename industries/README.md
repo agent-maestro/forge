@@ -1,6 +1,6 @@
 # Industry verticals — production-shape EML examples
 
-Seventeen verticals across eight domains. Each `<vertical>/<subdomain>/`
+Eighteen verticals across nine domains. Each `<vertical>/<subdomain>/`
 directory ships a working `.eml` source and a `build/` subdirectory
 containing **pre-generated artifacts** for every backend that
 applies — so you can read the C, Rust, Python, LLVM IR, WebAssembly
@@ -17,6 +17,7 @@ example without installing the toolchain.
 | Audio (DSP)     | `audio/dsp/biquad_lowpass.eml`                                    | Direct-Form-I biquad filter |
 | Audio (synth)   | `audio/synthesis/additive_voice.eml`                              | **Patent #14** — 4-sin shared / 1-exp dedicated FPGA allocation |
 | Automotive      | `automotive/powertrain/motor_foc.eml` + `three_phase.eml`         | Field-oriented control + Park/Clarke transforms |
+| Chemistry       | `chemistry/{kinetics,thermodynamics,electrochemistry,spectroscopy,pharma,diffusion,surface,polymer,process_control}/*.eml` | GMP / FDA PV / ICH Q8/Q9/Q10 / REACH — Arrhenius, Beer-Lambert, Michaelis-Menten, Nernst, PK/PD compartment models, etc. (34 files, chain 0–2) |
 | Defense         | `defense/navigation/ins.eml`                                      | Inertial navigation step |
 | Energy          | `energy/renewable/mppt.eml`                                       | Maximum-power-point tracking |
 | Finance         | `finance/pricing/black_scholes.eml` + `heston.eml` + `sabr.eml`   | SR 11-7 / FRTB — Black-Scholes call/put + Heston + SABR |

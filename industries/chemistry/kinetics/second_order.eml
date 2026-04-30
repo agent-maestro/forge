@@ -1,0 +1,66 @@
+// second_order.eml -- Second-order reaction kinetics.
+//
+// For 2A -> products (single reactant):
+//   1/C(t) - 1/C0 = k * t
+//   C(t) = C0 / (1 + k * C0 * t)
+//
+// For A + B -> products (mixed reactants, equal initial concentrations):
+//   same form; differing initial concentrations require the integrated
+//   form  ln((B0*[A])/(A0*[B])) = (B0 - A0) * k * t.
+//
+// Half-life depends on initial concentration:
+//   t_half = 1 / (k * C0)   -- not constant, unlike first-order.
+//
+// Chain order = 0 (rational function in t). This is the simplest
+// non-linear chemistry primitive and a good chain-0 baseline.
+
+module second_order;
+
+const T_MAX:  Real = 1.0e8
+const K_MAX:  Real = 1.0e6                // 1e6 M⁻¹·s⁻¹ -- diffusion-limited ceiling
+const C0_MAX: Real = 1.0e3
+
+type ConcSignal = Real where chain_order <= 0
+
+@verify(lean, theorem = "second_order_decay_monotone")
+fn concentration_at(
+    initial_concentration: Real,
+    rate_constant: Real,
+    time: Real,
+) -> ConcSignal
+    where chain_order <= 0
+    requires (initial_concentration > 0.0)
+    requires (initial_concentration <= C0_MAX)
+    requires (rate_constant >= 0.0)
+    requires (rate_constant <= K_MAX)
+    requires (time >= 0.0)
+    requires (time <= T_MAX)
+    ensures  (result > 0.0)
+    ensures  (result <= initial_concentration)
+{
+    initial_concentration / (1.0 + rate_constant * initial_concentration * time)
+}
+
+// Concentration-dependent half-life.
+fn half_life(
+    rate_constant: Real,
+    initial_concentration: Real,
+) -> Real
+    where chain_order <= 0
+    requires (rate_constant > 0.0)
+    requires (initial_concentration > 0.0)
+    ensures  (result > 0.0)
+{
+    1.0 / (rate_constant * initial_concentration)
+}
+
+// Linearised form for graphical k extraction:
+//   y(t) = 1/C(t) -- plotted vs t gives slope k.
+fn inverse_concentration(
+    concentration: Real,
+) -> Real
+    where chain_order <= 0
+    requires (concentration > 0.0)
+{
+    1.0 / concentration
+}

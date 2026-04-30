@@ -1,0 +1,65 @@
+// michaelis_menten.eml -- Michaelis-Menten enzyme kinetics.
+//
+//   v = (Vmax * S) / (Km + S)
+//
+// where:
+//   v     reaction velocity (M/s)
+//   Vmax  maximum velocity at saturation (M/s)
+//   S     substrate concentration (M)
+//   Km    Michaelis constant -- substrate concentration at v = Vmax/2
+//
+// The classical enzyme-kinetics rate law. Chain order = 0 (rational
+// function in S). f32 is fine for assay analysis.
+//
+// Used in: enzyme-assay analysis, drug-metabolism (CYP450 kinetics),
+// industrial biocatalysis.
+
+module michaelis_menten;
+
+const S_MAX:    Real = 1.0e3              // 1000 M ceiling (covers everything)
+const VMAX_MAX: Real = 1.0e6              // 1e6 M/s (no real enzyme is faster)
+
+type EnzymeRate = Real where chain_order <= 0
+
+@verify(lean, theorem = "michaelis_menten_saturating")
+fn velocity(
+    vmax: Real,
+    substrate: Real,
+    km: Real,
+) -> EnzymeRate
+    where chain_order <= 0
+    requires (vmax > 0.0)
+    requires (vmax <= VMAX_MAX)
+    requires (substrate >= 0.0)
+    requires (substrate <= S_MAX)
+    requires (km > 0.0)
+    requires (km <= S_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= vmax)
+{
+    vmax * substrate / (km + substrate)
+}
+
+// Lineweaver-Burk transform: 1/v = (Km/Vmax) * (1/S) + 1/Vmax
+// Used for graphical Km / Vmax estimation from assay data.
+fn lineweaver_burk(
+    velocity_obs: Real,
+) -> Real
+    where chain_order <= 0
+    requires (velocity_obs > 0.0)
+{
+    1.0 / velocity_obs
+}
+
+// Eadie-Hofstee form: v = Vmax - Km * (v/S)
+// Numerically better-conditioned than Lineweaver-Burk for fitting.
+fn eadie_hofstee(
+    velocity_obs: Real,
+    substrate: Real,
+) -> Real
+    where chain_order <= 0
+    requires (velocity_obs > 0.0)
+    requires (substrate > 0.0)
+{
+    velocity_obs / substrate
+}
