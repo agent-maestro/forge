@@ -247,6 +247,97 @@ full block catalogue.
 
 ---
 
+## `extern fn` — opaque external primitives
+
+When a function's implementation lives outside EML-lang's reach
+(a vendor library, a hand-written hot path, a hardware primitive),
+declare it with `extern fn`:
+
+```eml
+module ecdsa;
+
+extern fn montgomery_ladder_p256_x(
+    scalar: ConstantTime,
+    point_x: ConstantTime,
+) -> ConstantTime;
+
+@verify(lean, theorem = "ecdsa_scalar_mul_correct")
+fn scalar_mul_x(scalar: ConstantTime, point_x: ConstantTime)
+    -> ConstantTime
+{
+    montgomery_ladder_p256_x(scalar, point_x)
+}
+```
+
+Extern declarations:
+
+  - Have **no body** — just the signature, terminated by `;`.
+  - Carry **no `requires` / `ensures` / `where` clauses** (the body
+    is opaque, so there's nothing to constrain).
+  - Are emitted as forward declarations by every backend:
+    - C: `extern double montgomery_ladder_p256_x(double, double);`
+    - Rust: `extern "C" { pub fn montgomery_ladder_p256_x(...) -> f64; }`
+    - Lean: `opaque montgomery_ladder_p256_x : ℝ → ℝ → ℝ`
+  - Are treated as leaf nodes by the profiler / inliner / tree-shaker.
+
+Every industry vertical that wraps a vendor primitive (crypto,
+high-performance signal processing, FPGA IP cores) uses this.
+
+---
+
+## libmonogate — the C / Rust runtime
+
+Every `.eml` file that compiles to C or Rust links against the
+**libmonogate runtime** (`software/runtime/c/libmonogate.h` and
+the `monogate-sys` Cargo crate). It exposes the 9 EML-family
+operators, standard math wrappers, ML activations, growth
+dynamics, and **SuperBEST routing variants** (Patent #01) that
+the compiler dispatches to when the optimizer detects drift risk:
+
+| Symbol             | Purpose                                                  |
+|--------------------|----------------------------------------------------------|
+| `mg_eml(x, y)`     | The universal EML primitive: `exp(x) - log(y)`           |
+| `mg_exp` / `mg_ln` | Standard math, drop-in for libm                          |
+| `mg_sigmoid`       | `1 / (1 + exp(-x))`                                      |
+| `mg_softplus`      | `log(1 + exp(x))`                                        |
+| `mg_logistic`      | `K / (1 + exp(-r*(t-x0)))`                               |
+| `mg_gompertz`      | `K * exp(-exp(-r*(t-x0)))`                               |
+| `mg_tanh_route`    | Padé near zero / sign at saturation / exp form middle    |
+| `mg_sigmoid_route` | Overflow-safe on the negative tail                       |
+| `mg_softplus_route`| Saturates to `x` for x>20, `exp(x)` for x<-20            |
+| `mg_safe_div`      | NaN-free saturating division                             |
+
+You don't normally call these directly — the C backend emits them
+automatically. But you can write `mg_*` calls by hand if you want
+the routing variant on a specific node. The Lean correspondence
+lives in [`MonogateEML/Runtime.lean`](https://github.com/agent-maestro/monogate-lean/blob/master/MonogateEML/Runtime.lean).
+
+---
+
+## `ml_routing` — opt-in pattern rewriter
+
+When the optimizer marks a function `drift_risk = HIGH`, the
+**ml_routing** pass (off by default) recognizes canonical activation
+patterns and rewrites them to direct libmonogate runtime calls:
+
+  - `1.0 / (1.0 + exp(-x))` → `mg_sigmoid_route(x)`
+  - `ln(1.0 + exp(x))` → `mg_softplus_route(x)`
+
+Enable when targeting C or Rust on a known-drifty workload:
+
+```python
+from lang.optimizer import optimize_module
+mod = optimize_module(mod, ml_routing=True)
+```
+
+The pass is opt-in because the runtime symbols are libmonogate-specific —
+the C / Rust backends resolve them naturally; the Python / LLVM-via-llc /
+WASM-via-llc backends would need the runtime linked at the host level.
+The drift-aware `NodeKind.TANH` dispatch (always-on) handles the
+naive-tanh case independently.
+
+---
+
 ## Common patterns
 
 ### A controller with state

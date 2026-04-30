@@ -164,6 +164,51 @@ fn tanh_block(x: f64) -> f64
 )
 
 
+# ── elu_block -- ELU activation (chain order 1) ─────────────────
+
+elu_block: Block = make_block(
+    name="elu_block",
+    source=(
+        "fn elu_block(x: f64, alpha: f64) -> f64\n"
+        "    where chain_order <= 1\n"
+        "{\n"
+        "    clamp(x, 0.0, 1.0e30) + clamp(alpha * (exp(clamp(x, -1.0e30, 0.0)) - 1.0), -1.0e30, 0.0)\n"
+        "}\n"
+    ),
+    skip_allocation=True,
+)
+
+
+# ── mish_block -- chain order 3, HIGH-drift, routes to mg_tanh_route ──
+
+mish_block: Block = make_block(
+    name="mish_block",
+    source=(
+        "fn mish_block(x: f64) -> f64\n"
+        "    where chain_order <= 3\n"
+        "{\n"
+        "    x * tanh(ln(1.0 + exp(x)))\n"
+        "}\n"
+    ),
+    skip_allocation=True,
+)
+
+
+# ── hard_sigmoid_block -- chain 0, FPGA-friendly piecewise ──────
+
+hard_sigmoid_block: Block = make_block(
+    name="hard_sigmoid_block",
+    source=(
+        "fn hard_sigmoid_block(x: f64) -> f64\n"
+        "    where chain_order <= 0\n"
+        "{\n"
+        "    clamp(0.2 * x + 0.5, 0.0, 1.0)\n"
+        "}\n"
+    ),
+    skip_allocation=True,
+)
+
+
 __all__ = [
     "exp_block",
     "decay",
@@ -171,4 +216,7 @@ __all__ = [
     "sigmoid_block",
     "softplus",
     "tanh_block",
+    "elu_block",
+    "mish_block",
+    "hard_sigmoid_block",
 ]

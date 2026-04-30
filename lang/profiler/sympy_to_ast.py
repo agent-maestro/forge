@@ -46,26 +46,38 @@ def sympy_to_ast(expr: sp.Basic) -> ASTNode:
 
 def _convert(expr: sp.Basic) -> ASTNode:
     # Literals: integers, floats, named numeric constants.
+    #
+    # EML-lang's numeric domain is real -- function bodies only ever
+    # see f64/f32 arithmetic at the AST level. So we lower SymPy's
+    # untyped numeric atoms (Integer, NegativeOne, Zero, One) as
+    # FLOAT literals, not int literals. This matters for downstream
+    # emitters that strict-type their output (Rust): emitting `1`
+    # in a position where Rust expects `f64` produces a compile error.
+    # C / Python / LLVM tolerate the implicit conversion, but the
+    # canonical choice for an AST that was always going to be float
+    # is to use a float literal from the start.
     if isinstance(expr, sp.Integer):
-        return ASTNode(kind=NodeKind.LITERAL, value=int(expr))
+        return ASTNode(kind=NodeKind.LITERAL, value=float(int(expr)))
     if isinstance(expr, sp.Float):
         return ASTNode(kind=NodeKind.LITERAL, value=float(expr))
     if isinstance(expr, sp.Rational):
-        # Render as a divide of two literal integers so backends
-        # that don't have rational literal support still work.
+        # Render as a divide of two literal floats so backends that
+        # don't have rational literal support still work; floats so
+        # the emitter doesn't downcast to integer division (which
+        # would change semantics for any non-unit numerator).
         return ASTNode(
             kind=NodeKind.BINOP, value="/",
             children=[
-                ASTNode(kind=NodeKind.LITERAL, value=int(expr.p)),
-                ASTNode(kind=NodeKind.LITERAL, value=int(expr.q)),
+                ASTNode(kind=NodeKind.LITERAL, value=float(int(expr.p))),
+                ASTNode(kind=NodeKind.LITERAL, value=float(int(expr.q))),
             ],
         )
     if expr is sp.S.NegativeOne:
-        return ASTNode(kind=NodeKind.LITERAL, value=-1)
+        return ASTNode(kind=NodeKind.LITERAL, value=-1.0)
     if expr is sp.S.Zero:
-        return ASTNode(kind=NodeKind.LITERAL, value=0)
+        return ASTNode(kind=NodeKind.LITERAL, value=0.0)
     if expr is sp.S.One:
-        return ASTNode(kind=NodeKind.LITERAL, value=1)
+        return ASTNode(kind=NodeKind.LITERAL, value=1.0)
     if expr is sp.S.Half:
         return ASTNode(kind=NodeKind.LITERAL, value=0.5)
 
@@ -94,11 +106,11 @@ def _convert(expr: sp.Basic) -> ASTNode:
                 )
             return out
         if isinstance(exp_arg, sp.Integer) and int(exp_arg) == -1:
-            # x^-1 -> 1 / x
+            # x^-1 -> 1.0 / x
             return ASTNode(
                 kind=NodeKind.BINOP, value="/",
                 children=[
-                    ASTNode(kind=NodeKind.LITERAL, value=1),
+                    ASTNode(kind=NodeKind.LITERAL, value=1.0),
                     base,
                 ],
             )
