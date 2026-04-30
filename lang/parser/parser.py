@@ -131,13 +131,15 @@ class Parser:
                 mod.types.append(self._parse_type_alias())
             elif self._check("AT") or self._check("KEYWORD", "fn"):
                 mod.functions.append(self._parse_function())
+            elif self._check("KEYWORD", "extern"):
+                mod.functions.append(self._parse_extern_function())
             elif self._check("KEYWORD", "use"):
                 # Late-arriving use is also legal but discouraged.
                 mod.imports.append(self._parse_use())
             else:
                 raise ParseError(
-                    "expected `use`, `const`, `type`, `fn`, or "
-                    "`@`-annotation",
+                    "expected `use`, `const`, `type`, `fn`, `extern fn`, "
+                    "or `@`-annotation",
                     tok, self.source_file,
                 )
         return mod
@@ -285,6 +287,37 @@ class Parser:
             ensures=ensures,
             line=kw.line,
             col=kw.col,
+        )
+
+    def _parse_extern_function(self) -> EMLFunction:
+        """Parse `extern fn NAME(params) -> RET_TYPE;`.
+
+        An extern declaration has no body and no `requires` / `ensures` /
+        `where` clauses -- just the signature. Used to declare primitives
+        whose implementation is provided by a backend or runtime
+        (e.g. crypto's montgomery_ladder_p256_x). Profiler treats them
+        as opaque leaves; backends emit either a forward declaration
+        (C / Rust) or a `sorry`-marked opaque def (Lean).
+        """
+        kw = self._eat("KEYWORD", "extern")
+        self._eat("KEYWORD", "fn")
+        name_tok = self._eat("IDENT")
+        self._eat("LPAREN")
+        params = self._parse_params()
+        self._eat("RPAREN")
+        self._eat("ARROW")
+        return_type, return_tuple_types = self._parse_return_type()
+        # Optional trailing semicolon (consistent with const/type).
+        self._accept("SEMI")
+        return EMLFunction(
+            name=name_tok.value,
+            params=params,
+            return_type=return_type,
+            return_tuple_types=return_tuple_types,
+            body=None,
+            line=kw.line,
+            col=kw.col,
+            is_extern=True,
         )
 
     def _parse_annotation(self) -> Annotation:

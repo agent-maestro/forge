@@ -28,6 +28,7 @@ from copy import deepcopy
 from lang.optimizer.constant_folding import fold_constants, fold_in_place
 from lang.optimizer.cse import apply_cse, apply_cse_module
 from lang.optimizer.inliner import inline_calls
+from lang.optimizer.ml_routing import route_ml_activations_module
 from lang.optimizer.superbest import (
     route_superbest,
     superbest_function,
@@ -61,7 +62,8 @@ def optimize_function(fn: EMLFunction) -> EMLFunction:
     return out
 
 
-def optimize_module(mod: EMLModule) -> EMLModule:
+def optimize_module(mod: EMLModule, *,
+                    ml_routing: bool = False) -> EMLModule:
     """Run the default pass sequence on every function in `mod`.
     Returns a new module; the input is not mutated.
 
@@ -72,11 +74,15 @@ def optimize_module(mod: EMLModule) -> EMLModule:
                                (incl. ones exposed by inlining)
       2. cse                -- hoist remaining duplicates
       3. superbest          -- per-node operator-family selection
-                               (placeholder)
-      4. shake_imports      -- drop imported functions never reached
-                               by a local function (post-inlining,
-                               so all the inline-removed callees
-                               correctly disappear).
+      3.5 ml_routing        -- (opt-in) pattern-rewrite sigmoid /
+                               softplus to libmonogate runtime calls
+                               for HIGH-drift functions
+      4. shake_imports      -- drop unused imports
+
+    `ml_routing` defaults to False because the pass emits CALL
+    nodes targeting libmonogate runtime symbols, which only the
+    C and Rust backends know how to resolve. Enable when
+    targeting C / Rust on a known-drifty workload.
     """
     # Pass 0: module-level inliner.
     out = inline_calls(mod)
@@ -85,6 +91,9 @@ def optimize_module(mod: EMLModule) -> EMLModule:
     # Pass 3: module-level SuperBEST routing -- needs SymPy
     # bridge access so it lives outside optimize_function.
     out = superbest_module(out)
+    # Pass 3.5: opt-in ML pattern rewriter (libmonogate runtime).
+    if ml_routing:
+        out = route_ml_activations_module(out)
     # Pass 4: drop unused imports (after inlining so reachable set
     # reflects the post-inline call graph).
     out = shake_imports(out)
@@ -98,4 +107,5 @@ __all__ = [
     "apply_cse",
     "apply_cse_module",
     "route_superbest",
+    "route_ml_activations_module",
 ]

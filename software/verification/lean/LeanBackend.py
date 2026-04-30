@@ -46,6 +46,26 @@ _BUILTIN_TO_LEAN: dict[NodeKind, str] = {
 }
 
 
+# Stdlib function name -> MonogateEML.Runtime symbol. When the AST
+# contains a CALL to a stdlib activation/growth function, resolve it
+# through the runtime namespace so generated theorems compile cleanly.
+_STDLIB_TO_RUNTIME: dict[str, str] = {
+    "sigmoid":  "MonogateEML.Runtime.mg_sigmoid",
+    "softplus": "MonogateEML.Runtime.mg_softplus",
+    "relu":     "MonogateEML.Runtime.mg_relu",
+    "logistic": "MonogateEML.Runtime.mg_logistic",
+    "gompertz": "MonogateEML.Runtime.mg_gompertz",
+    "eml":      "MonogateEML.Runtime.mg_eml",
+    "eal":      "MonogateEML.Runtime.mg_eal",
+    "exl":      "MonogateEML.Runtime.mg_exl",
+    "edl":      "MonogateEML.Runtime.mg_edl",
+    "lediv":    "MonogateEML.Runtime.mg_lediv",
+    "elsb":     "MonogateEML.Runtime.mg_elsb",
+    "elad":     "MonogateEML.Runtime.mg_elad",
+    "deml":     "MonogateEML.Runtime.mg_deml",
+}
+
+
 # Map EML-lang type names to Lean type names. Aliases default to
 # `Real` since chain-order constraints don't change the underlying
 # numeric domain.
@@ -106,8 +126,10 @@ class LeanBackend:
             "import Mathlib.Analysis.SpecialFunctions.Exp",
             "import Mathlib.Analysis.SpecialFunctions.Log.Basic",
             "import MonogateEML.Tactics",
+            "import MonogateEML.Runtime",
             "",
             "open Real",
+            "open MonogateEML.Runtime",
             "",
         ]
         for fn in verified:
@@ -151,6 +173,14 @@ class LeanBackend:
             "Real" if func.return_tuple_types
             else _lean_type(func.return_type or "Real")
         )
+
+        # Extern fns are opaque declarations by definition -- the
+        # implementation lives outside EML-lang's reach.
+        if func.is_extern:
+            return [
+                f"opaque {func.name} {params_lean} : {ret_type}"
+                f"  -- extern declaration",
+            ]
 
         # Tuple returns and complex bodies become opaque declarations
         # so the theorem can still refer to them by name.
@@ -351,7 +381,13 @@ class LeanBackend:
                 self._emit_expr(c, result_subst=result_subst)
                 for c in node.children
             )
-            return f"({node.value} {args})"
+            # Stdlib activation/growth/EML-family calls resolve through
+            # the MonogateEML.Runtime namespace (opened at file scope,
+            # so the short name suffices when there's no collision).
+            name = str(node.value)
+            if name in _STDLIB_TO_RUNTIME:
+                return f"(mg_{name} {args})"
+            return f"({name} {args})"
 
         if kind == NodeKind.TUPLE:
             elems = ", ".join(

@@ -3,6 +3,10 @@
 EML-lang language support for VS Code:
 
 - **Syntax highlighting** for `.eml` files (TextMate grammar in `syntaxes/`)
+  - Keywords: `module use as const type fn extern let mut where requires ensures while if else …`
+  - Built-in transcendentals: `exp ln log sin cos tan sqrt pow eml abs clamp asin acos atan sinh cosh tanh`
+  - Stdlib activations + growth: `sigmoid softplus relu leaky_relu gelu swish logistic gompertz lerp …`
+  - libmonogate runtime symbols: any `mg_*` call (matches the C / Rust runtime + the SuperBEST `mg_*_route` variants emitted by the `ml_routing` optimizer pass)
 - **Inline profile lenses** above every `fn` header, e.g.
   `chain_order=2  p2-d4-w2-c0  4 MAC + 1 trig (8cy @ 32-bit)  drift=MEDIUM`
 - **Chain-order diagnostics** on save (red squiggles + Problems-tab)

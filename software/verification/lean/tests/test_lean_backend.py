@@ -128,6 +128,39 @@ def test_unary_minus_dispatch(profiler, backend):
     assert "(-x)" in out
 
 
+def test_runtime_import_emitted(profiler, backend):
+    """LeanBackend should import + open MonogateEML.Runtime so
+    sigmoid/softplus/etc. resolve without explicit qualifiers."""
+    src = '''module t;
+@verify(lean, theorem = "thm")
+fn f(x: Real) -> Real
+    ensures (true)
+{
+    x
+}'''
+    mod = parse_source(src, "<test>")
+    profiler.profile_module(mod)
+    out = backend.compile_module(mod)
+    assert "import MonogateEML.Runtime" in out
+    assert "open MonogateEML.Runtime" in out
+
+
+def test_stdlib_call_routes_through_runtime(profiler, backend):
+    """A CALL to `sigmoid(x)` should render as `(mg_sigmoid x)`
+    so the open'd Runtime namespace resolves it."""
+    src = '''module t;
+@verify(lean, theorem = "thm")
+fn f(x: Real) -> Real
+    ensures (sigmoid(x) > 0.0)
+{
+    x
+}'''
+    mod = parse_source(src, "<test>")
+    profiler.profile_module(mod)
+    out = backend.compile_module(mod)
+    assert "(mg_sigmoid x)" in out
+
+
 # ── Complex bodies become opaque ────────────────────────────────────
 
 

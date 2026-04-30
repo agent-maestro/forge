@@ -141,14 +141,14 @@ def test_shaker_does_not_mutate_input() -> None:
 
 def test_unused_stdlib_imports_dropped_after_resolve() -> None:
     """Real-world flow: import stdlib::math, call only `lerp`.
-    All 20 other math functions get dropped."""
+    All 14 other math functions get dropped."""
     src = (
         "use stdlib::math;\n"
         "fn midpoint(a: f64, b: f64) -> f64 { lerp(a, b, 0.5) }\n"
     )
     mod = parse_source(src, resolve=True)
-    # Before shaking: 1 local + 21 imported = 22
-    assert len(mod.functions) == 22
+    # Before shaking: 1 local + 15 imported = 16
+    assert len(mod.functions) == 16
     out = shake_imports(mod)
     names = {f.name for f in out.functions}
     # After shaking: just `midpoint` and `lerp`.

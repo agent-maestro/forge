@@ -134,6 +134,33 @@ def test_call_to_user_function_passes_through(profiler: Profiler):
     assert "pid_output(error" in out
 
 
+def test_drift_aware_dispatch_routes_tanh(profiler: Profiler,
+                                           backend: CBackend):
+    """When fn.profile['fp16_drift_risk'] == 'HIGH', NodeKind.TANH
+    should dispatch to mg_tanh_route (Patent #01 SuperBEST routing)
+    instead of the naive mg_tanh."""
+    src = "fn t(x: f64) -> f64 { tanh(x) }\n"
+    mod = parse_source(src, resolve=False)
+    profiler.profile_module(mod)
+    fn = mod.functions[0]
+    fn.profile = dict(fn.profile or {})
+    fn.profile["fp16_drift_risk"] = "HIGH"
+    out = CBackend(optimize=False).compile(mod)
+    assert "mg_tanh_route(" in out
+    assert "mg_tanh(" not in out  # naive form must not appear
+
+
+def test_low_drift_keeps_naive_tanh(profiler: Profiler):
+    """Default LOW drift risk emits the naive mg_tanh (no routing
+    overhead when the optimizer says it's safe)."""
+    src = "fn t(x: f64) -> f64 { tanh(x) }\n"
+    mod = parse_source(src, resolve=False)
+    profiler.profile_module(mod)
+    out = CBackend(optimize=False).compile(mod)
+    assert "mg_tanh(" in out
+    assert "mg_tanh_route(" not in out
+
+
 def test_unsupported_node_kind_raises():
     """Synthesizing a NodeKind the backend doesn't know about should
     raise CompileError, not silently emit garbage."""

@@ -159,6 +159,15 @@ class _Formatter:
         return s + ";"
 
     def _format_function(self, fn: EMLFunction) -> str:
+        # Extern fns: signature only, semicolon-terminated, no body.
+        if fn.is_extern:
+            params_s = ", ".join(self._format_param(p) for p in fn.params)
+            if fn.return_tuple_types:
+                ret_s = "(" + ", ".join(fn.return_tuple_types) + ")"
+            else:
+                ret_s = fn.return_type
+            return f"extern fn {fn.name}({params_s}) -> {ret_s};"
+
         lines: list[str] = []
         for ann in fn.annotations:
             lines.append(self._format_annotation(ann))

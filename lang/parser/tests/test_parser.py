@@ -198,3 +198,33 @@ def test_parse_error_carries_location():
 def test_module_remembers_source_file():
     mod = parse_file(EXAMPLES_DIR / "hello.eml")
     assert mod.source_file.endswith("hello.eml")
+
+
+# ── Extern function declarations ─────────────────────────────────────
+
+
+def test_extern_fn_parses():
+    """`extern fn` declares an opaque function whose implementation
+    lives outside EML-lang. No body, no requires/ensures/where."""
+    src = "module t;\nextern fn opaque_op(x: f64, y: f64) -> f64;\n"
+    mod = parse_source(src, "<test>")
+    assert len(mod.functions) == 1
+    fn = mod.functions[0]
+    assert fn.is_extern is True
+    assert fn.name == "opaque_op"
+    assert fn.body is None
+    assert len(fn.params) == 2
+
+
+def test_extern_fn_alongside_regular_fn():
+    src = """module t;
+extern fn black_box(x: f64) -> f64;
+fn caller(x: f64) -> f64 { black_box(x) }
+"""
+    mod = parse_source(src, "<test>")
+    assert len(mod.functions) == 2
+    extern_fn = next(f for f in mod.functions if f.name == "black_box")
+    regular_fn = next(f for f in mod.functions if f.name == "caller")
+    assert extern_fn.is_extern is True
+    assert regular_fn.is_extern is False
+    assert regular_fn.body is not None
