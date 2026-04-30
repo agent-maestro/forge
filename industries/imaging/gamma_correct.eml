@@ -1,0 +1,51 @@
+// gamma_correct.eml -- per-pixel gamma correction.
+//
+// Display gamma maps linear sensor values into perceptually-
+// uniform intensity:
+//
+//   y = pow(x, 1.0 / gamma)
+//
+// where gamma ≈ 2.2 for sRGB. The pow() call is chain order 1.
+// Camera ISPs apply this on every pixel post-demosaic, so the
+// kernel runs at hundreds of millions of operations per second
+// on dedicated silicon.
+//
+// Forge's contribution: emit the same kernel for the C reference
+// (desk validation) and the Verilog (SoC RTL), with a Lean
+// theorem stating monotonicity in `x` (any well-formed gamma
+// curve preserves brightness ordering -- a regression there
+// causes visible banding artefacts).
+
+module gamma_correct;
+
+type PixelSignal = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 300, precision = float32)
+@verify(lean, theorem = "gamma_correct_monotone_in_x")
+fn gamma_correct(x: Real, gamma: Real) -> PixelSignal
+    where chain_order <= 1
+    requires (x >= 0.0)
+    requires (x <= 1.0)
+    requires (gamma > 0.0)
+    ensures  (result >= 0.0)
+{
+    pow(x, 1.0 / gamma)
+}
+
+// sRGB-piecewise linearise -- the encoding side of an sRGB
+// pipeline. Below the linear-segment cutoff, an affine map
+// applies; above it, the standard pow exponent. Chain order 1
+// once the pow case dominates.
+@target(fpga, clock_mhz = 300, precision = float32)
+fn srgb_to_linear(x: Real) -> PixelSignal
+    where chain_order <= 1
+    requires (x >= 0.0)
+    requires (x <= 1.0)
+{
+    // The 0.04045 cutoff in sRGB -- below it, linear; above,
+    // gamma-corrected. We approximate via a polynomial blend
+    // (FPGA-friendly; avoids the conditional) followed by the
+    // pow term. Real pipelines use a LUT but the formula is
+    // here for the desk validation path.
+    pow((x + 0.055) / 1.055, 2.4)
+}

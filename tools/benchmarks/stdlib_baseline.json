@@ -279,11 +279,39 @@
     "node_count": 4,
     "trig_units": 0
   },
+  "ml::elu": {
+    "chain_order": 1,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 18,
+    "trig_units": 0
+  },
   "ml::gelu": {
     "chain_order": 1,
     "fpga_cycles": 12,
     "mac_units": 6,
     "node_count": 19,
+    "trig_units": 0
+  },
+  "ml::hard_sigmoid": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "ml::hard_swish": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "ml::hard_tanh": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 5,
     "trig_units": 0
   },
   "ml::leaky_relu": {
@@ -293,11 +321,25 @@
     "node_count": 7,
     "trig_units": 0
   },
+  "ml::mish": {
+    "chain_order": 3,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 9,
+    "trig_units": 0
+  },
   "ml::relu": {
     "chain_order": 0,
     "fpga_cycles": 4,
     "mac_units": 2,
     "node_count": 5,
+    "trig_units": 0
+  },
+  "ml::selu": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 20,
     "trig_units": 0
   },
   "ml::sigmoid": {

@@ -103,10 +103,57 @@ def apply_cse(
         _rewrite_to_var(body, fp, name)
 
     if new_lets:
-        # Prepend lets before the body's existing children.
-        body.children = new_lets + body.children
+        # Insert each new let immediately before the first statement
+        # in the body that references it. Prepending unconditionally
+        # would be wrong: a hoisted expression may reference a name
+        # bound by a LATER let in the original body, e.g. for
+        #
+        #     let f = pow(x, k);
+        #     let a = alpha / f;
+        #     let b = alpha / f;
+        #
+        # CSE would hoist `alpha / f`, but `alpha / f` references the
+        # body-local `f` and so the new let must come AFTER `let f`.
+        #
+        # First-use insertion is correct because the hoisted exemplar
+        # was originally built from a sub-tree that appeared at or
+        # after the position where its dependencies were defined --
+        # so its first remaining use (a VAR ref to the new name) is
+        # also at or after those dependencies.
+        body.children = _splice_lets_before_first_use(body.children, new_lets)
 
     return new_func
+
+
+def _splice_lets_before_first_use(
+    body_children: list[ASTNode],
+    new_lets: list[ASTNode],
+) -> list[ASTNode]:
+    """Return a new children list with each `new_lets` entry inserted
+    immediately before the first existing statement that references
+    its bound name. Lets whose name has no occurrence (defensive
+    fallback) are prepended."""
+    pending: dict[str, ASTNode] = {let.value: let for let in new_lets}
+    out: list[ASTNode] = []
+    for stmt in body_children:
+        used_here = [
+            name for name in list(pending)
+            if _references_var(stmt, name)
+        ]
+        for name in used_here:
+            out.append(pending.pop(name))
+        out.append(stmt)
+    # Fallback: any remaining (unused) lets land at the front so the
+    # rewrite is structurally identical to the pre-fix shape.
+    if pending:
+        out = list(pending.values()) + out
+    return out
+
+
+def _references_var(node: ASTNode, name: str) -> bool:
+    if node.kind == NodeKind.VAR and node.value == name:
+        return True
+    return any(_references_var(c, name) for c in node.children)
 
 
 def apply_cse_module(mod: EMLModule, **kwargs) -> EMLModule:

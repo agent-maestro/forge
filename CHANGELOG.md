@@ -7,6 +7,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] — 2026-04-30 (5-Phase post-baton ship)
+
+Verticals + optimizer fixes that landed after the 2026-04-29 baton
+handoff. Every change in this entry was driven by the user's
+request to "do all 5 of them, break into phases if it helps".
+
+### Added
+
+- **Geospatial + Imaging stub verticals** (Phase 1): `geospatial/
+  mercator_projection.eml` (chain-3 ln∘tan, the canonical
+  3-deep pathway example) and `imaging/gamma_correct.eml` (sRGB
+  per-pixel gamma + linearisation curve). Both ship with a
+  README scoping the planned subdirs and chain-order budget.
+- **Radar production vertical** (Phase 5): `radar/` graduates
+  from stub to four-module suite with full DO-254 + MIL-STD-882E
+  cert docs:
+  - `doppler/range_doppler.eml` — pulse-Doppler matched-filter
+    real / imag tap + per-pulse phase ramp.
+  - `tracking/kalman_track.eml` — single-axis Kalman track step
+    (predict, innovation, gain, position update, variance update)
+    with `track_gain_in_unit_interval` Lean theorem.
+  - `imaging/sar_phase.eml` — stripmap-SAR azimuth phase
+    compensation (chain 2: cos∘poly + sin/cos kernels).
+  - `beamforming/monopulse.eml` — amplitude-comparison monopulse
+    angle estimator + Σ-channel magnitude.
+  - `certification/DO_254.md` (TQL 5 tool qualification artifact
+    mapping; per-module evidence table) + `MIL_STD_882E.md`
+    (system-safety Tasks 101-205 mapping; risk-matrix
+    walkthrough).
+- **Finance build/ artifacts** (Phase 3): all 10 finance .eml
+  files now ship pre-generated 9-target build/ directories
+  (C, Rust, Python, LLVM IR, wasm IR, Verilog, VHDL, Chisel,
+  Lean) — 90 artifact files committed under
+  `industries/finance/{pricing,greeks,risk}/build/`.
+- **Finance cross-target equivalence cases** (Phase 4): five
+  finance functions added to `tests/equivalence/
+  test_industry_verticals.py::VERTICAL_CASES` —
+  `bs_d1`, `norm_cdf`, `black_scholes_call`, `call_delta`,
+  `linear_pnl`. Python↔Rust bit-equivalence verified within
+  1e-9 (tanh-based norm_cdf) or 1e-12 (polynomial bodies).
+
+### Fixed
+
+- **SuperBEST optimizer slowness on transcendental bodies with
+  named module constants** (Phase 2). `recommend_form` was
+  spending 30+ seconds pattern-matching expressions whose RHS
+  contains user-named constants (e.g. Black-Scholes' `norm_cdf`
+  uses `SQRT_2_OVER_PI`, `GELU_C3` from a `const` block). Added
+  a pre-filter at `lang/optimizer/superbest.py` that bails when
+  the body has any free symbols beyond the function's parameters
+  (named consts can't match the literal-coefficient family
+  templates). Removed the `optimize=False` workaround from
+  `tests/industry/test_finance.py`. Per-Black-Scholes-compile
+  time: 33s → 1.1s.
+- **CSE pass placed hoisted bindings before their dependencies**
+  on bodies with let-bindings. When CSE found a duplicated
+  sub-expression like `alpha / f_pow_one_minus_beta` and hoisted
+  it to a top-level `_cse_N`, the new binding referenced
+  `f_pow_one_minus_beta` — a name introduced by a *later* let
+  in the same block. C / Rust / LLVM all reject forward refs.
+  `apply_cse` now inserts each hoisted let immediately before
+  its first use, so dependencies are always defined first.
+  This unblocks SABR LLVM/wasm compilation and produces
+  declaration-correct C / Rust output across the board.
+
+### Changed
+
+- `industries/README.md` updated to seventeen verticals across
+  eight domains; radar entry promoted from "Stub" to the full
+  cross-references table.
+- `tools/benchmarks/{vertical,stdlib}_baseline.json` regenerated
+  to cover the new functions (123 → 136 vertical entries; stdlib
+  realigned for ml.eml's elu / selu / mish / hard_* additions).
+
+---
+
 ## [Unreleased] — 2026-04-29 (Phase 2 + 3 + 4 BATON HANDOFF SHIP)
 
 The pre-Blackwell push that closes every non-GPU-gated deliverable

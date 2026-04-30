@@ -160,6 +160,62 @@ VERTICAL_CASES: list[tuple[str, str, list[tuple[float, ...]], float]] = [
         ],
         1e-12,
     ),
+    # Finance pricing -- bs_d1(spot, strike, rate, vol, T).
+    # Pure log + sqrt: tight 1e-12 tolerance.
+    (
+        "finance/pricing/black_scholes.eml",
+        "bs_d1",
+        [
+            (100.0, 100.0, 0.05, 0.20, 1.0),
+            (110.0, 100.0, 0.05, 0.25, 0.5),
+            (90.0,  100.0, 0.03, 0.30, 2.0),
+        ],
+        1e-12,
+    ),
+    # Finance pricing -- norm_cdf(x). Tanh-based GELU
+    # approximation; ~1e-9 because the polynomial fit isn't an
+    # exact identity to the true Gaussian CDF.
+    (
+        "finance/pricing/black_scholes.eml",
+        "norm_cdf",
+        [(0.0,), (0.5,), (-0.5,), (1.5,), (-1.5,), (3.0,)],
+        1e-9,
+    ),
+    # Finance pricing -- black_scholes_call. End-to-end pricing
+    # call: bs_d1 -> bs_d2 -> norm_cdf chain. The norm_cdf tanh
+    # approximation drives the loose tolerance.
+    (
+        "finance/pricing/black_scholes.eml",
+        "black_scholes_call",
+        [
+            (100.0, 100.0, 0.05, 0.20, 1.0),
+            (110.0, 100.0, 0.05, 0.25, 0.5),
+            (90.0,  100.0, 0.03, 0.30, 2.0),
+        ],
+        1e-9,
+    ),
+    # Finance Greeks -- call_delta (norm_cdf(d1)).
+    (
+        "finance/greeks/delta.eml",
+        "call_delta",
+        [
+            (100.0, 100.0, 0.05, 0.20, 1.0),
+            (110.0, 100.0, 0.05, 0.25, 0.5),
+        ],
+        1e-9,
+    ),
+    # Finance risk -- linear_pnl (pure-polynomial PnL, tight
+    # 1e-12 since no transcendentals).
+    (
+        "finance/risk/stress_test.eml",
+        "linear_pnl",
+        [
+            (1_000_000.0, 0.01, 0.02, 0.0),
+            (-500_000.0,  -0.005, 0.0, 0.001),
+            (250_000.0,    0.001, -0.002, 0.0005),
+        ],
+        1e-12,
+    ),
 ]
 
 

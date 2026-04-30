@@ -1,0 +1,59 @@
+// sar_phase.eml -- single-cell phase compensation for synthetic-
+// aperture radar (SAR) azimuth processing.
+//
+// SAR images are formed by coherently integrating returns from
+// many radar pulses while the platform moves along the synthetic
+// aperture. Each return contributes after a phase ramp that
+// depends on the azimuth time and the slant range. The standard
+// stripmap-SAR azimuth-compression filter is
+//
+//   H_az(t_az, R0) = exp(j * 4π * R0 * (1 - cos(v * t_az / R0)) / λ)
+//
+// where v is platform speed, R0 is closest-approach range,
+// and λ is wavelength.
+//
+// Chain order 2 (cos applied to a chain-0 polynomial; the
+// resulting expression is then fed back into sin/cos for the
+// complex exponential -- chain 2 worst case).
+
+module sar_phase;
+
+type SarSignal = Real where chain_order <= 2
+
+// Azimuth-compression argument: 4π·R0·(1 − cos(v·t/R0)) / λ.
+// Inputs:
+//   range_r0  -- closest-approach slant range (m)
+//   t_az      -- azimuth time relative to broadside (s)
+//   v_plat    -- platform velocity (m/s)
+//   lambda_m  -- wavelength (m)
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "sar_phase_arg_zero_at_broadside")
+fn sar_phase_arg(
+    range_r0: Real, t_az: Real, v_plat: Real, lambda_m: Real,
+) -> SarSignal
+    where chain_order <= 2
+    requires (range_r0 > 0.0)
+    requires (lambda_m > 0.0)
+{
+    let walk = v_plat * t_az / range_r0;
+    let one_minus_cos = 1.0 - cos(walk);
+    4.0 * 3.141592653589793 * range_r0 * one_minus_cos / lambda_m
+}
+
+// Real part of the compensation kernel: cos(arg).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "sar_kernel_real_unit_at_zero_arg")
+fn sar_kernel_real(arg: Real) -> SarSignal
+    where chain_order <= 1
+{
+    cos(arg)
+}
+
+// Imaginary part of the compensation kernel: sin(arg).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "sar_kernel_imag_zero_at_zero_arg")
+fn sar_kernel_imag(arg: Real) -> SarSignal
+    where chain_order <= 1
+{
+    sin(arg)
+}

@@ -74,6 +74,20 @@ _VERTICALS = [
         "README.md",
         "shockley_current_monotone_in_voltage",
     ),
+    (
+        "geospatial",
+        "geospatial/mercator_projection.eml",
+        "mercator_y",
+        "README.md",
+        "mercator_y_finite_in_domain",
+    ),
+    (
+        "imaging",
+        "imaging/gamma_correct.eml",
+        "gamma_correct",
+        "README.md",
+        "gamma_correct_monotone_in_x",
+    ),
 ]
 
 
