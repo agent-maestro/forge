@@ -120,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         "verilog", "systemverilog", "vhdl", "chisel", "lean",
         "ada", "matlab",
         "coq", "isabelle", "ros2",
+        "java", "kotlin", "go", "autosar", "aadl",
         "all",
     ], help=("Output target. 'all' runs every live backend "
             "(c, rust, lean, verilog) and writes <stem>.<ext> "
@@ -339,6 +340,68 @@ def main(argv: list[str] | None = None) -> int:
             results.append(("isabelle", Path("<skipped>"), 0))
             print(f"  isabelle skipped: {e}", file=sys.stderr)
 
+        # Java
+        try:
+            from software.backends.java_backend import JavaBackend
+            j_path = out_dir / f"{stem.title().replace('_', '')}.java"
+            j_src = JavaBackend(optimize=not args.no_optimize).compile(mod)
+            j_path.write_text(j_src, encoding="utf-8")
+            results.append(("java", j_path, len(j_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("java", Path("<skipped>"), 0))
+            print(f"  java skipped: {e}", file=sys.stderr)
+
+        # Kotlin
+        try:
+            from software.backends.kotlin_backend import KotlinBackend
+            k_path = out_dir / f"{stem}.kt"
+            k_src = KotlinBackend(optimize=not args.no_optimize).compile(mod)
+            k_path.write_text(k_src, encoding="utf-8")
+            results.append(("kotlin", k_path, len(k_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("kotlin", Path("<skipped>"), 0))
+            print(f"  kotlin skipped: {e}", file=sys.stderr)
+
+        # Go
+        try:
+            from software.backends.go_backend import GoBackend
+            go_path = out_dir / f"{stem}.go"
+            go_src = GoBackend(optimize=not args.no_optimize).compile(mod)
+            go_path.write_text(go_src, encoding="utf-8")
+            results.append(("go", go_path, len(go_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("go", Path("<skipped>"), 0))
+            print(f"  go skipped: {e}", file=sys.stderr)
+
+        # AUTOSAR (writes .arxml + .c)
+        try:
+            from software.backends.autosar_backend import AutosarBackend
+            au = AutosarBackend(
+                optimize=not args.no_optimize,
+            ).compile_full(mod)
+            arxml_path = out_dir / f"{stem}.arxml"
+            au_c_path = out_dir / f"{stem}.autosar.c"
+            arxml_path.write_text(au.arxml, encoding="utf-8")
+            au_c_path.write_text(au.c_source, encoding="utf-8")
+            results.append(("autosar-arxml", arxml_path, len(au.arxml)))
+            results.append(("autosar-c", au_c_path, len(au.c_source)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("autosar", Path("<skipped>"), 0))
+            print(f"  autosar skipped: {e}", file=sys.stderr)
+
+        # AADL
+        try:
+            from software.backends.aadl_backend import AadlBackend
+            aadl_path = out_dir / f"{stem}.aadl"
+            aadl_src = AadlBackend(
+                optimize=not args.no_optimize,
+            ).compile(mod)
+            aadl_path.write_text(aadl_src, encoding="utf-8")
+            results.append(("aadl", aadl_path, len(aadl_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("aadl", Path("<skipped>"), 0))
+            print(f"  aadl skipped: {e}", file=sys.stderr)
+
         # ROS2 package (CMakeLists.txt + package.xml + node)
         try:
             from software.backends.ros2_backend import Ros2Backend
@@ -469,6 +532,95 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
         else:
             print(c_source, end="")
+        return 0
+
+    if args.target == "java":
+        from software.backends.java_backend import (
+            JavaBackend, CompileError as JavaErr,
+        )
+        try:
+            j = JavaBackend(optimize=not args.no_optimize).compile(mod)
+        except JavaErr as e:
+            print(f"compile error (java backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(j, encoding="utf-8")
+            print(f"wrote {args.output} ({len(j)} bytes)", file=sys.stderr)
+        else:
+            print(j, end="")
+        return 0
+
+    if args.target == "kotlin":
+        from software.backends.kotlin_backend import (
+            KotlinBackend, CompileError as KtErr,
+        )
+        try:
+            k = KotlinBackend(optimize=not args.no_optimize).compile(mod)
+        except KtErr as e:
+            print(f"compile error (kotlin backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(k, encoding="utf-8")
+            print(f"wrote {args.output} ({len(k)} bytes)", file=sys.stderr)
+        else:
+            print(k, end="")
+        return 0
+
+    if args.target == "go":
+        from software.backends.go_backend import (
+            GoBackend, CompileError as GoErr,
+        )
+        try:
+            g = GoBackend(optimize=not args.no_optimize).compile(mod)
+        except GoErr as e:
+            print(f"compile error (go backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(g, encoding="utf-8")
+            print(f"wrote {args.output} ({len(g)} bytes)", file=sys.stderr)
+        else:
+            print(g, end="")
+        return 0
+
+    if args.target == "autosar":
+        from software.backends.autosar_backend import (
+            AutosarBackend, CompileError as AutoErr,
+        )
+        try:
+            au = AutosarBackend(
+                optimize=not args.no_optimize,
+            ).compile_full(mod)
+        except AutoErr as e:
+            print(f"compile error (autosar backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            stem = args.output.with_suffix("")
+            arxml_path = stem.with_suffix(".arxml")
+            c_path = stem.with_suffix(".c")
+            arxml_path.write_text(au.arxml, encoding="utf-8")
+            c_path.write_text(au.c_source, encoding="utf-8")
+            print(f"wrote {arxml_path} ({len(au.arxml)} bytes)", file=sys.stderr)
+            print(f"wrote {c_path} ({len(au.c_source)} bytes)", file=sys.stderr)
+        else:
+            print(AutosarBackend(
+                optimize=not args.no_optimize,
+            ).compile(mod), end="")
+        return 0
+
+    if args.target == "aadl":
+        from software.backends.aadl_backend import (
+            AadlBackend, CompileError as AadlErr,
+        )
+        try:
+            a = AadlBackend(optimize=not args.no_optimize).compile(mod)
+        except AadlErr as e:
+            print(f"compile error (aadl backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(a, encoding="utf-8")
+            print(f"wrote {args.output} ({len(a)} bytes)", file=sys.stderr)
+        else:
+            print(a, end="")
         return 0
 
     if args.target == "coq":
