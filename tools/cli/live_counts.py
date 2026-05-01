@@ -240,6 +240,21 @@ def measure_pytest_count() -> int | None:
         return None
 
 
+def _resolve_lake_exe() -> str | None:
+    """Locate the `lake` binary, preferring an elan toolchain install.
+
+    On Windows, lake is typically at ``~/.elan/bin/lake.exe`` rather
+    than on PATH for non-interactive subshells. Falling back to the
+    bare name lets a custom PATH still work.
+    """
+    elan = Path.home() / ".elan" / "bin"
+    for name in ("lake.exe", "lake"):
+        candidate = elan / name
+        if candidate.is_file():
+            return str(candidate)
+    return "lake"  # let subprocess raise if PATH can't find it
+
+
 def measure_machlib_build_seconds() -> float | None:
     """Time a clean `lake build` of MachLib foundations.
 
@@ -257,10 +272,11 @@ def measure_machlib_build_seconds() -> float | None:
             shutil.rmtree(lake_dir)
         except OSError:
             return None
+    lake_exe = _resolve_lake_exe()
     started = time.perf_counter()
     try:
         proc = subprocess.run(
-            ["lake", "build"], cwd=foundations,
+            [lake_exe, "build"], cwd=foundations,
             capture_output=True, text=True, timeout=300,
             encoding="utf-8", errors="replace",
         )
