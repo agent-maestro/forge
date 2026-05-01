@@ -200,8 +200,14 @@ class LeanBackend:
                 f"opaque {func.name} {params_lean} : {ret_type}"
                 f"  -- unsupported AST: {e}",
             ]
+        # `noncomputable` is required because every body uses the
+        # opaque `Real` arithmetic instances (`instMul`, `instAdd`,
+        # `instDiv`, ...) which MachLib.Basic marks `noncomputable`.
+        # Without this marker `lake build` rejects the file with
+        # "failed to compile definition, consider marking it as
+        # 'noncomputable'".
         return [
-            f"def {func.name} {params_lean} : {ret_type} :=",
+            f"noncomputable def {func.name} {params_lean} : {ret_type} :=",
             f"  {lean_body}",
         ]
 
