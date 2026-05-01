@@ -135,6 +135,19 @@ class KotlinBackend:
         if mod.constants:
             lines.append("")
 
+        # Tuple-returning functions get an idiomatic Kotlin data class.
+        # Field names mirror the C / Java convention: e0, e1, e2, ...
+        for fn in mod.functions:
+            if fn.return_tuple_types:
+                rec = self._tuple_data_class_name(fn.name)
+                fields = ", ".join(
+                    f"val e{i}: {_kotlin_type(t)}"
+                    for i, t in enumerate(fn.return_tuple_types)
+                )
+                lines.append(f"data class {rec}({fields})")
+        if any(fn.return_tuple_types for fn in mod.functions):
+            lines.append("")
+
         for fn in mod.functions:
             if fn.is_extern:
                 lines.extend(self._emit_extern(fn))
@@ -143,6 +156,13 @@ class KotlinBackend:
             lines.append("")
 
         return "\n".join(lines).rstrip() + "\n"
+
+    @staticmethod
+    def _tuple_data_class_name(fn_name: str) -> str:
+        # PascalCase + `Result` suffix, matching the Java backend.
+        parts = fn_name.split("_")
+        camel = "".join(p[:1].upper() + p[1:] for p in parts) or "Anon"
+        return f"{camel}Result"
 
     # ── Constants ─────────────────────────────────────────────
 
@@ -159,7 +179,10 @@ class KotlinBackend:
     # ── Extern (FFI) ──────────────────────────────────────────
 
     def _emit_extern(self, fn: EMLFunction) -> list[str]:
-        ret = _kotlin_type(fn.return_type or "Real")
+        if fn.return_tuple_types:
+            ret = self._tuple_data_class_name(fn.name)
+        else:
+            ret = _kotlin_type(fn.return_type or "Real")
         params = ", ".join(
             f"{p.name}: {_kotlin_type(p.type_name)}" for p in fn.params
         )
@@ -172,7 +195,10 @@ class KotlinBackend:
 
     def _emit_function(self, fn: EMLFunction) -> list[str]:
         out: list[str] = self._kdoc(fn)
-        ret = _kotlin_type(fn.return_type or "Real")
+        if fn.return_tuple_types:
+            ret = self._tuple_data_class_name(fn.name)
+        else:
+            ret = _kotlin_type(fn.return_type or "Real")
         params = ", ".join(
             f"{p.name}: {_kotlin_type(p.type_name)}" for p in fn.params
         )
@@ -184,7 +210,7 @@ class KotlinBackend:
         is_pure_expr = self._is_pure_expression_body(fn.body)
         has_requires = bool(fn.requires)
 
-        if is_pure_expr and not has_requires:
+        if is_pure_expr and not has_requires and not fn.return_tuple_types:
             try:
                 expr = self._emit_expr(self._final_expression(fn.body))
                 out.append(f"fun {fn.name}({params}): {ret} = {expr}")
@@ -204,7 +230,13 @@ class KotlinBackend:
             except CompileError as e:
                 out.append(f"{self.indent}// require: unsupported ({e})")
 
-        body = self._emit_block(fn.body, return_value=True)
+        record = (
+            self._tuple_data_class_name(fn.name)
+            if fn.return_tuple_types else None
+        )
+        body = self._emit_block(
+            fn.body, return_value=True, tuple_record=record,
+        )
         for ln in body:
             out.append(self.indent + ln)
         out.append("}")
@@ -267,6 +299,7 @@ class KotlinBackend:
         block: ASTNode | None,
         *,
         return_value: bool,
+        tuple_record: str | None = None,
     ) -> list[str]:
         if block is None or block.kind != NodeKind.BLOCK:
             return ["// empty body"]
@@ -284,13 +317,24 @@ class KotlinBackend:
                 out.append(f"{stmt.value} = {rhs}")
             elif stmt.kind == NodeKind.WHILE:
                 cond = self._emit_expr(stmt.children[0])
-                inner = self._emit_block(stmt.children[1], return_value=False)
+                inner = self._emit_block(
+                    stmt.children[1], return_value=False, tuple_record=None,
+                )
                 out.append(f"while ({cond}) {{")
                 for ln in inner:
                     out.append(self.indent + ln)
                 out.append("}")
             elif stmt.kind == NodeKind.EXPR_STMT:
                 out.append(f"{self._emit_expr(stmt.children[0])}")
+            elif (
+                is_last and return_value
+                and stmt.kind == NodeKind.TUPLE
+                and tuple_record is not None
+            ):
+                # Tuple-return: wrap the final TUPLE in the data
+                # class constructor `RecordName(elem0, elem1, ...)`.
+                elems = ", ".join(self._emit_expr(c) for c in stmt.children)
+                out.append(f"return {tuple_record}({elems})")
             elif is_last and return_value:
                 out.append(f"return {self._emit_expr(stmt)}")
             else:
