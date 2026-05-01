@@ -1,0 +1,93 @@
+// terzaghi_bearing.eml -- Terzaghi shallow-foundation bearing capacity.
+//
+// Karl Terzaghi (1943) — the foundational equation in geotechnical
+// engineering. The ultimate bearing capacity q_ult of a shallow
+// strip footing under combined cohesion, surcharge, and self-weight
+// contributions is:
+//
+//   q_ult = c * N_c + gamma * D_f * N_q + 0.5 * gamma * B * N_gamma
+//
+// where:
+//   c        soil cohesion                          (kPa)
+//   gamma    soil unit weight                       (kN/m^3)
+//   D_f      foundation embedment depth             (m)
+//   B        footing width                          (m)
+//   N_c, N_q, N_gamma   capacity factors (caller looks up by friction angle)
+//
+// Shape factors (square / circular / rectangular) and depth /
+// inclination factors are caller responsibility — we expose the
+// raw Terzaghi triplet plus the standard FS-divided allowable
+// capacity. Chain order 0 throughout. drift_risk LOW.
+//
+// Sibling to construction/structural/euler_buckling (the column
+// counterpart) and to construction/beam/euler_bernoulli.
+
+module terzaghi_bearing;
+
+const HALF:    Real = 0.5
+const ONE:     Real = 1.0
+
+const C_MAX:        Real = 1.0e3    // kPa — extreme cohesion
+const GAMMA_MAX:    Real = 30.0     // kN/m^3 — saturated dense soils
+const D_MAX:        Real = 50.0     // m — generous deep foundation upper
+const B_MIN:        Real = 0.1
+const B_MAX:        Real = 100.0    // m — mat foundation
+const N_MAX:        Real = 1000.0   // capacity factor ceiling
+const FS_MIN:       Real = 1.0
+const FS_MAX:       Real = 5.0      // typical regulatory band 2.5 - 3.5
+
+type Pressure = Real where chain_order <= 0
+
+// Terzaghi ultimate bearing capacity for a strip footing.
+// Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "terzaghi_bearing_nonneg_under_pos_inputs")
+fn ultimate_bearing(
+    cohesion: Real,
+    n_c: Real,
+    soil_unit_weight: Real,
+    embedment_depth: Real,
+    n_q: Real,
+    footing_width: Real,
+    n_gamma: Real,
+) -> Pressure
+    where chain_order <= 0
+    requires (cohesion >= 0.0)
+    requires (cohesion <= C_MAX)
+    requires (n_c >= 0.0)
+    requires (n_c <= N_MAX)
+    requires (soil_unit_weight >= 0.0)
+    requires (soil_unit_weight <= GAMMA_MAX)
+    requires (embedment_depth >= 0.0)
+    requires (embedment_depth <= D_MAX)
+    requires (n_q >= 0.0)
+    requires (n_q <= N_MAX)
+    requires (footing_width >= B_MIN)
+    requires (footing_width <= B_MAX)
+    requires (n_gamma >= 0.0)
+    requires (n_gamma <= N_MAX)
+    ensures  (result >= 0.0)
+{
+    cohesion * n_c
+        + soil_unit_weight * embedment_depth * n_q
+        + HALF * soil_unit_weight * footing_width * n_gamma
+}
+
+// Allowable bearing capacity = q_ult / FS. Industry-standard
+// safety factor is 2.5-3.5 depending on the controlling code
+// (ASCE, Eurocode 7).
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "allowable_bearing_below_ultimate")
+fn allowable_bearing(
+    ultimate_pressure: Real, factor_of_safety: Real,
+) -> Pressure
+    where chain_order <= 0
+    requires (ultimate_pressure >= 0.0)
+    requires (ultimate_pressure <= 1.0e6)
+    requires (factor_of_safety >= FS_MIN)
+    requires (factor_of_safety <= FS_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= ultimate_pressure)
+{
+    ultimate_pressure / factor_of_safety
+}

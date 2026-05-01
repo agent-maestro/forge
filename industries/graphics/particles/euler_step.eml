@@ -1,0 +1,85 @@
+// euler_step.eml -- semi-implicit Euler integrator for particle systems.
+//
+// One time-step of the velocity-Verlet / semi-implicit Euler
+// scheme used by ~every real-time particle simulator (smoke, fire,
+// fluid splash, magic effects). The semi-implicit form updates
+// velocity *first* then advances position with the new velocity,
+// which gives stable behaviour under gravity-like forces:
+//
+//   v_new = v + a * dt
+//   p_new = p + v_new * dt
+//
+// We also ship the analytical drag-decay step for stable damping
+// at large dt — saves a sub-stepping loop:
+//
+//   v_new = v * exp(-drag * dt) + a * dt
+//
+// Each spatial axis is its own scalar pass so the kernel maps 1:1
+// to a SIMT particle shader. Chain order 0 for the plain Euler;
+// chain 1 for the exponential-drag variant. drift_risk LOW under
+// dt <= 1/60s and bounded acceleration.
+//
+// Sibling to robotics/dynamics/manipulator_torque (the same
+// semi-implicit motif at a higher chain order). Together they
+// cover the integrate-everything need across rendering and sim.
+
+module particle_euler_step;
+
+const DT_MAX:       Real = 0.1            // 100 ms — well above 60 fps
+const VEL_MAX:      Real = 1.0e4          // m/s — extreme particle launch
+const ACC_MAX:      Real = 1.0e4          // m/s^2 — explosive ejecta
+const DRAG_MAX:     Real = 50.0           // 1/s — heavy underwater drag
+
+type Velocity = Real where chain_order <= 1
+type Position = Real where chain_order <= 1
+
+// Velocity update under constant acceleration. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "euler_step_velocity_linear_in_acceleration")
+fn velocity_step(velocity: Real, acceleration: Real, dt: Real) -> Velocity
+    where chain_order <= 0
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+    requires (velocity >= -VEL_MAX)
+    requires (velocity <= VEL_MAX)
+    requires (acceleration >= -ACC_MAX)
+    requires (acceleration <= ACC_MAX)
+{
+    velocity + acceleration * dt
+}
+
+// Position update using the new velocity (semi-implicit Euler).
+// Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "euler_step_position_linear_in_velocity")
+fn position_step(position: Real, velocity_new: Real, dt: Real) -> Position
+    where chain_order <= 0
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+    requires (velocity_new >= -VEL_MAX)
+    requires (velocity_new <= VEL_MAX)
+{
+    position + velocity_new * dt
+}
+
+// Velocity update with linear drag. Analytical exp(-drag*dt) keeps
+// the update stable for arbitrarily large dt; the impulse term
+// keeps the constant-force component first-order accurate.
+// Chain order 1.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "euler_step_drag_decays_velocity")
+fn velocity_step_with_drag(
+    velocity: Real, acceleration: Real, drag_coefficient: Real, dt: Real,
+) -> Velocity
+    where chain_order <= 1
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+    requires (velocity >= -VEL_MAX)
+    requires (velocity <= VEL_MAX)
+    requires (acceleration >= -ACC_MAX)
+    requires (acceleration <= ACC_MAX)
+    requires (drag_coefficient >= 0.0)
+    requires (drag_coefficient <= DRAG_MAX)
+{
+    velocity * exp(-drag_coefficient * dt) + acceleration * dt
+}

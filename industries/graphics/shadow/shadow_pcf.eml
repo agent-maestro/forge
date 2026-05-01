@@ -1,0 +1,89 @@
+// shadow_pcf.eml -- percentage-closer filtering soft shadow blend.
+//
+// The standard shadow-map visibility test compares a fragment's
+// depth against the recorded depth in the light-space depth map.
+// Hard shadows show pronounced aliasing along the edges; PCF
+// (Percentage-Closer Filtering, Reeves 1987) softens the boundary
+// by averaging N occlusion samples around the texel:
+//
+//   shadow = (1/N) * sum_i (sample_depth_i + bias < query_depth)
+//
+// where the comparison is done in normalised light-space depth and
+// `bias` is the standard slope-scaled shadow-acne offset. Caller
+// supplies the array of N pre-fetched sample depths so the kernel
+// stays pure.
+//
+// We expose two chain-0 building blocks: a 4-tap (cheap, mobile)
+// and a 9-tap (higher quality) variant. drift_risk LOW. Sibling
+// to phong and cook_torrance_ggx — they multiply the diffuse and
+// specular components by `1 - shadow` to get the lit colour.
+
+module shadow_pcf;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const QUARTER:     Real = 0.25
+const NINTH:       Real = 0.111111111111111   // 1/9
+const BIAS_MAX:    Real = 0.01                // 1% of depth range
+const DEPTH_MAX:   Real = 1.0                 // light-space NDC depth
+
+type ShadowFraction = Real where chain_order <= 0
+
+// 4-tap PCF — bilinear-style 2x2 box. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "shadow_pcf4_in_unit_interval")
+fn pcf_4tap(
+    query_depth: Real,
+    sample0: Real, sample1: Real, sample2: Real, sample3: Real,
+    bias: Real,
+) -> ShadowFraction
+    where chain_order <= 0
+    requires (query_depth >= 0.0)
+    requires (query_depth <= DEPTH_MAX)
+    requires (sample0 >= 0.0)
+    requires (sample0 <= DEPTH_MAX)
+    requires (sample1 >= 0.0)
+    requires (sample1 <= DEPTH_MAX)
+    requires (sample2 >= 0.0)
+    requires (sample2 <= DEPTH_MAX)
+    requires (sample3 >= 0.0)
+    requires (sample3 <= DEPTH_MAX)
+    requires (bias >= 0.0)
+    requires (bias <= BIAS_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= ONE)
+{
+    let threshold = query_depth - bias;
+    let h0 = step(sample0, threshold);
+    let h1 = step(sample1, threshold);
+    let h2 = step(sample2, threshold);
+    let h3 = step(sample3, threshold);
+    QUARTER * (h0 + h1 + h2 + h3)
+}
+
+// 9-tap PCF — 3x3 box, classical PCF. Higher quality; same
+// chain order. Caller flattens the 3x3 neighbourhood into nine
+// args so this kernel stays scalar.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "shadow_pcf9_in_unit_interval")
+fn pcf_9tap(
+    query_depth: Real,
+    s0: Real, s1: Real, s2: Real,
+    s3: Real, s4: Real, s5: Real,
+    s6: Real, s7: Real, s8: Real,
+    bias: Real,
+) -> ShadowFraction
+    where chain_order <= 0
+    requires (query_depth >= 0.0)
+    requires (query_depth <= DEPTH_MAX)
+    requires (bias >= 0.0)
+    requires (bias <= BIAS_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= ONE)
+{
+    let threshold = query_depth - bias;
+    let sum = step(s0, threshold) + step(s1, threshold) + step(s2, threshold)
+            + step(s3, threshold) + step(s4, threshold) + step(s5, threshold)
+            + step(s6, threshold) + step(s7, threshold) + step(s8, threshold);
+    NINTH * sum
+}

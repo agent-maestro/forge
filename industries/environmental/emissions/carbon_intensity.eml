@@ -1,0 +1,83 @@
+// carbon_intensity.eml -- life-cycle CO2 intensity primitives.
+//
+// Carbon intensity expresses life-cycle greenhouse-gas emissions as
+// a per-unit-energy or per-unit-output figure. Two common forms:
+//
+//   intensity        = mass_co2_eq / energy_delivered   [g CO2-eq / kWh]
+//   total_emissions  = sum_i (usage_i * intensity_i)    [g CO2-eq]
+//
+// The aggregator is the workhorse of corporate carbon-accounting
+// pipelines (GHG Protocol Scope 1/2/3) and embedded-grid carbon
+// dashboards. Chain order 0 — pure rational and additive.
+//
+// drift_risk LOW under the regulatory bounds (intensities never
+// exceed ~1500 gCO2-eq/kWh even for lignite plus full-cycle
+// upstream). Sibling to environmental/water/dissolved_oxygen
+// (the matching aquatic-impact metric) and to environmental/
+// air_quality/aqi_epa (the human-health gate).
+
+module carbon_intensity;
+
+const ZERO:                  Real = 0.0
+const ENERGY_MIN:            Real = 1.0e-6      // 1 microWh, floor for divisor
+const ENERGY_MAX:            Real = 1.0e15      // PWh — country-year
+const MASS_MAX:              Real = 1.0e18      // 1 Pt CO2 — extreme aggregate
+const INTENSITY_MAX:         Real = 1.5e3       // g/kWh — lignite + full cycle
+const USAGE_MAX:             Real = 1.0e12      // kWh — grid-scale annual
+
+type Intensity = Real where chain_order <= 0
+type Emissions = Real where chain_order <= 0
+
+// Carbon intensity = mass_co2_eq / energy_delivered.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "carbon_intensity_nonneg")
+fn intensity(mass_co2_eq: Real, energy_delivered: Real) -> Intensity
+    where chain_order <= 0
+    requires (mass_co2_eq >= 0.0)
+    requires (mass_co2_eq <= MASS_MAX)
+    requires (energy_delivered >= ENERGY_MIN)
+    requires (energy_delivered <= ENERGY_MAX)
+    ensures  (result >= 0.0)
+{
+    mass_co2_eq / energy_delivered
+}
+
+// Single-source contribution: usage * intensity. Used inside the
+// aggregator below; exposed independently so dashboards can
+// compute a per-source breakdown without recomputing.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "carbon_source_contribution_nonneg")
+fn source_emissions(usage: Real, source_intensity: Real) -> Emissions
+    where chain_order <= 0
+    requires (usage >= 0.0)
+    requires (usage <= USAGE_MAX)
+    requires (source_intensity >= 0.0)
+    requires (source_intensity <= INTENSITY_MAX)
+    ensures  (result >= 0.0)
+{
+    usage * source_intensity
+}
+
+// Three-source aggregator (Scope 1/2/3 fits naturally in three
+// terms). Chain order 0. Stateless EML cannot loop, so we expose
+// a fixed-arity composition; callers with longer arrays fold
+// pairwise via repeated applications of `source_emissions` plus
+// a streaming sum.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "carbon_total_above_each_source")
+fn total_emissions_3way(
+    scope1: Real, scope2: Real, scope3: Real,
+) -> Emissions
+    where chain_order <= 0
+    requires (scope1 >= 0.0)
+    requires (scope2 >= 0.0)
+    requires (scope3 >= 0.0)
+    requires (scope1 <= MASS_MAX)
+    requires (scope2 <= MASS_MAX)
+    requires (scope3 <= MASS_MAX)
+    ensures  (result >= scope1)
+    ensures  (result >= scope2)
+    ensures  (result >= scope3)
+{
+    scope1 + scope2 + scope3
+}

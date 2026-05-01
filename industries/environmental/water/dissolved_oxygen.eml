@@ -1,0 +1,91 @@
+// dissolved_oxygen.eml -- saturated dissolved-oxygen solubility.
+//
+// The Benson-Krause (1984) equation gives the equilibrium
+// dissolved-oxygen concentration in fresh water as a function of
+// absolute temperature:
+//
+//   ln(DO_sat) = A1 + A2 * (100/T) + A3 * ln(T/100) + A4 * (T/100)
+//
+// where DO_sat is in mL O2 / kg seawater (scale to mg/L by
+// multiplication by ~1.4276). The salinity correction is exposed
+// as a chain-0 sibling so chain budget stays modest. The
+// canonical reference for 0-40 degC fresh water; sea-water
+// extends via the Garcia-Gordon refit.
+//
+// Chain order 2 from `exp` wrapping the inner `ln(T/100)`.
+// drift_risk LOW under T in [273, 313] K. Sibling to
+// environmental/ocean/aragonite_saturation (the carbonate
+// counterpart) and to environmental/air_quality/aqi_epa
+// (the human-health gate).
+
+module dissolved_oxygen;
+
+const ZERO:    Real = 0.0
+const ONE:     Real = 1.0
+const HUNDRED: Real = 100.0
+
+const A1: Real = -139.34411
+const A2: Real =  1.575701e5
+const A3: Real = -6.642308e7
+const A4: Real =  1.243800e10
+const A5: Real = -8.621949e11
+
+const T_MIN: Real = 273.15            // 0 C
+const T_MAX: Real = 313.15            // 40 C
+const SAL_MAX: Real = 42.0            // PSU — Red Sea ceiling
+const DO_MAX:  Real = 20.0            // mg/L — well above any natural value
+
+type Concentration = Real where chain_order <= 2
+
+// Benson-Krause fresh-water saturation. Chain order 2 (exp wraps
+// 1/T plus other rational terms — the kernel is fully analytical
+// without any further temperature-dependent log).
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "do_saturation_positive")
+fn fresh_water_saturation(temperature_k: Real) -> Concentration
+    where chain_order <= 2
+    requires (temperature_k >= T_MIN)
+    requires (temperature_k <= T_MAX)
+    ensures  (result > 0.0)
+{
+    exp(A1 + A2 / temperature_k
+           + A3 / (temperature_k * temperature_k)
+           + A4 / (temperature_k * temperature_k * temperature_k)
+           + A5 / (temperature_k * temperature_k * temperature_k * temperature_k))
+}
+
+// Salinity correction multiplier (Garcia-Gordon style). Caller
+// multiplies the fresh-water saturation by this term to get the
+// sea-water saturation. Chain order 1 (single exp on a salinity
+// polynomial).
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "do_salinity_correction_below_one")
+fn salinity_correction(salinity_psu: Real) -> Concentration
+    where chain_order <= 1
+    requires (salinity_psu >= 0.0)
+    requires (salinity_psu <= SAL_MAX)
+    ensures  (result > 0.0)
+    ensures  (result <= ONE)
+{
+    exp(-salinity_psu * (1.7674e-2 + 5.4906e-4 * salinity_psu))
+}
+
+// Apparent oxygen saturation: DO_observed / DO_saturation. A
+// dimensionless health metric — values < 0.6 indicate hypoxia
+// risk for most aquatic species.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "do_apparent_in_unit_interval")
+fn apparent_saturation(
+    do_observed: Real, do_at_equilibrium: Real,
+) -> Concentration
+    where chain_order <= 0
+    requires (do_observed >= 0.0)
+    requires (do_observed <= DO_MAX)
+    requires (do_at_equilibrium > 0.0)
+    requires (do_at_equilibrium <= DO_MAX)
+    requires (do_observed <= do_at_equilibrium)
+    ensures  (result >= 0.0)
+    ensures  (result <= ONE)
+{
+    do_observed / do_at_equilibrium
+}

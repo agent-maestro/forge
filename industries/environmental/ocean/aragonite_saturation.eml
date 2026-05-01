@@ -1,0 +1,82 @@
+// aragonite_saturation.eml -- ocean acidification saturation state.
+//
+// The aragonite saturation state Omega_ar is the ratio of the
+// in-situ ion product to the apparent solubility constant:
+//
+//   Omega_ar = [Ca2+] * [CO3^2-] / K_sp_ar(T, S)
+//
+// When Omega_ar > 1 aragonite (the form CaCO3 used by corals,
+// pteropods, and many shellfish) is supersaturated; when
+// Omega_ar < 1 the water is corrosive. The ocean-acidification
+// regime typically lives in the 1-4 band; tropical surface waters
+// have been near 4 historically and are projected to drop.
+//
+// We expose two kernels — the saturation-state ratio (chain 0,
+// caller supplies the temperature-and-salinity-dependent K_sp)
+// and a temperature-shift correction for in-situ vs lab-measured
+// K_sp using the Mucci (1983) van't Hoff form (chain 1 from exp).
+//
+// Sibling to environmental/water/dissolved_oxygen (the matching
+// gas-solubility kernel) and to chemistry/thermodynamics/vant_hoff
+// (the temperature-correction motif).
+
+module aragonite_saturation;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const T_MIN:       Real = 271.15      // -2 C, polar surface ocean
+const T_MAX:       Real = 313.15      //  40 C, tropical sea surface ceiling
+const T_REF:       Real = 298.15      //  25 C lab reference
+const R_GAS:       Real = 8.314       // J/(mol*K)
+const KSP_MAX:     Real = 1.0e-3      // 6.7e-7 typical for aragonite at 25C
+const KSP_MIN:     Real = 1.0e-12
+const ION_MAX:     Real = 1.0e-1      // M -- generous upper bound
+
+type Saturation = Real where chain_order <= 1
+type Solubility = Real where chain_order <= 1
+
+// Aragonite saturation state. Chain order 0 — pure rational once
+// K_sp is materialised (typical caller looks K_sp up from the
+// MERCATOR/CMEMS climatology or computes it via the kernel below).
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "aragonite_saturation_nonneg")
+fn saturation_state(
+    calcium_concentration: Real,
+    carbonate_concentration: Real,
+    ksp_aragonite: Real,
+) -> Saturation
+    where chain_order <= 0
+    requires (calcium_concentration >= 0.0)
+    requires (calcium_concentration <= ION_MAX)
+    requires (carbonate_concentration >= 0.0)
+    requires (carbonate_concentration <= ION_MAX)
+    requires (ksp_aragonite >= KSP_MIN)
+    requires (ksp_aragonite <= KSP_MAX)
+    ensures  (result >= 0.0)
+{
+    calcium_concentration * carbonate_concentration / ksp_aragonite
+}
+
+// Van't Hoff temperature correction for the aragonite K_sp. Caller
+// supplies K_sp at the reference temperature and the reaction
+// enthalpy delta_H_dissolution; we return K_sp shifted to the
+// in-situ temperature. Chain order 1 (exp).
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "vant_hoff_temperature_correction_positive")
+fn ksp_at_temperature(
+    ksp_reference: Real,
+    delta_h_dissolution: Real,
+    temperature_k: Real,
+) -> Solubility
+    where chain_order <= 1
+    requires (ksp_reference >= KSP_MIN)
+    requires (ksp_reference <= KSP_MAX)
+    requires (delta_h_dissolution >= -1.0e6)
+    requires (delta_h_dissolution <=  1.0e6)
+    requires (temperature_k >= T_MIN)
+    requires (temperature_k <= T_MAX)
+    ensures  (result > 0.0)
+{
+    ksp_reference * exp(-delta_h_dissolution / R_GAS
+                        * (ONE / temperature_k - ONE / T_REF))
+}
