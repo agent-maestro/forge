@@ -118,6 +118,7 @@ class LeanBackend:
             "",
             "import MachLib.EML",
             "import MachLib.Trig",
+            "import MachLib.Forge",
             "",
             "open MachLib",
             "open MachLib.Real",
