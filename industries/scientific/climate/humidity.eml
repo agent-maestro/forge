@@ -1,0 +1,88 @@
+// humidity.eml -- atmospheric humidity / dew-point kernels.
+//
+// Three fundamental humidity computations a climate or HVAC
+// model needs:
+//
+//   saturation_vapor_pressure  Magnus formula
+//                              P_s(T) = 6.112 * exp(17.62 * T_c / (T_c + 243.12))
+//
+//   relative_humidity          P_v / P_s(T)
+//
+//   dew_point                  Magnus inverted -- the temperature
+//                              at which RH = 100%
+//
+// The Magnus formula is the WMO-recommended approximation valid
+// in the meteorological range -45 C to +60 C.
+//
+// Chain order 1 (single exp / single ln). Companion of
+// stefan_boltzmann.eml + energy_budget.eml in the climate
+// subfolder.
+
+module humidity;
+
+const T_MIN_C:     Real = -50.0
+const T_MAX_C:     Real = 80.0
+const PS_REF:      Real = 6.112
+const A_MAGNUS:    Real = 17.62
+const B_MAGNUS:    Real = 243.12
+
+type VaporPressure = Real where chain_order <= 1
+type DewPoint      = Real where chain_order <= 1
+type Humidity      = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "saturation_pressure_monotone_in_temperature")
+fn saturation_vapor_pressure(temperature_c: Real) -> VaporPressure
+    where chain_order <= 1
+    requires (temperature_c >= T_MIN_C)
+    requires (temperature_c <= T_MAX_C)
+    ensures  (result >= 0.0)
+{
+    PS_REF * exp(A_MAGNUS * temperature_c / (B_MAGNUS + temperature_c))
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "relative_humidity_in_unit_interval_magnus")
+fn relative_humidity(
+    vapor_pressure: Real,
+    saturation_pressure: Real,
+) -> Humidity
+    where chain_order <= 0
+    requires (vapor_pressure >= 0.0)
+    requires (vapor_pressure <= 1.0e4)
+    requires (saturation_pressure >= 1.0e-3)
+    requires (saturation_pressure <= 1.0e4)
+    ensures  (result >= 0.0)
+{
+    clamp(vapor_pressure / saturation_pressure, 0.0, 1.0)
+}
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "dew_point_below_temperature_when_rh_below_one")
+fn dew_point(temperature_c: Real, relative_humidity: Real) -> DewPoint
+    where chain_order <= 1
+    requires (temperature_c >= T_MIN_C)
+    requires (temperature_c <= T_MAX_C)
+    requires (relative_humidity >= 0.001)
+    requires (relative_humidity <= 1.0)
+{
+    let gamma = ln(relative_humidity)
+                + A_MAGNUS * temperature_c / (B_MAGNUS + temperature_c);
+    B_MAGNUS * gamma / (A_MAGNUS - gamma)
+}
+
+// Specific humidity = mass of water vapour / mass of moist air.
+// Approximates as 0.622 * e / (P - 0.378 * e) for atmospheric P.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "specific_humidity_increases_with_vapor")
+fn specific_humidity(vapor_pressure: Real, atmospheric_pressure: Real) -> Real
+    where chain_order <= 0
+    requires (vapor_pressure >= 0.0)
+    requires (vapor_pressure <= 1.0e4)
+    requires (atmospheric_pressure >= 1.0e3)
+    requires (atmospheric_pressure <= 1.1e5)
+    ensures  (result >= 0.0)
+{
+    0.622 * vapor_pressure
+    / (atmospheric_pressure - 0.378 * vapor_pressure)
+}

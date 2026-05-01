@@ -28,7 +28,7 @@ type ConstantTime = Byte where chain_order == 0
 // ── S-box: GF(2^8) inverse + affine transform ─────────────────
 
 @target(fpga, clock_mhz = 300, constant_time = true, lut_only = true)
-@verify(lean, theorem = "aes_sbox_correct")
+@verify(lean, theorem = "gf256_inverse_correct")
 fn gf256_inverse(input: ConstantTime) -> ConstantTime
     requires (true)
     ensures  (true)
