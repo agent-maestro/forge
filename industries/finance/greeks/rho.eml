@@ -1,0 +1,104 @@
+// rho.eml -- the fifth Greek: rho (interest-rate sensitivity).
+//
+// Rho measures the sensitivity of option price to risk-free rate:
+//
+//   rho_call = K * T * exp(-r*T) * N(d2)
+//   rho_put  = -K * T * exp(-r*T) * N(-d2)
+//
+// where N is the standard normal CDF and d2 is the
+// Black-Scholes-Merton lower drift quantile. Sibling to
+// delta/gamma/theta/vega — completes the first-order Greek
+// quartet plus rho. Chain order 2 inherits from norm_cdf's
+// inner tanh + the discounting exp.
+//
+// Numerics: at long dated options (T -> inf) rho diverges; we
+// clamp T into [TINY_T, 30 yr] which covers all listed equity
+// products. drift_risk = LOW under those bounds.
+
+module rho;
+
+const SQRT_2_OVER_PI: Real = 0.7978845608028654
+const GELU_C3:        Real = 0.044715
+const HALF:           Real = 0.5
+const ONE:            Real = 1.0
+const TINY_T:         Real = 0.000274     // 1 / (365 * 10) ≈ 2.4 hrs
+const T_MAX:          Real = 30.0         // 30-year listed cap
+const STRIKE_MAX:     Real = 1.0e6
+const RATE_MAX:       Real = 0.5          // 50% annualised — extreme
+
+type GreekRho = Real where chain_order <= 2
+
+// Standard-normal CDF — GELU-paper tanh approximation, identical
+// to the one in pricing/black_scholes. Inlined here so the rho
+// kernel is self-contained for FPGA partitioning.
+fn norm_cdf(x: Real) -> Real
+    where chain_order <= 1
+{
+    HALF * (ONE + tanh(SQRT_2_OVER_PI * (x + GELU_C3 * x * x * x)))
+}
+
+// d2 — same definition as in black_scholes. Chain order 2 once
+// log + sqrt are inlined.
+fn bs_d2(
+    spot: Real, strike: Real, rate: Real, vol: Real, time_to_expiry: Real,
+) -> Real
+    where chain_order <= 2
+{
+    let drift_term    = (rate + HALF * vol * vol) * time_to_expiry;
+    let log_moneyness = ln(spot / strike);
+    let vol_sqrt_t    = vol * sqrt(time_to_expiry);
+    (log_moneyness + drift_term) / vol_sqrt_t - vol * sqrt(time_to_expiry)
+}
+
+// Rho for a European call. Sign: positive (call value rises with
+// rate). Chain order 2 from the inner d2 + exp + tanh chain.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "rho_call_nonneg")
+fn rho_call(
+    spot: Real,
+    strike: Real,
+    rate: Real,
+    vol: Real,
+    time_to_expiry: Real,
+) -> GreekRho
+    where chain_order <= 2
+    requires (spot > 0.0)
+    requires (strike > 0.0)
+    requires (strike <= STRIKE_MAX)
+    requires (vol > 0.0)
+    requires (rate >= -RATE_MAX)
+    requires (rate <= RATE_MAX)
+    requires (time_to_expiry >= TINY_T)
+    requires (time_to_expiry <= T_MAX)
+    ensures  (result >= 0.0)
+{
+    let d2 = bs_d2(spot, strike, rate, vol, time_to_expiry);
+    strike * time_to_expiry * exp(-rate * time_to_expiry) * norm_cdf(d2)
+}
+
+// Rho for a European put. Sign: negative (put value falls with
+// rate). N(-d2) = 1 - N(d2) by the symmetry of the standard
+// normal — we use the closed form rather than a second tanh.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "rho_put_nonpos")
+fn rho_put(
+    spot: Real,
+    strike: Real,
+    rate: Real,
+    vol: Real,
+    time_to_expiry: Real,
+) -> GreekRho
+    where chain_order <= 2
+    requires (spot > 0.0)
+    requires (strike > 0.0)
+    requires (strike <= STRIKE_MAX)
+    requires (vol > 0.0)
+    requires (rate >= -RATE_MAX)
+    requires (rate <= RATE_MAX)
+    requires (time_to_expiry >= TINY_T)
+    requires (time_to_expiry <= T_MAX)
+    ensures  (result <= 0.0)
+{
+    let d2 = bs_d2(spot, strike, rate, vol, time_to_expiry);
+    -strike * time_to_expiry * exp(-rate * time_to_expiry) * (ONE - norm_cdf(d2))
+}

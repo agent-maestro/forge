@@ -1,0 +1,109 @@
+// great_circle_bearing.eml -- initial + final bearing on a great-circle path.
+//
+// The initial bearing (forward azimuth) along a great-circle
+// route from point 1 to point 2:
+//
+//   theta = atan2( sin(dlon) * cos(phi2),
+//                  cos(phi1) * sin(phi2)
+//                    - sin(phi1) * cos(phi2) * cos(dlon) )
+//
+// where phi is latitude, lambda is longitude, all in radians.
+// The final bearing at the destination is the initial bearing
+// from destination to origin, rotated 180°.
+//
+// Cross-track distance — perpendicular distance from a point to
+// the great-circle path between two waypoints — is the natural
+// sibling and lives in the same chain regime.
+//
+// Chain order 2 (atan2 + sin/cos chain). drift_risk LOW under the
+// standard latitude / longitude bounds. Sibling to
+// `haversine_distance` (the great-circle range kernel).
+
+module great_circle_bearing;
+
+const PI_HALF:    Real = 1.5707963267948966   // pi/2 — latitude bound (radians)
+const PI:         Real = 3.141592653589793
+const TWO_PI:     Real = 6.283185307179586
+
+type Bearing  = Real where chain_order <= 2
+type Distance = Real where chain_order <= 2
+
+// Initial bearing from point 1 to point 2 in radians, returned in
+// the (-pi, pi] range native to atan2. Caller can wrap into
+// [0, 2*pi) if a compass-bearing convention is needed.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "initial_bearing_in_atan2_range")
+fn initial_bearing(
+    lat1: Real, lon1: Real, lat2: Real, lon2: Real,
+) -> Bearing
+    where chain_order <= 2
+    requires (lat1 >= -PI_HALF)
+    requires (lat1 <= PI_HALF)
+    requires (lat2 >= -PI_HALF)
+    requires (lat2 <= PI_HALF)
+    requires (lon1 >= -PI)
+    requires (lon1 <= PI)
+    requires (lon2 >= -PI)
+    requires (lon2 <= PI)
+    ensures  (result > -PI)
+    ensures  (result <= PI)
+{
+    let dlon = lon2 - lon1;
+    let y    = sin(dlon) * cos(lat2);
+    let x    = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dlon);
+    atan2(y, x)
+}
+
+// Final bearing — initial bearing computed from destination to
+// origin, then rotated 180°. Useful for landing approaches and
+// reciprocal-track navigation. Chain order 2.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "final_bearing_reciprocal_of_reverse_initial")
+fn final_bearing(
+    lat1: Real, lon1: Real, lat2: Real, lon2: Real,
+) -> Bearing
+    where chain_order <= 2
+    requires (lat1 >= -PI_HALF)
+    requires (lat1 <= PI_HALF)
+    requires (lat2 >= -PI_HALF)
+    requires (lat2 <= PI_HALF)
+    requires (lon1 >= -PI)
+    requires (lon1 <= PI)
+    requires (lon2 >= -PI)
+    requires (lon2 <= PI)
+{
+    initial_bearing(lat2, lon2, lat1, lon1) + PI
+}
+
+// Cross-track distance — perpendicular distance from a query
+// point to the great-circle path between two waypoints. Useful
+// for off-track alerting in flight-management systems.
+//
+//   xtrack = asin( sin(d_AC / R) * sin(theta_AC - theta_AB) ) * R
+//
+// Caller passes the great-circle distance d_AC and the bearings
+// theta_AB (path) and theta_AC (waypoint→query) to keep this
+// kernel pure. Chain order 2 — arcsin wraps a sin(...)·sin(...)
+// product; outer asin pushes the chain past 1.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "cross_track_zero_when_query_on_path")
+fn cross_track_distance(
+    arc_query_distance: Real,
+    bearing_path: Real,
+    bearing_query: Real,
+    earth_radius: Real,
+) -> Distance
+    where chain_order <= 2
+    requires (arc_query_distance >= 0.0)
+    requires (arc_query_distance <= 2.0 * 6.371e6)   // <= half-earth circ.
+    requires (earth_radius > 0.0)
+    requires (earth_radius <= 1.0e8)
+    requires (bearing_path > -TWO_PI)
+    requires (bearing_path <= TWO_PI)
+    requires (bearing_query > -TWO_PI)
+    requires (bearing_query <= TWO_PI)
+{
+    arcsin(sin(arc_query_distance / earth_radius)
+           * sin(bearing_query - bearing_path))
+        * earth_radius
+}

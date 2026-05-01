@@ -1,0 +1,89 @@
+// historical_var.eml -- parametric Value-at-Risk + Expected Shortfall.
+//
+// Sibling to var_monte_carlo — same VaR question, no Monte Carlo
+// engine. Parametric VaR assumes the portfolio's P&L distribution
+// is approximately Gaussian (or scaled-Student-t with known
+// degrees of freedom) and uses the closed-form quantile rather
+// than empirical resampling.
+//
+//   VaR_alpha   = -(mu + z_alpha * sigma) * portfolio_value
+//   ES_alpha    = -(mu - phi(z_alpha) / (1 - alpha) * sigma)
+//                  * portfolio_value
+//
+// where z_alpha is the standard-normal inverse CDF at confidence
+// level alpha (e.g. 1.645 for 95%, 2.326 for 99%) — supplied as a
+// caller parameter so we don't have to invert the CDF in EML —
+// and phi(z) = (1 / sqrt(2*pi)) * exp(-z^2 / 2) is the standard
+// normal density, available without importing erf.
+//
+// Chain order 1 from phi's exp; chain 0 for plain VaR. drift_risk
+// = LOW under the bounds in the requires clauses (Basel SA-CCR
+// limits portfolios to about USD 1e12 notional).
+
+module historical_var;
+
+const SQRT_2_PI:         Real = 2.5066282746310002    // sqrt(2*pi)
+const ONE_OVER_SQRT_2PI: Real = 0.3989422804014327    // 1/sqrt(2*pi)
+const HALF:              Real = 0.5
+const ONE:               Real = 1.0
+const PV_MAX:            Real = 1.0e12                // USD 1T per Basel SA-CCR
+const Z_MAX:             Real = 6.0                   // 6-sigma is regulatory ceiling
+const ALPHA_MIN:         Real = 0.5                   // 50% confidence floor
+const ALPHA_MAX:         Real = 0.999999              // approach (but don't hit) 1
+
+type Loss = Real where chain_order <= 1
+
+// Parametric Value-at-Risk under a Gaussian P&L assumption.
+// Returns the (positive) loss at the requested confidence level.
+// Chain order 0 — pure arithmetic.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "parametric_var_nonneg_when_z_positive")
+fn parametric_var(
+    pnl_mean: Real,
+    pnl_stddev: Real,
+    portfolio_value: Real,
+    z_alpha: Real,
+) -> Loss
+    where chain_order <= 0
+    requires (pnl_stddev >= 0.0)
+    requires (portfolio_value >= 0.0)
+    requires (portfolio_value <= PV_MAX)
+    requires (z_alpha >= 0.0)
+    requires (z_alpha <= Z_MAX)
+{
+    -(pnl_mean - z_alpha * pnl_stddev) * portfolio_value
+}
+
+// Standard-normal density phi(z) = (1/sqrt(2*pi)) * exp(-z^2/2).
+// The "tail intensity" used by Expected Shortfall. Chain 1.
+fn standard_normal_pdf(z: Real) -> Real
+    where chain_order <= 1
+{
+    ONE_OVER_SQRT_2PI * exp(-(z * z) * HALF)
+}
+
+// Expected Shortfall (Conditional VaR / TVaR / CVaR). Loss given
+// the loss exceeds VaR at confidence alpha. Always >= VaR.
+// Caller passes alpha and z_alpha consistent with each other.
+// Chain 1 (inherits exp from the density).
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "expected_shortfall_at_least_var")
+fn expected_shortfall(
+    pnl_mean: Real,
+    pnl_stddev: Real,
+    portfolio_value: Real,
+    z_alpha: Real,
+    alpha: Real,
+) -> Loss
+    where chain_order <= 1
+    requires (pnl_stddev >= 0.0)
+    requires (portfolio_value >= 0.0)
+    requires (portfolio_value <= PV_MAX)
+    requires (z_alpha >= 0.0)
+    requires (z_alpha <= Z_MAX)
+    requires (alpha >= ALPHA_MIN)
+    requires (alpha <= ALPHA_MAX)
+{
+    let phi_z = standard_normal_pdf(z_alpha);
+    -(pnl_mean - phi_z / (ONE - alpha) * pnl_stddev) * portfolio_value
+}

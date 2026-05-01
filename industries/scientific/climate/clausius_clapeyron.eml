@@ -1,0 +1,81 @@
+// clausius_clapeyron.eml -- saturation vapor pressure over water.
+//
+// The Clausius-Clapeyron relation governs how saturation vapor
+// pressure scales with temperature. The standard meteorological
+// approximation (constant latent heat of vaporisation) is:
+//
+//   e_s(T) = e_s0 * exp( (L / R_v) * (1/T_0 - 1/T) )
+//
+// where:
+//   e_s0   reference saturation pressure at T_0   (Pa)
+//   T_0    reference temperature (273.15 K = 0°C)
+//   L      latent heat of vaporisation             (J/kg)
+//   R_v    specific gas constant for water vapor   (J/(kg·K))
+//   T      absolute temperature                    (K)
+//
+// Chain order 1 (single exp on a chain-0 polynomial). Sibling to
+// `humidity` (relative humidity using e_s(T_dry) and e(T_dewpoint))
+// and to `stefan_boltzmann` (the other Planck-grade integral
+// climate kernel). drift_risk LOW under the validated T range.
+
+module clausius_clapeyron;
+
+const E_S0:    Real = 611.2          // saturation Pa at T_0 = 273.15 K
+const T_0:     Real = 273.15         // reference temperature, K
+const L_VAP:   Real = 2.501e6        // latent heat at 0°C (J/kg)
+const R_V:     Real = 461.5          // specific gas constant water vapor
+const T_MIN:   Real = 173.15         // -100°C — Antarctic winter floor
+const T_MAX:   Real = 373.15         //  100°C — boiling point cap
+const RH_MIN:  Real = 0.0
+const RH_MAX:  Real = 1.0
+
+type VaporPressure  = Real where chain_order <= 1
+type RelHumidity    = Real where chain_order <= 1
+
+// Saturation vapor pressure over water at temperature T.
+// Chain order 1.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "saturation_vp_monotone_in_temperature")
+fn saturation_vapor_pressure(temperature_k: Real) -> VaporPressure
+    where chain_order <= 1
+    requires (temperature_k >= T_MIN)
+    requires (temperature_k <= T_MAX)
+    ensures  (result > 0.0)
+{
+    E_S0 * exp((L_VAP / R_V) * (1.0 / T_0 - 1.0 / temperature_k))
+}
+
+// Relative humidity from actual + saturation vapor pressure.
+// RH = e / e_s, expressed as a fraction in [0, 1]. Chain order 0
+// when both inputs are pre-computed; chain 1 if e_s is inlined.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "relative_humidity_in_unit_interval")
+fn relative_humidity(
+    actual_vapor_pressure: Real,
+    saturation_pressure: Real,
+) -> RelHumidity
+    where chain_order <= 0
+    requires (actual_vapor_pressure >= 0.0)
+    requires (saturation_pressure >= 1.0)        // > 0 strict; floor at 1 Pa
+    requires (actual_vapor_pressure <= saturation_pressure)
+    ensures  (result >= RH_MIN)
+    ensures  (result <= RH_MAX)
+{
+    actual_vapor_pressure / saturation_pressure
+}
+
+// Dew-point pressure: the saturation pressure at which the
+// current vapor pressure would be 100% RH. Useful gate against
+// `humidity.eml` and as a sibling to the wet-bulb routine in
+// `wind_chill.eml`. This is just the inverse direction of CC,
+// kept symbolic — caller supplies the dew-point temperature.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "dewpoint_pressure_below_saturation")
+fn dewpoint_vapor_pressure(dewpoint_k: Real) -> VaporPressure
+    where chain_order <= 1
+    requires (dewpoint_k >= T_MIN)
+    requires (dewpoint_k <= T_MAX)
+    ensures  (result > 0.0)
+{
+    saturation_vapor_pressure(dewpoint_k)
+}

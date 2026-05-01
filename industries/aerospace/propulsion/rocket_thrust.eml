@@ -1,0 +1,98 @@
+// rocket_thrust.eml -- Tsiolkovsky rocket equation + companion thrust kernels.
+//
+// Tsiolkovsky's rocket equation (1903) — the foundation of
+// astronautics. Relates the change in velocity of a rocket to
+// its specific impulse and the ratio of initial to final mass:
+//
+//   delta_v = v_e * ln(m_0 / m_f)
+//
+// where:
+//   v_e     effective exhaust velocity (m/s)
+//   m_0     initial mass (wet)         (kg)
+//   m_f     final mass (dry)           (kg)
+//
+// The thrust equation itself shares the jet_thrust structural
+// form (mass flow * exit velocity + nozzle pressure delta), so
+// we sibling rather than duplicate. Specific impulse here is
+// for rocket engines (typical 250-450 s) — the jet_thrust copy
+// is for air-breathing turbofans (typical 6,000+ s).
+//
+// Chain order 1 from `ln` in tsiolkovsky_dv; chain 0 for the
+// thrust + Isp companions. DO-178C Tool Qualification Level A.
+
+module rocket_thrust;
+
+const G_GRAVITY: Real = 9.80665
+const VEL_MAX:   Real = 1.0e4   // exhaust velocities up to 10 km/s
+const MASS_MIN:  Real = 1.0e-3  // 1 g (must be positive for ln)
+const MASS_MAX:  Real = 1.0e7   // 10,000 t — Saturn V wet was 2,800 t
+const ISP_MAX:   Real = 1.0e3   // 1,000 s upper bound for chemical rockets
+
+type DeltaV   = Real where chain_order <= 1
+type Thrust   = Real where chain_order <= 0
+type Isp      = Real where chain_order <= 0
+
+// Tsiolkovsky rocket equation. The ln domain demands m_0 >= m_f > 0;
+// we guard both with `requires`. Chain order 1.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "tsiolkovsky_dv_monotone_in_mass_ratio")
+fn tsiolkovsky_dv(
+    exhaust_velocity: Real,
+    initial_mass: Real,
+    final_mass: Real,
+) -> DeltaV
+    where chain_order <= 1
+    requires (exhaust_velocity >= 0.0)
+    requires (exhaust_velocity <= VEL_MAX)
+    requires (initial_mass >= MASS_MIN)
+    requires (initial_mass <= MASS_MAX)
+    requires (final_mass >= MASS_MIN)
+    requires (final_mass <= initial_mass)
+    ensures  (result >= 0.0)
+{
+    exhaust_velocity * ln(initial_mass / final_mass)
+}
+
+// Rocket gross thrust, structurally identical to jet_thrust's
+// gross_thrust. Kept as its own kernel so rocket-specific
+// certification gates (NASA-STD-5018, ECSS-E-ST-32C) can cite a
+// rocket-domain theorem rather than reach across to aerospace.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "rocket_gross_thrust_nonneg_for_positive_mass_flow")
+fn rocket_gross_thrust(
+    mass_flow: Real,
+    exhaust_velocity: Real,
+    exit_pressure: Real,
+    ambient_pressure: Real,
+    exit_area: Real,
+) -> Thrust
+    where chain_order <= 0
+    requires (mass_flow >= 0.0)
+    requires (mass_flow <= 1.0e4)
+    requires (exhaust_velocity >= 0.0)
+    requires (exhaust_velocity <= VEL_MAX)
+    requires (exit_pressure >= 0.0)
+    requires (exit_pressure <= 1.0e8)
+    requires (ambient_pressure >= 0.0)
+    requires (ambient_pressure <= 1.0e6)
+    requires (exit_area >= 1.0e-3)
+    requires (exit_area <= 1.0e2)
+{
+    mass_flow * exhaust_velocity + (exit_pressure - ambient_pressure) * exit_area
+}
+
+// Rocket specific impulse — figure of merit for engine efficiency.
+// Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "rocket_isp_inverse_proportional_to_mass_flow")
+fn rocket_specific_impulse(thrust: Real, mass_flow: Real) -> Isp
+    where chain_order <= 0
+    requires (thrust >= 0.0)
+    requires (thrust <= 1.0e8)
+    requires (mass_flow >= 0.001)
+    requires (mass_flow <= 1.0e4)
+    ensures  (result >= 0.0)
+    ensures  (result <= ISP_MAX)
+{
+    thrust / (mass_flow * G_GRAVITY)
+}

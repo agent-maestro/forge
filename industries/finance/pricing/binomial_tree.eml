@@ -1,0 +1,110 @@
+// binomial_tree.eml -- Cox-Ross-Rubinstein binomial tree primitives.
+//
+// The binomial-tree model (Cox-Ross-Rubinstein 1979) prices
+// options by discretising the underlying's price path into an
+// up/down lattice and back-solving by dynamic programming. The
+// per-step primitives are stateless and EML-friendly; the full
+// N-step recursion is the caller's loop (or a hardware
+// systolic-array accumulator on the FPGA target).
+//
+// Per-step formulas:
+//
+//   u = exp(sigma * sqrt(dt))                up move factor
+//   d = 1 / u                                down move factor
+//   p = (exp(r * dt) - d) / (u - d)          risk-neutral up prob
+//
+//   V_node = exp(-r*dt) * (p * V_up + (1-p) * V_down)   one back-step
+//
+// Chain order 1 from the `exp` in u and the discount factor;
+// step_back is chain 0 once u, d, p are pre-computed. drift_risk
+// = LOW. Sibling to black_scholes for European pricing — the
+// binomial converges to Black-Scholes as dt → 0.
+
+module binomial_tree;
+
+const ONE:        Real = 1.0
+const TINY:       Real = 1.0e-12   // floor for the (u - d) divisor
+const VOL_MIN:    Real = 1.0e-6
+const VOL_MAX:    Real = 5.0       // 500% annualised vol — distressed regime
+const DT_MIN:     Real = 1.0e-6
+const DT_MAX:     Real = 10.0      // up to 10-year single step (extreme)
+
+type StepFactor = Real where chain_order <= 2
+type StepValue  = Real where chain_order <= 1
+
+// Up-move factor u = exp(sigma * sqrt(dt)).
+// Chain order 2 (exp wraps sqrt). drift_risk LOW: argument is
+// bounded by the vol+dt requires, so no overflow even at fp32.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "binomial_up_factor_strictly_above_one")
+fn up_factor(vol: Real, dt: Real) -> StepFactor
+    where chain_order <= 2
+    requires (vol >= VOL_MIN)
+    requires (vol <= VOL_MAX)
+    requires (dt >= DT_MIN)
+    requires (dt <= DT_MAX)
+    ensures  (result > 1.0)
+{
+    exp(vol * sqrt(dt))
+}
+
+// Down-move factor — the no-arbitrage CRR convention is d = 1/u.
+// Chain order 2 inherits from up_factor's exp(sqrt) chain.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "binomial_down_factor_below_one")
+fn down_factor(vol: Real, dt: Real) -> StepFactor
+    where chain_order <= 2
+    requires (vol >= VOL_MIN)
+    requires (vol <= VOL_MAX)
+    requires (dt >= DT_MIN)
+    requires (dt <= DT_MAX)
+    ensures  (result < 1.0)
+    ensures  (result > 0.0)
+{
+    ONE / up_factor(vol, dt)
+}
+
+// Risk-neutral probability p = (exp(r*dt) - d) / (u - d).
+// Bounded in (0, 1) when |r*dt| < ln(u) — the requires clauses
+// enforce that interior. Chain order 1.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "risk_neutral_prob_in_unit_interval")
+fn risk_neutral_prob(rate: Real, vol: Real, dt: Real) -> Real
+    where chain_order <= 1
+    requires (vol >= VOL_MIN)
+    requires (vol <= VOL_MAX)
+    requires (dt >= DT_MIN)
+    requires (dt <= DT_MAX)
+    requires (rate * dt < vol * sqrt(dt))     // u > exp(r*dt) so p < 1
+    requires (rate * dt > -vol * sqrt(dt))    // d < exp(r*dt) so p > 0
+    ensures  (result > 0.0)
+    ensures  (result < 1.0)
+{
+    let u = up_factor(vol, dt);
+    let d = down_factor(vol, dt);
+    (exp(rate * dt) - d) / (u - d + TINY)
+}
+
+// One backward induction step on the lattice. Inputs are the
+// pre-computed risk-neutral probability and the two child node
+// values. Pure arithmetic — chain order 0.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "binomial_step_back_convex_combination")
+fn step_back(
+    rate: Real,
+    dt: Real,
+    p: Real,
+    value_up: Real,
+    value_down: Real,
+) -> StepValue
+    where chain_order <= 1
+    requires (p >= 0.0)
+    requires (p <= 1.0)
+    requires (dt >= DT_MIN)
+    requires (dt <= DT_MAX)
+    requires (value_up >= 0.0)
+    requires (value_down >= 0.0)
+    ensures  (result >= 0.0)
+{
+    exp(-rate * dt) * (p * value_up + (ONE - p) * value_down)
+}
