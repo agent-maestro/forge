@@ -98,6 +98,19 @@ class SweepReport:
 
 _LEAN_NAME_RE = re.compile(r"[^A-Za-z0-9_]")
 
+# Files in MachLib/Discovered/ that contain this directive in their
+# header are hand-completed proofs — auto_prove will refuse to
+# overwrite them. This is the (otherwise stateless) handshake
+# between the codegen and a contributor who has spent effort
+# closing a sorry and doesn't want it round-tripped back to a
+# placeholder on the next sweep.
+#
+# A contributor adds the marker once they're satisfied with a
+# proof; auto_prove emits a `preserved_manual` outcome instead of
+# writing. The CLI ``--force`` flag overrides if you really do want
+# to regenerate (e.g. the source kernel signature changed).
+MANUAL_PROOF_DIRECTIVE = "@machlib-manual-proof"
+
 
 def _is_safe_lean_identifier(name: str) -> bool:
     """Lean accepts ASCII letters / digits / underscores, plus the
@@ -226,6 +239,7 @@ def attempt_module(
     *,
     machlib_root: Path,
     dry_run: bool,
+    force: bool = False,
 ) -> list[TheoremOutcome]:
     """Render the full Lean module for ``source_file`` once and write
     a single ``.lean`` to MachLib/Discovered/ named after the .eml
@@ -308,6 +322,37 @@ def attempt_module(
     out_dir = machlib_root / "foundations" / "MachLib" / "Discovered"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{src_path.stem}.lean"
+
+    # Manual-proof preservation handshake. A contributor who has
+    # hand-completed a proof drops MANUAL_PROOF_DIRECTIVE into the
+    # file's header; on the next sweep we skip the write so the
+    # placeholder doesn't clobber the real proof. The override is
+    # `--force` when you really do want to regenerate (e.g. the
+    # source kernel's signature changed and the manual proof is
+    # stale).
+    if out_path.exists() and not force:
+        try:
+            existing = out_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            existing = ""
+        if MANUAL_PROOF_DIRECTIVE in existing:
+            elapsed = time.time() - started
+            for fn in fns:
+                outcomes.append(TheoremOutcome(
+                    source_file=source_file,
+                    function_name=str(fn.get("name")),
+                    theorem_name=str(fn.get("verify_theorem")),
+                    chain_order=int(fn.get("chain_order", 0)),
+                    status="skipped",
+                    elapsed_s=elapsed,
+                    output_lean_path=str(out_path),
+                    note=(
+                        f"preserved manual proof in {out_path.name} "
+                        f"({MANUAL_PROOF_DIRECTIVE} present; pass --force to override)"
+                    ),
+                ))
+            return outcomes
+
     # Prepend a Basic import so opaque Real instances resolve. The
     # LeanBackend's stock header imports EML/Trig/Forge but not
     # Basic; the discovered files run outside lakefile context so
@@ -342,6 +387,7 @@ def run_sweep(
     timeout_s: float,
     n_probe: int,
     in_process_audit: bool = True,
+    force: bool = False,
 ) -> SweepReport:
     """End-to-end sweep across one or more .eml files."""
     report = SweepReport()
@@ -380,6 +426,7 @@ def run_sweep(
             fns,
             machlib_root=machlib_root,
             dry_run=dry_run,
+            force=force,
         )
         for outcome in outcomes:
             report.n_attempted += 1
@@ -464,6 +511,13 @@ def main(argv: Optional[list[str]] = None) -> int:
               "per file) but isolates the forge package from the "
               "driver's environment."),
     )
+    p.add_argument(
+        "--force", action="store_true",
+        help=(f"Overwrite existing files even if they contain the "
+              f"{MANUAL_PROOF_DIRECTIVE!r} directive. Use when a "
+              f"manually-proved kernel's source signature changed and "
+              f"the manual proof is stale."),
+    )
     args = p.parse_args(argv)
 
     target = Path(args.target).resolve()
@@ -487,6 +541,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         timeout_s=args.timeout,
         n_probe=args.n_probe,
         in_process_audit=not args.audit_subprocess,
+        force=args.force,
     )
 
     if args.json:
