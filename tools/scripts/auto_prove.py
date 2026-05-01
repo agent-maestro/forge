@@ -110,20 +110,48 @@ def _is_safe_lean_identifier(name: str) -> bool:
     return _LEAN_NAME_RE.search(name) is None
 
 
-def _run_audit(audit_cli: Path, source: Path) -> dict[str, Any]:
-    """Invoke ``forge audit --json`` on a single .eml. Returns the
-    parsed dict. Raises ``RuntimeError`` on parse failure.
+def _run_audit(audit_cli: Path, source: Path,
+               *, in_process: bool = True) -> dict[str, Any]:
+    """Invoke ``forge audit --json --no-backend-recompile`` on a
+    single .eml. Returns the parsed dict.
 
-    We deliberately do NOT pass ``--quiet``: that flag suppresses
-    *all* stdout, including the JSON payload. The audit CLI is
-    JSON-only when ``--json`` is set without ``--quiet``.
+    When ``in_process=True`` (default), imports the audit module
+    directly and calls :func:`audit` with ``skip_backends=True``.
+    This is the fast path: it avoids per-file Python startup
+    overhead (~1 s saved per file × N files for any sweep).
+
+    When ``in_process=False``, falls back to a subprocess. Useful
+    when the auto_prove driver runs in an isolated environment
+    that can't import the forge package.
     """
-    cmd = [sys.executable, str(audit_cli), "--json", str(source)]
+    if in_process:
+        return _run_audit_in_process(audit_cli, source)
+    return _run_audit_subprocess(audit_cli, source)
+
+
+def _run_audit_in_process(audit_cli: Path, source: Path) -> dict[str, Any]:
+    """In-process audit. Imports the forge audit module once and
+    reuses it across calls (Python module cache handles dedup)."""
+    # Make the forge repo root importable. ``audit_cli`` is
+    # <forge_root>/tools/cli/audit.py, so two parents up is the root.
+    forge_root = audit_cli.resolve().parents[2]
+    if str(forge_root) not in sys.path:
+        sys.path.insert(0, str(forge_root))
+    from dataclasses import asdict
+    from tools.cli.audit import audit  # type: ignore[import-not-found]
+    report = audit(source, skip_backends=True)
+    return asdict(report)
+
+
+def _run_audit_subprocess(audit_cli: Path, source: Path) -> dict[str, Any]:
+    """Subprocess fallback. Equivalent to ``forge audit --json
+    --no-backend-recompile FILE``."""
+    cmd = [sys.executable, str(audit_cli),
+           "--json", "--no-backend-recompile", str(source)]
     proc = subprocess.run(
         cmd, capture_output=True, text=True, check=False,
     )
     if proc.returncode not in (0, 1, 2):
-        # Non-standard verdict — treat as a hard error.
         raise RuntimeError(
             f"forge audit crashed on {source}: rc={proc.returncode}\n"
             f"  stderr: {proc.stderr.strip()[:400]}"
@@ -284,6 +312,7 @@ def run_sweep(
     dry_run: bool,
     timeout_s: float,
     n_probe: int,
+    in_process_audit: bool = True,
 ) -> SweepReport:
     """End-to-end sweep across one or more .eml files."""
     report = SweepReport()
@@ -293,7 +322,7 @@ def run_sweep(
     attempts: list[dict[str, Any]] = []
     for f in files:
         try:
-            audit = _run_audit(audit_cli, f)
+            audit = _run_audit(audit_cli, f, in_process=in_process_audit)
         except RuntimeError as exc:
             outcome = TheoremOutcome(
                 source_file=str(f),
@@ -394,6 +423,13 @@ def main(argv: Optional[list[str]] = None) -> int:
                    help="Exit non-zero if any theorem failed.")
     p.add_argument("--json", action="store_true",
                    help="Emit a JSON report instead of pretty text.")
+    p.add_argument(
+        "--audit-subprocess", action="store_true",
+        help=("Spawn a subprocess per .eml for the audit step instead "
+              "of calling audit() in-process. Slower (Python startup "
+              "per file) but isolates the forge package from the "
+              "driver's environment."),
+    )
     args = p.parse_args(argv)
 
     target = Path(args.target).resolve()
@@ -416,6 +452,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         dry_run=args.dry_run,
         timeout_s=args.timeout,
         n_probe=args.n_probe,
+        in_process_audit=not args.audit_subprocess,
     )
 
     if args.json:
