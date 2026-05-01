@@ -1,0 +1,102 @@
+// relativistic_doppler.eml -- special-relativity frequency + wavelength shift.
+//
+// The relativistic Doppler shift for a source moving along the
+// line of sight at velocity v (in the observer's frame):
+//
+//   f_obs / f_src     = sqrt( (1 - beta) / (1 + beta) )    (recession)
+//   f_obs / f_src     = sqrt( (1 + beta) / (1 - beta) )    (approach)
+//
+// where beta = v/c. The general transverse-Doppler form (off-axis
+// motion) is shipped as a third kernel using the Lorentz factor.
+//
+//   gamma = 1 / sqrt(1 - beta^2)
+//
+// Chain order 1 from sqrt. drift_risk = LOW under |beta| < 0.999
+// (we clamp away from the singularity); chain order is preserved
+// under the divisions because EML's chain accounting treats
+// arithmetic combiners as free.
+//
+// Sibling to `schwarzschild_radius` (the GR kernel) and
+// `planck_radiation` (the SR-flat blackbody kernel).
+
+module relativistic_doppler;
+
+const ONE:        Real = 1.0
+const C_LIGHT:    Real = 2.99792458e8        // m/s, defined in SI
+const BETA_MAX:   Real = 0.999               // away from c-singularity
+const F_MAX:      Real = 1.0e30              // generous frequency cap (Hz)
+
+type FreqRatio  = Real where chain_order <= 1
+type Frequency  = Real where chain_order <= 1
+type LorentzG   = Real where chain_order <= 1
+
+// Recession Doppler factor. Source moving away → frequency drops,
+// wavelength stretches (redshift). Returns f_obs / f_src.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "doppler_recession_factor_below_one")
+fn recession_doppler_ratio(beta: Real) -> FreqRatio
+    where chain_order <= 1
+    requires (beta >= 0.0)
+    requires (beta <= BETA_MAX)
+    ensures  (result <= ONE)
+    ensures  (result > 0.0)
+{
+    sqrt((ONE - beta) / (ONE + beta))
+}
+
+// Approach Doppler factor — same formula with beta sign flipped.
+// Source moving toward observer → frequency rises (blueshift).
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "doppler_approach_factor_above_one")
+fn approach_doppler_ratio(beta: Real) -> FreqRatio
+    where chain_order <= 1
+    requires (beta >= 0.0)
+    requires (beta <= BETA_MAX)
+    ensures  (result >= ONE)
+{
+    sqrt((ONE + beta) / (ONE - beta))
+}
+
+// Apply a Doppler factor to a source frequency. Useful for
+// pipelining a chain of receding-then-approaching observations
+// (e.g. binary-pulsar timing residuals). Chain order 1 inherits
+// from the ratio's sqrt.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "doppler_observed_frequency_positive")
+fn observed_frequency(source_frequency: Real, doppler_ratio: Real) -> Frequency
+    where chain_order <= 1
+    requires (source_frequency > 0.0)
+    requires (source_frequency <= F_MAX)
+    requires (doppler_ratio > 0.0)
+    requires (doppler_ratio <= 1.0e6)        // covers ultrarelativistic boosts
+    ensures  (result > 0.0)
+{
+    source_frequency * doppler_ratio
+}
+
+// Lorentz factor γ = 1 / sqrt(1 - β²). Backbone of every SR
+// kernel — time dilation, length contraction, transverse Doppler.
+// Chain order 1.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "lorentz_factor_at_least_one")
+fn lorentz_factor(beta: Real) -> LorentzG
+    where chain_order <= 1
+    requires (beta >= 0.0)
+    requires (beta <= BETA_MAX)
+    ensures  (result >= ONE)
+{
+    ONE / sqrt(ONE - beta * beta)
+}
+
+// Velocity-to-beta convenience kernel. Pure division — chain 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "beta_in_unit_interval_for_subluminal_v")
+fn velocity_to_beta(velocity_m_per_s: Real) -> Real
+    where chain_order <= 0
+    requires (velocity_m_per_s >= 0.0)
+    requires (velocity_m_per_s <= BETA_MAX * C_LIGHT)
+    ensures  (result >= 0.0)
+    ensures  (result <= BETA_MAX)
+{
+    velocity_m_per_s / C_LIGHT
+}

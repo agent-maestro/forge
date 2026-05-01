@@ -1,4 +1,109 @@
 {
+  "abs_slip::burckhardt_mu": {
+    "chain_order": 1,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 14,
+    "trig_units": 0
+  },
+  "abs_slip::slip_pressure_correction": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "abs_slip::slip_ratio": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 15,
+    "trig_units": 0
+  },
+  "acc_step::comfort_accel_limiter": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "acc_step::distance_error": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "acc_step::outer_speed_command": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "acc_step::target_distance": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "ackermann_steering::ackermann_inner_tan": {
+    "chain_order": 1,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 15,
+    "trig_units": 2
+  },
+  "ackermann_steering::ackermann_outer_tan": {
+    "chain_order": 1,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 15,
+    "trig_units": 2
+  },
+  "ackermann_steering::bicycle_yaw_rate": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 7,
+    "trig_units": 1
+  },
+  "ackermann_steering::turn_radius": {
+    "chain_order": 1,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 5,
+    "trig_units": 1
+  },
+  "adam_optimizer::adam_param_step": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "adam_optimizer::adamw_param_step": {
+    "chain_order": 1,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 15,
+    "trig_units": 0
+  },
+  "adam_optimizer::first_moment_update": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "adam_optimizer::second_moment_update": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 12,
+    "trig_units": 0
+  },
   "additive_voice::envelope": {
     "chain_order": 1,
     "fpga_cycles": 8,
@@ -18,6 +123,27 @@
     "fpga_cycles": 8,
     "mac_units": 4,
     "node_count": 54,
+    "trig_units": 0
+  },
+  "aeb_ttc::stopping_distance": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "aeb_ttc::ttc_constant_acceleration": {
+    "chain_order": 1,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 26,
+    "trig_units": 0
+  },
+  "aeb_ttc::ttc_constant_velocity": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 5,
     "trig_units": 0
   },
   "aes::aes_sbox": {
@@ -104,6 +230,160 @@
     "node_count": 13,
     "trig_units": 0
   },
+  "autothrottle::autothrottle_step": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 17,
+    "trig_units": 0
+  },
+  "autothrottle::rate_limited_throttle": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 14,
+    "trig_units": 0
+  },
+  "autothrottle::speed_integral_step": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 22,
+    "trig_units": 0
+  },
+  "ballistic_trajectory::vacuum_range": {
+    "chain_order": 2,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 11,
+    "trig_units": 1
+  },
+  "ballistic_trajectory::vx_step": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "ballistic_trajectory::vy_step": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "ballistic_trajectory::x_step": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "ballistic_trajectory::y_step": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "baro_altitude::altitude_to_pressure": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "baro_altitude::pressure_to_altitude": {
+    "chain_order": 1,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "baro_altitude::qfe_altitude": {
+    "chain_order": 2,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 24,
+    "trig_units": 0
+  },
+  "basel_capital::diversification_pair": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "basel_capital::frtb_capital_charge": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "basel_capital::ima_total_capital": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "basel_capital::risk_aggregate_finalize": {
+    "chain_order": 1,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 3,
+    "trig_units": 0
+  },
+  "battery_soc::coulomb_count_step": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 15,
+    "trig_units": 0
+  },
+  "battery_soc::lithium_ion_ocv_curve": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 24,
+    "trig_units": 0
+  },
+  "battery_soc::mixed_soc_estimate": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "bayer_demosaic::demosaic_blue_at_red": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "bayer_demosaic::demosaic_green_at_red": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "bayer_demosaic::demosaic_red_at_green_horiz": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "bayer_demosaic::white_balance_channel": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 7,
+    "trig_units": 0
+  },
   "beer_lambert::absorbance": {
     "chain_order": 0,
     "fpga_cycles": 2,
@@ -146,11 +426,81 @@
     "node_count": 16,
     "trig_units": 0
   },
+  "bilateral_filter::bilateral_weight": {
+    "chain_order": 1,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 28,
+    "trig_units": 0
+  },
+  "bilateral_filter::spatial_gaussian_weight": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "bilateral_filter::weighted_contribution": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "binomial_tree::down_factor": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "binomial_tree::risk_neutral_prob": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 25,
+    "trig_units": 0
+  },
+  "binomial_tree::step_back": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "binomial_tree::up_factor": {
+    "chain_order": 2,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
   "biquad_lowpass::biquad_lowpass_step": {
     "chain_order": 0,
     "fpga_cycles": 2,
     "mac_units": 1,
     "node_count": 20,
+    "trig_units": 0
+  },
+  "bjt_collector_current::collector_current": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "bjt_collector_current::collector_current_with_early": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 15,
+    "trig_units": 0
+  },
+  "bjt_collector_current::transconductance": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
     "trig_units": 0
   },
   "black_scholes::black_scholes_call": {
@@ -258,6 +608,27 @@
     "node_count": 0,
     "trig_units": 0
   },
+  "chirp_jammer::chirp_instantaneous_freq": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "chirp_jammer::chirp_phase": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 14,
+    "trig_units": 0
+  },
+  "chirp_jammer::chirp_sample": {
+    "chain_order": 2,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 15,
+    "trig_units": 1
+  },
   "clausius_clapeyron::boiling_point_at_pressure": {
     "chain_order": 0,
     "fpga_cycles": 14,
@@ -265,11 +636,60 @@
     "node_count": 17,
     "trig_units": 0
   },
+  "clausius_clapeyron::dewpoint_vapor_pressure": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 15,
+    "trig_units": 0
+  },
   "clausius_clapeyron::predict_pressure": {
     "chain_order": 1,
     "fpga_cycles": 12,
     "mac_units": 6,
     "node_count": 17,
+    "trig_units": 0
+  },
+  "clausius_clapeyron::relative_humidity": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "clausius_clapeyron::saturation_vapor_pressure": {
+    "chain_order": 1,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 15,
+    "trig_units": 0
+  },
+  "compressor::db_to_linear": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "compressor::hard_knee_gain": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "compressor::linear_to_db": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "compressor::soft_knee_gain": {
+    "chain_order": 0,
+    "fpga_cycles": 18,
+    "mac_units": 9,
+    "node_count": 42,
     "trig_units": 0
   },
   "cottrell::cottrell_slope": {
@@ -284,6 +704,34 @@
     "fpga_cycles": 8,
     "mac_units": 4,
     "node_count": 17,
+    "trig_units": 0
+  },
+  "cross_entropy::bce_loss": {
+    "chain_order": 2,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 15,
+    "trig_units": 0
+  },
+  "cross_entropy::bce_with_logits": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 19,
+    "trig_units": 0
+  },
+  "cross_entropy::bce_with_logits_grad": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "cross_entropy::categorical_ce_pair": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
     "trig_units": 0
   },
   "crystallization::absolute_supersaturation": {
@@ -307,6 +755,34 @@
     "node_count": 4,
     "trig_units": 0
   },
+  "cusum_chart::arl_approx": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "cusum_chart::cusum_alarm": {
+    "chain_order": 0,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 25,
+    "trig_units": 0
+  },
+  "cusum_chart::cusum_high_step": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 15,
+    "trig_units": 0
+  },
+  "cusum_chart::cusum_low_step": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 15,
+    "trig_units": 0
+  },
   "cva::cva_cell": {
     "chain_order": 0,
     "fpga_cycles": 4,
@@ -326,6 +802,34 @@
     "fpga_cycles": 8,
     "mac_units": 4,
     "node_count": 8,
+    "trig_units": 0
+  },
+  "defibrillator_energy::biphasic_total_energy": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 21,
+    "trig_units": 0
+  },
+  "defibrillator_energy::discharge_voltage": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "defibrillator_energy::impedance_compensation_v0": {
+    "chain_order": 3,
+    "fpga_cycles": 20,
+    "mac_units": 10,
+    "node_count": 25,
+    "trig_units": 0
+  },
+  "defibrillator_energy::phase1_energy": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 16,
     "trig_units": 0
   },
   "delta::call_delta": {
@@ -354,6 +858,48 @@
     "fpga_cycles": 6,
     "mac_units": 3,
     "node_count": 39,
+    "trig_units": 0
+  },
+  "differential_drive::body_angular_velocity": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "differential_drive::body_linear_velocity": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "differential_drive::left_wheel_command": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "differential_drive::pose_x_step": {
+    "chain_order": 2,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 9,
+    "trig_units": 1
+  },
+  "differential_drive::pose_y_step": {
+    "chain_order": 2,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 9,
+    "trig_units": 1
+  },
+  "differential_drive::right_wheel_command": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
     "trig_units": 0
   },
   "dilithium::dilithium_butterfly": {
@@ -403,6 +949,34 @@
     "fpga_cycles": 4,
     "mac_units": 2,
     "node_count": 4,
+    "trig_units": 0
+  },
+  "doppler_velocity::doppler_shift_hz": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "doppler_velocity::unambiguous_velocity": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "doppler_velocity::velocity_from_shift": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "doppler_velocity::velocity_resolution": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
     "trig_units": 0
   },
   "dose_response::effect": {
@@ -496,6 +1070,118 @@
     "node_count": 4,
     "trig_units": 0
   },
+  "energy_budget::climate_response": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "energy_budget::equilibrium_temperature": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "energy_budget::toa_imbalance": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 20,
+    "trig_units": 0
+  },
+  "enzyme_inhibition::competitive_rate": {
+    "chain_order": 0,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "enzyme_inhibition::ic50_competitive": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "enzyme_inhibition::noncompetitive_rate": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "enzyme_inhibition::uncompetitive_rate": {
+    "chain_order": 0,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "esc_yaw_rate::sideslip_rate": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "esc_yaw_rate::yaw_rate_error": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "esc_yaw_rate::yaw_rate_reference": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 19,
+    "trig_units": 1
+  },
+  "expected_shortfall::mc_es_estimate": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "expected_shortfall::parametric_es": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 17,
+    "trig_units": 0
+  },
+  "expected_shortfall::tail_loss_accumulator": {
+    "chain_order": 0,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "extrusion_volume::filament_feed_length": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "extrusion_volume::layer_time": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "extrusion_volume::segment_volume": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 6,
+    "trig_units": 0
+  },
   "eyring::eyring_rate_constant": {
     "chain_order": 1,
     "fpga_cycles": 8,
@@ -529,6 +1215,34 @@
     "fpga_cycles": 2,
     "mac_units": 1,
     "node_count": 4,
+    "trig_units": 0
+  },
+  "feed_rate::chip_thinning_compensation": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 15,
+    "trig_units": 0
+  },
+  "feed_rate::linear_feed": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "feed_rate::material_removal_rate": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "feed_rate::rpm_from_cutting_speed": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
     "trig_units": 0
   },
   "fick_first_law::flux": {
@@ -608,6 +1322,27 @@
     "node_count": 3,
     "trig_units": 0
   },
+  "friis_link_budget::free_space_path_loss_db": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "friis_link_budget::link_margin_db": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "friis_link_budget::received_power_linear": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 20,
+    "trig_units": 0
+  },
   "gamma_correct::gamma_correct": {
     "chain_order": 1,
     "fpga_cycles": 6,
@@ -664,6 +1399,20 @@
     "node_count": 22,
     "trig_units": 0
   },
+  "gelu::gelu_tanh": {
+    "chain_order": 1,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 19,
+    "trig_units": 0
+  },
+  "gelu::quick_gelu": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 9,
+    "trig_units": 0
+  },
   "gibbs::delta_g": {
     "chain_order": 0,
     "fpga_cycles": 4,
@@ -684,6 +1433,48 @@
     "mac_units": 3,
     "node_count": 8,
     "trig_units": 0
+  },
+  "gnss_pseudorange::geometric_range": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 25,
+    "trig_units": 0
+  },
+  "gnss_pseudorange::line_of_sight_x": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "gnss_pseudorange::pseudorange_residual": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "great_circle_bearing::cross_track_distance": {
+    "chain_order": 4,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 13,
+    "trig_units": 3
+  },
+  "great_circle_bearing::final_bearing": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "great_circle_bearing::initial_bearing": {
+    "chain_order": 6,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 29,
+    "trig_units": 7
   },
   "groth16::miller_loop_bls12_381_x": {
     "chain_order": -1,
@@ -713,6 +1504,27 @@
     "node_count": 0,
     "trig_units": 0
   },
+  "haversine_distance::equirectangular_distance": {
+    "chain_order": 3,
+    "fpga_cycles": 20,
+    "mac_units": 10,
+    "node_count": 30,
+    "trig_units": 1
+  },
+  "haversine_distance::haversine_distance": {
+    "chain_order": 10,
+    "fpga_cycles": 32,
+    "mac_units": 16,
+    "node_count": 49,
+    "trig_units": 8
+  },
+  "haversine_distance::initial_bearing": {
+    "chain_order": 6,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 29,
+    "trig_units": 7
+  },
   "heston::heston_log_spot_step": {
     "chain_order": 1,
     "fpga_cycles": 12,
@@ -741,6 +1553,181 @@
     "node_count": 16,
     "trig_units": 0
   },
+  "historical_var::expected_shortfall": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 23,
+    "trig_units": 0
+  },
+  "historical_var::parametric_var": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "historical_var::standard_normal_pdf": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "hodgkin_huxley_step::gating_step": {
+    "chain_order": 0,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 17,
+    "trig_units": 0
+  },
+  "hodgkin_huxley_step::voltage_step": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 52,
+    "trig_units": 0
+  },
+  "huber_loss::huber_grad": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "huber_loss::huber_loss": {
+    "chain_order": 0,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 24,
+    "trig_units": 0
+  },
+  "huber_loss::smooth_l1": {
+    "chain_order": 0,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 22,
+    "trig_units": 0
+  },
+  "humidity::dew_point": {
+    "chain_order": 1,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 19,
+    "trig_units": 0
+  },
+  "humidity::relative_humidity": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "humidity::saturation_vapor_pressure": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "humidity::specific_humidity": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "icp_iteration::centroid_pair": {
+    "chain_order": 0,
+    "fpga_cycles": 0,
+    "mac_units": 0,
+    "node_count": 2,
+    "trig_units": 0
+  },
+  "icp_iteration::point_to_plane_residual": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "icp_iteration::point_to_point_residual_sq": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 24,
+    "trig_units": 0
+  },
+  "icp_iteration::weighted_residual": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 20,
+    "trig_units": 0
+  },
+  "imu_complementary_filter::accel_trust": {
+    "chain_order": 0,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 14,
+    "trig_units": 0
+  },
+  "imu_complementary_filter::pitch_update": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 20,
+    "trig_units": 0
+  },
+  "imu_complementary_filter::roll_update": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 20,
+    "trig_units": 0
+  },
+  "inertia_emulation::headroom_limited_response": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "inertia_emulation::rocof_estimate": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "inertia_emulation::synthetic_power_command": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "infusion_pid::bis_error": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "infusion_pid::infusion_integral_step": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "infusion_pid::infusion_pid_step": {
+    "chain_order": 0,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 23,
+    "trig_units": 0
+  },
   "infusion_pump::motor_command": {
     "chain_order": 0,
     "fpga_cycles": 10,
@@ -753,6 +1740,83 @@
     "fpga_cycles": 8,
     "mac_units": 4,
     "node_count": 22,
+    "trig_units": 0
+  },
+  "ins_alignment::coarse_heading": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 5,
+    "trig_units": 0
+  },
+  "ins_alignment::coarse_pitch": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 14,
+    "trig_units": 0
+  },
+  "ins_alignment::coarse_roll": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "ins_alignment::gravity_residual": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 15,
+    "trig_units": 0
+  },
+  "ins_velocity_step::position_step": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "ins_velocity_step::velocity_down_step": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "ins_velocity_step::velocity_east_step": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "ins_velocity_step::velocity_north_step": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "jet_thrust::gross_thrust": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "jet_thrust::net_thrust": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "jet_thrust::specific_impulse": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
     "trig_units": 0
   },
   "kalman_track::innovation": {
@@ -818,6 +1882,27 @@
     "node_count": 4,
     "trig_units": 0
   },
+  "lane_polynomial_fit::lane_curvature": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 14,
+    "trig_units": 0
+  },
+  "lane_polynomial_fit::lane_departure_error": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 30,
+    "trig_units": 0
+  },
+  "lane_polynomial_fit::lane_lateral_offset": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 12,
+    "trig_units": 0
+  },
   "langmuir::adsorbed_amount": {
     "chain_order": 0,
     "fpga_cycles": 8,
@@ -838,6 +1923,27 @@
     "mac_units": 2,
     "node_count": 4,
     "trig_units": 0
+  },
+  "load_flow::active_injection": {
+    "chain_order": 2,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 14,
+    "trig_units": 2
+  },
+  "load_flow::dc_load_flow": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "load_flow::reactive_injection": {
+    "chain_order": 2,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 14,
+    "trig_units": 2
   },
   "lorentzian::lorentzian_area_normalised": {
     "chain_order": 0,
@@ -860,6 +1966,76 @@
     "node_count": 6,
     "trig_units": 0
   },
+  "lotka_volterra::lyapunov_invariant": {
+    "chain_order": 2,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "lotka_volterra::predator_step": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 15,
+    "trig_units": 0
+  },
+  "lotka_volterra::prey_step": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 14,
+    "trig_units": 0
+  },
+  "magnetometer_heading::magnetic_heading": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 5,
+    "trig_units": 0
+  },
+  "magnetometer_heading::tilt_compensated_x": {
+    "chain_order": 2,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 10,
+    "trig_units": 2
+  },
+  "magnetometer_heading::tilt_compensated_y": {
+    "chain_order": 4,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 21,
+    "trig_units": 5
+  },
+  "magnetometer_heading::true_heading": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "manipulator_torque::coriolis_pair": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "manipulator_torque::joint_friction": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "manipulator_torque::joint_torque": {
+    "chain_order": 2,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 17,
+    "trig_units": 1
+  },
   "mark_houwink::intrinsic_viscosity": {
     "chain_order": 1,
     "fpga_cycles": 4,
@@ -872,6 +2048,34 @@
     "fpga_cycles": 6,
     "mac_units": 3,
     "node_count": 8,
+    "trig_units": 0
+  },
+  "mecanum_wheel::front_left_omega": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "mecanum_wheel::front_right_omega": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "mecanum_wheel::rear_left_omega": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "mecanum_wheel::rear_right_omega": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 12,
     "trig_units": 0
   },
   "mercator_projection::mercator_x": {
@@ -951,6 +2155,27 @@
     "node_count": 9,
     "trig_units": 0
   },
+  "mosfet_drain_current::drain_current_branchless": {
+    "chain_order": 0,
+    "fpga_cycles": 18,
+    "mac_units": 9,
+    "node_count": 30,
+    "trig_units": 0
+  },
+  "mosfet_drain_current::saturation_current": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 21,
+    "trig_units": 0
+  },
+  "mosfet_drain_current::triode_current": {
+    "chain_order": 0,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 19,
+    "trig_units": 0
+  },
   "motor_foc_automotive::foc_d_axis": {
     "chain_order": 0,
     "fpga_cycles": 8,
@@ -972,6 +2197,62 @@
     "node_count": 18,
     "trig_units": 0
   },
+  "mse_loss::half_mse": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "mse_loss::mse_grad": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "mse_loss::mse_loss": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "mse_loss::squared_residual": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "mti_filter::improvement_factor": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "mti_filter::mti_2pulse": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "mti_filter::mti_3pulse": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "mti_filter::mti_4pulse_weighted": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 12,
+    "trig_units": 0
+  },
   "nernst::electrode_potential": {
     "chain_order": 0,
     "fpga_cycles": 6,
@@ -984,6 +2265,62 @@
     "fpga_cycles": 4,
     "mac_units": 2,
     "node_count": 8,
+    "trig_units": 0
+  },
+  "neural_perceptron::hebbian_weight_step": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "neural_perceptron::perceptron_threshold": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "neural_perceptron::rate_coded_response": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "neural_perceptron::two_input_perceptron": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 17,
+    "trig_units": 0
+  },
+  "ofdm_subcarrier::carrier_freq_offset": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "ofdm_subcarrier::cyclic_prefix_min_samples": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "ofdm_subcarrier::pilot_channel_estimate": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "ofdm_subcarrier::subcarrier_phase": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
     "trig_units": 0
   },
   "one_compartment::auc_inf": {
@@ -1007,6 +2344,83 @@
     "node_count": 12,
     "trig_units": 0
   },
+  "op_amp_inverting::closed_loop_bandwidth": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "op_amp_inverting::inverting_output": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "op_amp_inverting::inverting_output_with_rails": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "op_amp_inverting::magnitude_at_freq": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 13,
+    "trig_units": 0
+  },
+  "parametric_eq::cookbook_alpha": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 7,
+    "trig_units": 1
+  },
+  "parametric_eq::gain_amplitude": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "parametric_eq::normalised_freq": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "parametric_eq::peaking_b0": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 14,
+    "trig_units": 0
+  },
+  "particle_filter_step::ess_contribution": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "particle_filter_step::particle_weight_update": {
+    "chain_order": 1,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "particle_filter_step::propagate_constant_velocity": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
   "ph_control::concentration_from_pH": {
     "chain_order": 0,
     "fpga_cycles": 4,
@@ -1028,6 +2442,27 @@
     "node_count": 4,
     "trig_units": 0
   },
+  "pitot_airspeed::calibrated_airspeed": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "pitot_airspeed::indicated_airspeed": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "pitot_airspeed::true_airspeed": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 7,
+    "trig_units": 0
+  },
   "pk_absorption::plasma_concentration": {
     "chain_order": 2,
     "fpga_cycles": 10,
@@ -1040,6 +2475,48 @@
     "fpga_cycles": 8,
     "mac_units": 4,
     "node_count": 9,
+    "trig_units": 0
+  },
+  "pk_two_compartment::auc_inf": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "pk_two_compartment::effect_site_step": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 15,
+    "trig_units": 0
+  },
+  "pk_two_compartment::plasma_concentration": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "planck_radiation::rayleigh_jeans_radiance": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 14,
+    "trig_units": 0
+  },
+  "planck_radiation::spectral_radiance": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 27,
+    "trig_units": 0
+  },
+  "planck_radiation::wien_lambda_max": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
     "trig_units": 0
   },
   "plc_setpoint::actuator_command": {
@@ -1084,12 +2561,152 @@
     "node_count": 0,
     "trig_units": 0
   },
+  "powder_bed_thermal::critical_cooling_rate": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "powder_bed_thermal::linear_energy_density": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "powder_bed_thermal::rosenthal_delta_t": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 24,
+    "trig_units": 0
+  },
+  "proportional_navigation::augmented_pn_command": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "proportional_navigation::closing_speed_from_rate": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 3,
+    "trig_units": 0
+  },
+  "proportional_navigation::los_angle": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "proportional_navigation::pn_command": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 6,
+    "trig_units": 0
+  },
   "pulse_compression::pulse_tap": {
     "chain_order": 2,
     "fpga_cycles": 10,
     "mac_units": 5,
     "node_count": 10,
     "trig_units": 2
+  },
+  "q8_dequantize::matmul_rescale": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "q8_dequantize::q8_dequantize": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "q8_dequantize::q8_dequantize_asym": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "q8_quantize::q8_quantize": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "q8_quantize::q8_quantize_asym": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "q8_quantize::symmetric_scale": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "qam_demod::bit_llr": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "qam_demod::carrier_phase_correct_i": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "qam_demod::carrier_phase_correct_q": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "qam_demod::nearest_qam_amplitude": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "radar_equation::bistatic_received_power": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 24,
+    "trig_units": 0
+  },
+  "radar_equation::max_detection_range": {
+    "chain_order": 3,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 20,
+    "trig_units": 0
+  },
+  "radar_equation::monostatic_received_power": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 24,
+    "trig_units": 0
   },
   "range_doppler::doppler_imag": {
     "chain_order": 2,
@@ -1112,6 +2729,55 @@
     "node_count": 8,
     "trig_units": 0
   },
+  "rc_time_constant::capacitor_charging": {
+    "chain_order": 1,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "rc_time_constant::capacitor_discharging": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "rc_time_constant::cutoff_frequency": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "rc_time_constant::time_to_threshold": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "reactor_kinetics::neutron_step": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "reactor_kinetics::precursor_step": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 14,
+    "trig_units": 0
+  },
+  "reactor_kinetics::reactor_period": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 10,
+    "trig_units": 0
+  },
   "reactor_temperature::reaction_heat_load": {
     "chain_order": 1,
     "fpga_cycles": 8,
@@ -1123,6 +2789,160 @@
     "chain_order": 0,
     "fpga_cycles": 4,
     "mac_units": 2,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "relativistic_doppler::approach_doppler_ratio": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "relativistic_doppler::lorentz_factor": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "relativistic_doppler::observed_frequency": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "relativistic_doppler::recession_doppler_ratio": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "relativistic_doppler::velocity_to_beta": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "relu::leaky_relu": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "relu::prelu": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "relu::relu": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 5,
+    "trig_units": 0
+  },
+  "relu::relu6": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 5,
+    "trig_units": 0
+  },
+  "reverb_decay::reverb_envelope": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "reverb_decay::schroeder_gain": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "reverb_decay::wet_dry_mix": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "rho::bs_d2": {
+    "chain_order": 3,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 30,
+    "trig_units": 0
+  },
+  "rho::norm_cdf": {
+    "chain_order": 1,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 17,
+    "trig_units": 0
+  },
+  "rho::rho_call": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 34,
+    "trig_units": 0
+  },
+  "rho::rho_put": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 37,
+    "trig_units": 0
+  },
+  "rmsprop_optimizer::adagrad_param_step": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "rmsprop_optimizer::rmsprop_param_step": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "rmsprop_optimizer::rmsprop_v_update": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "rocket_thrust::rocket_gross_thrust": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "rocket_thrust::rocket_specific_impulse": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "rocket_thrust::tsiolkovsky_dv": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
     "node_count": 7,
     "trig_units": 0
   },
@@ -1168,6 +2988,27 @@
     "node_count": 19,
     "trig_units": 1
   },
+  "sas_pitch_damper::elevator_with_trim": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "sas_pitch_damper::sas_pitch_command": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "sas_pitch_damper::scheduled_gain": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 25,
+    "trig_units": 0
+  },
   "schrodinger_step::laplacian": {
     "chain_order": 0,
     "fpga_cycles": 6,
@@ -1180,6 +3021,34 @@
     "fpga_cycles": 6,
     "mac_units": 3,
     "node_count": 16,
+    "trig_units": 0
+  },
+  "schwarzschild_radius::gravitational_redshift_factor": {
+    "chain_order": 1,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 14,
+    "trig_units": 0
+  },
+  "schwarzschild_radius::newtonian_orbital_velocity": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "schwarzschild_radius::photon_sphere_radius": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "schwarzschild_radius::schwarzschild_radius": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
     "trig_units": 0
   },
   "second_order::concentration_at": {
@@ -1201,6 +3070,69 @@
     "fpga_cycles": 4,
     "mac_units": 2,
     "node_count": 4,
+    "trig_units": 0
+  },
+  "seir_epidemic::basic_reproduction_number": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "seir_epidemic::step_exposed": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "seir_epidemic::step_infectious": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "seir_epidemic::step_recovered": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "seir_epidemic::step_susceptible": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "sgd_optimizer::momentum_velocity_step": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "sgd_optimizer::nesterov_step": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "sgd_optimizer::sgd_step": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "sgd_optimizer::sgdw_step": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
     "trig_units": 0
   },
   "sha256::big_sigma0": {
@@ -1287,6 +3219,62 @@
     "node_count": 0,
     "trig_units": 0
   },
+  "shannon_capacity::high_snr_capacity": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "shannon_capacity::shannon_capacity": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "shannon_capacity::shannon_capacity_db": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "shannon_capacity::spectral_efficiency": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "shewhart_chart::lower_control_limit": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "shewhart_chart::process_capability": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 19,
+    "trig_units": 0
+  },
+  "shewhart_chart::subgroup_z_score": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "shewhart_chart::upper_control_limit": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 9,
+    "trig_units": 0
+  },
   "shockley_diode::shockley_at_room_temp": {
     "chain_order": 0,
     "fpga_cycles": 2,
@@ -1299,6 +3287,97 @@
     "fpga_cycles": 10,
     "mac_units": 5,
     "node_count": 11,
+    "trig_units": 0
+  },
+  "sigmoid::logit": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "sigmoid::sigmoid": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "sigmoid::sigmoid_alt": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "softmax::log_sum_exp_pair": {
+    "chain_order": 3,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "softmax::softmax_normalize": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "softmax::softmax_shift_exp": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 5,
+    "trig_units": 0
+  },
+  "softmax::softmax_two_logit": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 9,
+    "trig_units": 0
+  },
+  "solar_pv_iv::cell_current": {
+    "chain_order": 1,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 13,
+    "trig_units": 0
+  },
+  "solar_pv_iv::open_circuit_voltage": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "solar_pv_iv::photocurrent_under_conditions": {
+    "chain_order": 0,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 19,
+    "trig_units": 0
+  },
+  "spectrum_peak::log_magnitude_db": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 7,
+    "trig_units": 0
+  },
+  "spectrum_peak::magnitude_squared": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "spectrum_peak::spectrum_detect": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 16,
     "trig_units": 0
   },
   "stark::fri_fold": {
@@ -1329,6 +3408,27 @@
     "node_count": 0,
     "trig_units": 0
   },
+  "stefan_boltzmann::net_exchange": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "stefan_boltzmann::radiative_flux": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "stefan_boltzmann::wien_peak_wavelength": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
   "stress_test::linear_pnl": {
     "chain_order": 0,
     "fpga_cycles": 4,
@@ -1350,6 +3450,76 @@
     "node_count": 5,
     "trig_units": 0
   },
+  "svpwm::common_mode_offset": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 29,
+    "trig_units": 0
+  },
+  "svpwm::linear_range_flag": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 14,
+    "trig_units": 0
+  },
+  "svpwm::modulation_index": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "svpwm::phase_duty": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "swing_equation::power_angle_curve": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 9,
+    "trig_units": 1
+  },
+  "swing_equation::rotor_angle_step": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "swing_equation::rotor_speed_step": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 14,
+    "trig_units": 0
+  },
+  "swish::e_swish": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "swish::hard_swish": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "swish::swish": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
   "tafel::overpotential_from_current": {
     "chain_order": 0,
     "fpga_cycles": 6,
@@ -1369,6 +3539,48 @@
     "fpga_cycles": 4,
     "mac_units": 2,
     "node_count": 12,
+    "trig_units": 0
+  },
+  "tanh_activation::hard_tanh": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 5,
+    "trig_units": 0
+  },
+  "tanh_activation::tanh_activation": {
+    "chain_order": 1,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 3,
+    "trig_units": 0
+  },
+  "tanh_activation::tanh_from_sigmoid": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "terminal_homing::terminal_pn_command": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "terminal_homing::time_to_go_estimate": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "terminal_homing::true_pn_gain": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 10,
     "trig_units": 0
   },
   "theta::call_theta": {
@@ -1427,6 +3639,48 @@
     "node_count": 27,
     "trig_units": 0
   },
+  "tool_wear_taylor::extended_tool_life": {
+    "chain_order": 3,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "tool_wear_taylor::max_cutting_speed": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "tool_wear_taylor::tool_life_minutes": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "torque_vectoring::left_wheel_torque": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "torque_vectoring::right_wheel_torque": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "torque_vectoring::yaw_moment_from_split": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 10,
+    "trig_units": 0
+  },
   "two_compartment::auc_inf": {
     "chain_order": 0,
     "fpga_cycles": 6,
@@ -1447,6 +3701,48 @@
     "mac_units": 4,
     "node_count": 16,
     "trig_units": 0
+  },
+  "unsharp_mask::unsharp_detail": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "unsharp_mask::unsharp_linear": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "unsharp_mask::unsharp_threshold_blend": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "utm_projection::easting_central": {
+    "chain_order": 3,
+    "fpga_cycles": 18,
+    "mac_units": 9,
+    "node_count": 24,
+    "trig_units": 2
+  },
+  "utm_projection::meridian_arc": {
+    "chain_order": 6,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 87,
+    "trig_units": 3
+  },
+  "utm_projection::prime_vertical_radius": {
+    "chain_order": 3,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 14,
+    "trig_units": 1
   },
   "vant_hoff::ln_k_at_inverse_t": {
     "chain_order": 0,
@@ -1516,6 +3812,69 @@
     "fpga_cycles": 10,
     "mac_units": 5,
     "node_count": 29,
+    "trig_units": 0
+  },
+  "waypoint_steering::cross_track_distance": {
+    "chain_order": 1,
+    "fpga_cycles": 18,
+    "mac_units": 9,
+    "node_count": 38,
+    "trig_units": 0
+  },
+  "waypoint_steering::eta_angle": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "waypoint_steering::l1_lateral_accel": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 11,
+    "trig_units": 1
+  },
+  "weapon_engagement_zone::inner_wez_range": {
+    "chain_order": 0,
+    "fpga_cycles": 0,
+    "mac_units": 0,
+    "node_count": 2,
+    "trig_units": 0
+  },
+  "weapon_engagement_zone::outer_wez_range": {
+    "chain_order": 2,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 18,
+    "trig_units": 1
+  },
+  "weapon_engagement_zone::time_of_flight": {
+    "chain_order": 2,
+    "fpga_cycles": 18,
+    "mac_units": 9,
+    "node_count": 14,
+    "trig_units": 1
+  },
+  "wind_chill::heat_index_fahrenheit": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 54,
+    "trig_units": 0
+  },
+  "wind_chill::steadman_apparent_temp": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "wind_chill::wind_chill_celsius": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 20,
     "trig_units": 0
   },
   "x25519::montgomery_ladder_x25519": {

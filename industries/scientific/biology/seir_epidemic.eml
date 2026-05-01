@@ -1,0 +1,138 @@
+// seir_epidemic.eml -- SEIR compartmental epidemic-dynamics step.
+//
+// The SEIR model partitions a closed population N into four
+// compartments (Susceptible, Exposed, Infectious, Recovered) and
+// evolves them by the system of ODEs:
+//
+//   dS/dt = -beta * S * I / N
+//   dE/dt =  beta * S * I / N - sigma * E
+//   dI/dt =  sigma * E - gamma * I
+//   dR/dt =  gamma * I
+//
+// with S + E + I + R = N (population conservation). One step of
+// the explicit Euler scheme is one stateless EML kernel:
+//
+//   S' = S + dS/dt * dt   etc.
+//
+// Each step is chain order 0 (pure polynomial). The basic
+// reproduction number R0 = beta / gamma is exposed as a
+// companion gate. Sibling to lotka_volterra — same compartmental
+// structure, different transition graph.
+
+module seir_epidemic;
+
+const ONE:    Real = 1.0
+const N_MIN:  Real = 1.0
+const N_MAX:  Real = 1.0e10        // Earth-scale population cap
+const RATE_MAX: Real = 10.0        // contact / progression / recovery / day
+const DT_MAX: Real = 1.0           // up to 1 day per step
+
+type Compartment = Real where chain_order <= 0
+type R0Number    = Real where chain_order <= 0
+
+// Single explicit-Euler step of the SEIR ODE system, returning the
+// updated `S`. Each compartment's step is its own kernel so the
+// FPGA backend can emit four parallel pipelines and the verifier
+// can attach an independent theorem to each transition.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "seir_step_susceptible_nonincreasing")
+fn step_susceptible(
+    s: Real,
+    i: Real,
+    n: Real,
+    beta: Real,
+    dt: Real,
+) -> Compartment
+    where chain_order <= 0
+    requires (s >= 0.0)
+    requires (i >= 0.0)
+    requires (n >= N_MIN)
+    requires (n <= N_MAX)
+    requires (beta >= 0.0)
+    requires (beta <= RATE_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+    ensures  (result <= s)
+{
+    s - beta * s * i / n * dt
+}
+
+// Updated `E` — gain new exposures, lose progression to I.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "seir_step_exposed_nonneg")
+fn step_exposed(
+    s: Real, e: Real, i: Real, n: Real,
+    beta: Real, sigma: Real, dt: Real,
+) -> Compartment
+    where chain_order <= 0
+    requires (s >= 0.0)
+    requires (e >= 0.0)
+    requires (i >= 0.0)
+    requires (n >= N_MIN)
+    requires (n <= N_MAX)
+    requires (beta >= 0.0)
+    requires (beta <= RATE_MAX)
+    requires (sigma >= 0.0)
+    requires (sigma <= RATE_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+    requires (sigma * dt <= ONE)        // explicit-Euler stability
+{
+    e + (beta * s * i / n - sigma * e) * dt
+}
+
+// Updated `I` — gain progression from E, lose recovery to R.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "seir_step_infectious_nonneg")
+fn step_infectious(
+    e: Real, i: Real,
+    sigma: Real, gamma: Real, dt: Real,
+) -> Compartment
+    where chain_order <= 0
+    requires (e >= 0.0)
+    requires (i >= 0.0)
+    requires (sigma >= 0.0)
+    requires (sigma <= RATE_MAX)
+    requires (gamma >= 0.0)
+    requires (gamma <= RATE_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+    requires (gamma * dt <= ONE)
+{
+    i + (sigma * e - gamma * i) * dt
+}
+
+// Updated `R` — recovered (or removed) compartment.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "seir_step_recovered_nondecreasing")
+fn step_recovered(
+    i: Real, r: Real,
+    gamma: Real, dt: Real,
+) -> Compartment
+    where chain_order <= 0
+    requires (i >= 0.0)
+    requires (r >= 0.0)
+    requires (gamma >= 0.0)
+    requires (gamma <= RATE_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+    ensures  (result >= r)
+{
+    r + gamma * i * dt
+}
+
+// Basic reproduction number R0 = beta / gamma. The threshold
+// invariant: R0 < 1 -> outbreak dies out; R0 > 1 -> outbreak
+// grows exponentially in the early phase. Pure scalar.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "seir_r0_threshold_at_one")
+fn basic_reproduction_number(beta: Real, gamma: Real) -> R0Number
+    where chain_order <= 0
+    requires (beta >= 0.0)
+    requires (beta <= RATE_MAX)
+    requires (gamma >= 0.001)
+    requires (gamma <= RATE_MAX)
+    ensures  (result >= 0.0)
+{
+    beta / gamma
+}

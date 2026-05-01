@@ -1,0 +1,89 @@
+// unsharp_mask.eml -- unsharp masking edge enhancement primitives.
+//
+// Unsharp masking sharpens an image by adding back a scaled copy
+// of the high-frequency content (original minus blurred). The
+// stateless per-pixel kernel — caller supplies the already-blurred
+// pixel from a prior pass:
+//
+//   out = pixel + amount * (pixel - blurred)
+//
+// A threshold variant ("smart unsharp") applies the boost only
+// where the local detail magnitude exceeds a noise floor:
+//
+//   detail = pixel - blurred
+//   out    = pixel + amount * detail   if |detail| > threshold
+//          = pixel                     otherwise
+//
+// Chain order 0 — pure polynomial. drift_risk = LOW. Sibling to
+// `bilateral_filter` (edge-preserving smoothing) and
+// `bayer_demosaic` (the front-stage that produces the input).
+
+module unsharp_mask;
+
+const ZERO:           Real = 0.0
+const ONE:            Real = 1.0
+const PIXEL_MIN:      Real = 0.0          // 0..1 normalised intensity
+const PIXEL_MAX:      Real = 1.0
+const AMOUNT_MAX:     Real = 5.0          // typical 0.5 .. 1.5
+const THRESHOLD_MAX:  Real = 1.0
+
+type PixelOut = Real where chain_order <= 0
+
+// Linear unsharp mask — apply boost everywhere. The clamp on the
+// output is the caller's responsibility (we ensure result is the
+// linear value; downstream tone-mapping or 8-bit quantisation
+// handles bounds).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "unsharp_linear_zero_amount_is_passthrough")
+fn unsharp_linear(pixel: Real, blurred: Real, amount: Real) -> PixelOut
+    where chain_order <= 0
+    requires (pixel >= PIXEL_MIN)
+    requires (pixel <= PIXEL_MAX)
+    requires (blurred >= PIXEL_MIN)
+    requires (blurred <= PIXEL_MAX)
+    requires (amount >= ZERO)
+    requires (amount <= AMOUNT_MAX)
+{
+    pixel + amount * (pixel - blurred)
+}
+
+// Detail magnitude — used by the threshold variant to gate the
+// boost. Pure subtraction; we expose it as its own kernel so the
+// FPGA pipeline can fan-out to both the gate decision and the
+// final blend without duplicating arithmetic.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "unsharp_detail_zero_when_pixel_eq_blurred")
+fn unsharp_detail(pixel: Real, blurred: Real) -> Real
+    where chain_order <= 0
+    requires (pixel >= PIXEL_MIN)
+    requires (pixel <= PIXEL_MAX)
+    requires (blurred >= PIXEL_MIN)
+    requires (blurred <= PIXEL_MAX)
+{
+    pixel - blurred
+}
+
+// Output of the threshold-variant blend. Caller supplies a `gate`
+// in {0, 1} (typically computed from `|detail| > threshold` in a
+// prior pass) so this kernel stays linear for FPGA-friendly
+// pipelining.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "unsharp_threshold_passthrough_when_gate_zero")
+fn unsharp_threshold_blend(
+    pixel: Real,
+    blurred: Real,
+    amount: Real,
+    gate: Real,
+) -> PixelOut
+    where chain_order <= 0
+    requires (pixel >= PIXEL_MIN)
+    requires (pixel <= PIXEL_MAX)
+    requires (blurred >= PIXEL_MIN)
+    requires (blurred <= PIXEL_MAX)
+    requires (amount >= ZERO)
+    requires (amount <= AMOUNT_MAX)
+    requires (gate >= ZERO)
+    requires (gate <= ONE)
+{
+    pixel + gate * amount * (pixel - blurred)
+}
