@@ -49,7 +49,7 @@ fn saturation_vapor_pressure(temperature_k: Real) -> VaporPressure
 // RH = e / e_s, expressed as a fraction in [0, 1]. Chain order 0
 // when both inputs are pre-computed; chain 1 if e_s is inlined.
 @target(fpga, clock_mhz = 500, precision = float64)
-@verify(lean, theorem = "relative_humidity_in_unit_interval")
+@verify(lean, theorem = "relative_humidity_in_unit_interval_clausius")
 fn relative_humidity(
     actual_vapor_pressure: Real,
     saturation_pressure: Real,

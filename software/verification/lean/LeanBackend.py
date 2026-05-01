@@ -69,6 +69,9 @@ _TYPE_TO_LEAN: dict[str, str] = {
     "f32":  "Real",
     "f16":  "Real",
     "bf16": "Real",
+    "Int":  "Int",
+    "Nat":  "Nat",
+    "Byte": "Nat",
     "u8":   "Nat",
     "u16":  "Nat",
     "u32":  "Nat",
@@ -78,11 +81,31 @@ _TYPE_TO_LEAN: dict[str, str] = {
     "i32":  "Int",
     "i64":  "Int",
     "bool": "Bool",
+    "Bool": "Bool",
 }
 
 
 def _lean_type(eml_type: str) -> str:
     return _TYPE_TO_LEAN.get(eml_type, "Real")
+
+
+def _to_prop(expr: str) -> str:
+    """Normalise a Bool-literal-only expression into a Prop.
+
+    `requires (true)` and `ensures (true)` parse as Bool literals
+    that emit lowercase `true` / `false`; in a hypothesis or
+    conclusion position those are values, not Props, so Lean
+    rejects them. We rewrite them to capitalised `True` / `False`
+    here. Compound expressions (e.g. `a >= 0 && b <= 1`) pass
+    through unchanged — they're already Prop-valued via the >=
+    / <= / && operators that `_emit_expr` renders.
+    """
+    s = expr.strip()
+    if s == "true":
+        return "True"
+    if s == "false":
+        return "False"
+    return expr
 
 
 class LeanBackend:
@@ -129,14 +152,61 @@ class LeanBackend:
         # fail Lean elaboration with `unknown identifier`.
         if mod.constants:
             for const in mod.constants:
+                lean_type = _lean_type(const.type_name)
+                # `_emit_expr` always wraps integer/float literals as
+                # `(N : Real)` because that's the right cast for the
+                # body of a Real-valued kernel function. For Int/Nat
+                # constants that's a type error: we want the literal
+                # at its declared type, not Real. Special-case the
+                # bare-integer literal when the declared type is Int
+                # or Nat.
+                value_node = const.value
+                is_int_lit = (
+                    value_node.kind == NodeKind.LITERAL
+                    and isinstance(value_node.value, int)
+                    and not isinstance(value_node.value, bool)
+                )
                 try:
-                    val = self._emit_expr(const.value)
+                    if lean_type in ("Int", "Nat") and is_int_lit:
+                        val = str(value_node.value)
+                    else:
+                        val = self._emit_expr(value_node)
                 except _UnsupportedNode as e:
                     val = f"sorry  -- TODO: const value unsupported ({e})"
-                lean_type = _lean_type(const.type_name)
                 lines.append(
                     f"noncomputable def {const.name} : {lean_type} := {val}"
                 )
+            lines.append("")
+        # Emit signatures for every non-verified function as `axiom`.
+        # We deliberately don't emit their bodies even when they're
+        # well-formed: Lean requires every used identifier to be
+        # in-scope at use site, so a helper that calls a verified
+        # function would force us to either reorder declarations
+        # (hard with mutual recursion) or wrap everything in a
+        # `mutual` block. Treating helpers as axioms is the same
+        # approach we already use for `extern` functions, and it
+        # gives the verified theorems the symbols they need with
+        # zero ordering constraint. The cost: we lose the helper's
+        # body in the discovered file. The auto_prove driver knows
+        # this is a scaffold pass — actual helper bodies live in
+        # the .eml source, not in MachLib.
+        verified_names = {f.name for f in verified}
+        for fn in mod.functions:
+            if fn.name in verified_names:
+                continue
+            params_lean = " ".join(
+                f"({p.name} : {_lean_type(p.type_name)})"
+                for p in fn.params
+            )
+            ret_type = (
+                "Real" if fn.return_tuple_types
+                else _lean_type(fn.return_type or "Real")
+            )
+            note = ("extern" if fn.is_extern else "helper")
+            lines.append(
+                f"axiom {fn.name} {params_lean} : {ret_type}"
+                f"  -- {note} (axiomatised in MachLib/Discovered)"
+            )
             lines.append("")
         for fn in verified:
             lines.extend(self._compile_one(fn, mod))
@@ -180,38 +250,41 @@ class LeanBackend:
             else _lean_type(func.return_type or "Real")
         )
 
-        # Extern fns are opaque declarations by definition -- the
-        # implementation lives outside EML-lang's reach.
+        # Extern fns are axiom declarations -- the implementation
+        # lives outside EML-lang's reach. We use `axiom` rather than
+        # `opaque` because Lean 4's `opaque` requires an executable
+        # default, and our `Real` is noncomputable so no such
+        # default exists.
         if func.is_extern:
             return [
-                f"opaque {func.name} {params_lean} : {ret_type}"
+                f"axiom {func.name} {params_lean} : {ret_type}"
                 f"  -- extern declaration",
             ]
 
-        # Tuple returns and complex bodies become opaque declarations
+        # Tuple returns and complex bodies become axiom declarations
         # so the theorem can still refer to them by name.
         complex_body = self._has_complex_body(func.body)
         if func.return_tuple_types or complex_body:
-            tuple_note = (" -- tuple-return; opaque for now"
+            tuple_note = (" -- tuple-return; axiomatised for now"
                           if func.return_tuple_types else "")
-            complex_note = ("\n-- (body has mut / while -- opaque "
+            complex_note = ("\n-- (body has mut / while -- axiomatised "
                             "until Phase 2.5 control-flow analyzer)"
                             if complex_body else "")
             return [
-                f"opaque {func.name} {params_lean} : {ret_type}"
+                f"axiom {func.name} {params_lean} : {ret_type}"
                 f"{tuple_note}{complex_note}",
             ]
 
         # Single-expression body -- inline the AST.
         body_expr = self._extract_body_expression(func.body)
         if body_expr is None:
-            return [f"opaque {func.name} {params_lean} : {ret_type}"
+            return [f"axiom {func.name} {params_lean} : {ret_type}"
                     f"  -- empty body"]
         try:
             lean_body = self._emit_expr(body_expr)
         except _UnsupportedNode as e:
             return [
-                f"opaque {func.name} {params_lean} : {ret_type}"
+                f"axiom {func.name} {params_lean} : {ret_type}"
                 f"  -- unsupported AST: {e}",
             ]
         # `noncomputable` is required because every body uses the
@@ -230,12 +303,14 @@ class LeanBackend:
         params_lean = " ".join(
             f"({p.name} : {_lean_type(p.type_name)})" for p in func.params
         )
-        # Hypotheses
+        # Hypotheses. Bool literals (`true` / `false`) coming from
+        # `requires (true)` are normalised to Prop `True` / `False` —
+        # otherwise Lean rejects them as values, not hypotheses.
         hyp_clauses: list[str] = []
         for i, req in enumerate(func.requires):
             try:
                 hyp = self._emit_expr(req)
-                hyp_clauses.append(f"(h{i+1} : {hyp})")
+                hyp_clauses.append(f"(h{i+1} : {_to_prop(hyp)})")
             except _UnsupportedNode as e:
                 hyp_clauses.append(f"-- TODO: requires #{i+1} ({e})")
         # Conclusion
@@ -245,7 +320,7 @@ class LeanBackend:
             param_names = [p.name for p in func.params]
             call = f"{func.name} {' '.join(param_names)}"
             try:
-                conclusion = self._emit_expr(ens, result_subst=call)
+                conclusion = _to_prop(self._emit_expr(ens, result_subst=call))
             except _UnsupportedNode as e:
                 conclusion = f"True  -- TODO: ensures unsupported ({e})"
         else:

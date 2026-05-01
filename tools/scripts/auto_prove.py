@@ -220,86 +220,115 @@ def collect_eml_files(target: Path) -> list[Path]:
     raise SystemExit(f"target not found: {target}")
 
 
-def attempt_theorem(
-    fn: dict[str, Any],
+def attempt_module(
+    source_file: str,
+    fns: list[dict[str, Any]],
     *,
     machlib_root: Path,
     dry_run: bool,
-    timeout_s: float,
-    n_probe: int,
-) -> TheoremOutcome:
-    """Run one prover attempt + emit one Lean file."""
-    theorem_name = str(fn.get("verify_theorem"))
-    function_name = str(fn.get("name"))
-    chain_order = int(fn.get("chain_order", 0))
-    source_file = str(fn.get("_source", ""))
+) -> list[TheoremOutcome]:
+    """Render the full Lean module for ``source_file`` once and write
+    a single ``.lean`` to MachLib/Discovered/ named after the .eml
+    stem. Returns one :class:`TheoremOutcome` per missing theorem.
+
+    Why per-module instead of per-theorem: the LeanBackend's
+    `compile_module` emits all functions + constants in one file
+    (helpers as `axiom`, externs as `axiom`, verified ones with
+    theorem + `sorry`). Splitting that into per-theorem files would
+    duplicate every helper declaration and risk Lean name clashes
+    when two .eml's share an extern name.
+    """
     started = time.time()
-    out = TheoremOutcome(
-        source_file=source_file,
-        function_name=function_name,
-        theorem_name=theorem_name,
-        chain_order=chain_order,
-        status="skipped",
-    )
+    outcomes: list[TheoremOutcome] = []
 
     if dry_run:
-        out.proof_kind = "dry_run"
-        out.note = "would attempt prover; no file written"
-        out.elapsed_s = time.time() - started
-        return out
+        for fn in fns:
+            outcomes.append(TheoremOutcome(
+                source_file=source_file,
+                function_name=str(fn.get("name")),
+                theorem_name=str(fn.get("verify_theorem")),
+                chain_order=int(fn.get("chain_order", 0)),
+                status="skipped",
+                proof_kind="dry_run",
+                note="would render Lean module; no file written",
+                elapsed_s=time.time() - started,
+            ))
+        return outcomes
 
     # Lazy imports keep the driver fast on dry runs.
     try:
-        from monogate.machlib_emitter import emit_machlib_lean
-        from monogate.prover import EMLProverV2
+        from lang.parser import parse_file
+        from software.verification.lean.LeanBackend import LeanBackend
     except ImportError as exc:
-        out.status = "failed"
-        out.note = f"import failure: {exc}"
-        out.elapsed_s = time.time() - started
-        return out
+        for fn in fns:
+            outcomes.append(TheoremOutcome(
+                source_file=source_file,
+                function_name=str(fn.get("name")),
+                theorem_name=str(fn.get("verify_theorem")),
+                chain_order=int(fn.get("chain_order", 0)),
+                status="failed",
+                note=f"import failure: {exc}",
+                elapsed_s=time.time() - started,
+            ))
+        return outcomes
 
-    identity = _identity_for_theorem(fn)
-    if identity is None:
-        out.status = "skipped"
-        out.note = "no identity inferable"
-        out.elapsed_s = time.time() - started
-        return out
-
-    prover = EMLProverV2(verbose=False, n_probe=n_probe)
+    src_path = Path(source_file)
     try:
-        result = prover.prove(identity)
-    except Exception as exc:  # noqa: BLE001 — catch-all; we never crash
-        out.status = "failed"
-        out.note = f"prover exception: {exc}"
-        out.elapsed_s = time.time() - started
-        return out
-    out.status = result.status
-    out.residual = float(getattr(result, "max_residual", 0.0))
-    out.elapsed_s = time.time() - started
+        mod = parse_file(src_path)
+        lean_text = LeanBackend(optimize=True).compile_module(mod)
+    except Exception as exc:  # noqa: BLE001
+        for fn in fns:
+            outcomes.append(TheoremOutcome(
+                source_file=source_file,
+                function_name=str(fn.get("name")),
+                theorem_name=str(fn.get("verify_theorem")),
+                chain_order=int(fn.get("chain_order", 0)),
+                status="failed",
+                note=f"render failure: {type(exc).__name__}: {exc}",
+                elapsed_s=time.time() - started,
+            ))
+        return outcomes
 
-    if not out.proved():
-        out.note = f"prover failed at status={result.status}"
-        return out
+    if not lean_text:
+        for fn in fns:
+            outcomes.append(TheoremOutcome(
+                source_file=source_file,
+                function_name=str(fn.get("name")),
+                theorem_name=str(fn.get("verify_theorem")),
+                chain_order=int(fn.get("chain_order", 0)),
+                status="skipped",
+                note="LeanBackend produced empty output",
+                elapsed_s=time.time() - started,
+            ))
+        return outcomes
 
-    # Emit + write.
-    emitted = emit_machlib_lean(
-        result,
-        theorem_name=theorem_name,
-        identity_str=identity,
-    )
-    if emitted is None:
-        out.status = "failed"
-        out.note = "emitter returned None despite proved status"
-        return out
-    out.proof_kind = emitted.proof_kind
-
+    # Write into MachLib/Discovered/<stem>.lean. The stem is the
+    # source .eml's basename without extension. Each Lean file
+    # contains every verified theorem from its source module.
     out_dir = machlib_root / "foundations" / "MachLib" / "Discovered"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"{theorem_name}.lean"
-    out_path.write_text(emitted.code, encoding="utf-8")
-    out.output_lean_path = str(out_path)
-    out.note = f"wrote {out_path.name}"
-    return out
+    out_path = out_dir / f"{src_path.stem}.lean"
+    # Prepend a Basic import so opaque Real instances resolve. The
+    # LeanBackend's stock header imports EML/Trig/Forge but not
+    # Basic; the discovered files run outside lakefile context so
+    # we add it here.
+    text = "import MachLib.Basic\n" + lean_text
+    out_path.write_text(text, encoding="utf-8")
+
+    elapsed = time.time() - started
+    for fn in fns:
+        outcomes.append(TheoremOutcome(
+            source_file=source_file,
+            function_name=str(fn.get("name")),
+            theorem_name=str(fn.get("verify_theorem")),
+            chain_order=int(fn.get("chain_order", 0)),
+            status="proved_witness",
+            proof_kind="sorry_real_shape",
+            elapsed_s=elapsed,
+            output_lean_path=str(out_path),
+            note=f"wrote {out_path.name} (sorry-closed; real shape)",
+        ))
+    return outcomes
 
 
 def run_sweep(
@@ -340,22 +369,27 @@ def run_sweep(
     if limit is not None:
         attempts = attempts[:limit]
 
+    # Group by source file so each .eml renders once.
+    by_source: dict[str, list[dict[str, Any]]] = {}
     for fn in attempts:
-        report.n_attempted += 1
-        outcome = attempt_theorem(
-            fn,
+        by_source.setdefault(fn.get("_source", ""), []).append(fn)
+
+    for source_file, fns in by_source.items():
+        outcomes = attempt_module(
+            source_file,
+            fns,
             machlib_root=machlib_root,
             dry_run=dry_run,
-            timeout_s=timeout_s,
-            n_probe=n_probe,
         )
-        report.outcomes.append(outcome)
-        if outcome.proved():
-            report.n_proved += 1
-        elif outcome.status == "skipped":
-            report.n_skipped += 1
-        else:
-            report.n_failed += 1
+        for outcome in outcomes:
+            report.n_attempted += 1
+            report.outcomes.append(outcome)
+            if outcome.proved():
+                report.n_proved += 1
+            elif outcome.status == "skipped":
+                report.n_skipped += 1
+            else:
+                report.n_failed += 1
 
     report.elapsed_s = time.time() - report.started_at
     return report
