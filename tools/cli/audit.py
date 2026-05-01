@@ -274,8 +274,17 @@ def _try_backends(mod, has_verify: bool) -> list[BackendResult]:
     return results
 
 
-def audit(source_path: Path) -> AuditReport:
-    """Run the full audit on a parsed .eml file."""
+def audit(source_path: Path,
+          *, skip_backends: bool = False) -> AuditReport:
+    """Run the full audit on a parsed .eml file.
+
+    When ``skip_backends`` is ``True``, the 21-backend compile matrix
+    is skipped and ``backends`` is left empty. Useful for downstream
+    drivers (auto_prove, machlib coverage sweeps) that only consume
+    the per-function profile + MachLib coverage and don't care about
+    backend health — typically ~10x faster end-to-end since the
+    backend matrix dominates audit wall-clock.
+    """
     if not source_path.is_file():
         raise FileNotFoundError(f"{source_path} does not exist")
 
@@ -287,7 +296,9 @@ def audit(source_path: Path) -> AuditReport:
 
     machlib_index = _index_machlib_theorems()
     functions, any_verify = _profile_functions(mod, machlib_index)
-    backends = _try_backends(mod, any_verify)
+    backends: list[BackendResult] = (
+        [] if skip_backends else _try_backends(mod, any_verify)
+    )
 
     n_ok = sum(1 for b in backends if b.status == "ok")
     n_skip = sum(1 for b in backends if b.status == "skip")
@@ -404,10 +415,20 @@ def main(argv: list[str] | None = None) -> int:
                         help="Emit a machine-readable JSON report.")
     parser.add_argument("--quiet", action="store_true",
                         help="Suppress all output; exit code carries verdict.")
+    parser.add_argument(
+        "--no-backend-recompile", "--skip-backends",
+        action="store_true",
+        dest="skip_backends",
+        help=("Skip the 21-backend compile matrix. ~10x faster; useful "
+              "for downstream drivers (auto_prove etc.) that only need "
+              "per-function profile + MachLib coverage. Exit code in "
+              "this mode reflects MachLib coverage only — backend "
+              "health is not checked."),
+    )
     args = parser.parse_args(argv)
 
     try:
-        report = audit(args.source)
+        report = audit(args.source, skip_backends=args.skip_backends)
     except FileNotFoundError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
