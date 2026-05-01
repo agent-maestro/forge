@@ -85,8 +85,33 @@ _TYPE_TO_LEAN: dict[str, str] = {
 }
 
 
+# Identifiers reserved by Lean 4. EML allows these as function /
+# parameter names, but Lean rejects them as identifiers (they're
+# keywords). We rename collisions to ``<name>_`` on emission so the
+# Lean kernel accepts the file.
+_LEAN_RESERVED: frozenset[str] = frozenset({
+    "abbrev", "as", "attribute", "axiom", "begin", "by", "class",
+    "constant", "decreasing_by", "def", "deriving", "do", "else",
+    "end", "example", "export", "extends", "extern", "final", "for",
+    "from", "fun", "have", "if", "import", "in", "inductive",
+    "infix", "infixl", "infixr", "instance", "lemma", "let",
+    "macro", "macro_rules", "match", "mut", "mutual", "namespace",
+    "noncomputable", "notation", "open", "opaque", "partial",
+    "postfix", "prefix", "private", "protected", "public", "rec",
+    "return", "scoped", "section", "set_option", "show",
+    "structure", "suffices", "syntax", "term", "then", "theorem",
+    "this", "true", "false", "try", "universe", "unsafe",
+    "variable", "where", "while", "with",
+})
+
+
 def _lean_type(eml_type: str) -> str:
     return _TYPE_TO_LEAN.get(eml_type, "Real")
+
+
+def _safe_id(name: str) -> str:
+    """Append ``_`` to any name that collides with a Lean keyword."""
+    return f"{name}_" if name in _LEAN_RESERVED else name
 
 
 def _to_prop(expr: str) -> str:
@@ -195,7 +220,7 @@ class LeanBackend:
             if fn.name in verified_names:
                 continue
             params_lean = " ".join(
-                f"({p.name} : {_lean_type(p.type_name)})"
+                f"({_safe_id(p.name)} : {_lean_type(p.type_name)})"
                 for p in fn.params
             )
             ret_type = (
@@ -204,7 +229,7 @@ class LeanBackend:
             )
             note = ("extern" if fn.is_extern else "helper")
             lines.append(
-                f"axiom {fn.name} {params_lean} : {ret_type}"
+                f"axiom {_safe_id(fn.name)} {params_lean} : {ret_type}"
                 f"  -- {note} (axiomatised in MachLib/Discovered)"
             )
             lines.append("")
@@ -242,8 +267,10 @@ class LeanBackend:
         """Emit a Lean `def` matching the EML function. For complex
         bodies (mut / while), emit `opaque` instead so the theorem
         can still talk about the function symbolically."""
+        safe_name = _safe_id(func.name)
         params_lean = " ".join(
-            f"({p.name} : {_lean_type(p.type_name)})" for p in func.params
+            f"({_safe_id(p.name)} : {_lean_type(p.type_name)})"
+            for p in func.params
         )
         ret_type = (
             "Real" if func.return_tuple_types
@@ -257,7 +284,7 @@ class LeanBackend:
         # default exists.
         if func.is_extern:
             return [
-                f"axiom {func.name} {params_lean} : {ret_type}"
+                f"axiom {safe_name} {params_lean} : {ret_type}"
                 f"  -- extern declaration",
             ]
 
@@ -271,20 +298,20 @@ class LeanBackend:
                             "until Phase 2.5 control-flow analyzer)"
                             if complex_body else "")
             return [
-                f"axiom {func.name} {params_lean} : {ret_type}"
+                f"axiom {safe_name} {params_lean} : {ret_type}"
                 f"{tuple_note}{complex_note}",
             ]
 
         # Single-expression body -- inline the AST.
         body_expr = self._extract_body_expression(func.body)
         if body_expr is None:
-            return [f"axiom {func.name} {params_lean} : {ret_type}"
+            return [f"axiom {safe_name} {params_lean} : {ret_type}"
                     f"  -- empty body"]
         try:
             lean_body = self._emit_expr(body_expr)
         except _UnsupportedNode as e:
             return [
-                f"axiom {func.name} {params_lean} : {ret_type}"
+                f"axiom {safe_name} {params_lean} : {ret_type}"
                 f"  -- unsupported AST: {e}",
             ]
         # `noncomputable` is required because every body uses the
@@ -294,14 +321,16 @@ class LeanBackend:
         # "failed to compile definition, consider marking it as
         # 'noncomputable'".
         return [
-            f"noncomputable def {func.name} {params_lean} : {ret_type} :=",
+            f"noncomputable def {safe_name} {params_lean} : {ret_type} :=",
             f"  {lean_body}",
         ]
 
     def _render_theorem(self, func: EMLFunction,
                         theorem_name: str) -> list[str]:
+        safe_func = _safe_id(func.name)
         params_lean = " ".join(
-            f"({p.name} : {_lean_type(p.type_name)})" for p in func.params
+            f"({_safe_id(p.name)} : {_lean_type(p.type_name)})"
+            for p in func.params
         )
         # Hypotheses. Bool literals (`true` / `false`) coming from
         # `requires (true)` are normalised to Prop `True` / `False` —
@@ -317,8 +346,8 @@ class LeanBackend:
         if func.ensures:
             ens = func.ensures[0]
             # `result` in ensures refers to the function's output.
-            param_names = [p.name for p in func.params]
-            call = f"{func.name} {' '.join(param_names)}"
+            param_names = [_safe_id(p.name) for p in func.params]
+            call = f"{safe_func} {' '.join(param_names)}"
             try:
                 conclusion = _to_prop(self._emit_expr(ens, result_subst=call))
             except _UnsupportedNode as e:
@@ -347,7 +376,7 @@ class LeanBackend:
             proof_lines.append(f"  trivial")
         else:
             proof_lines.extend([
-                f"  unfold {func.name}",
+                f"  unfold {safe_func}",
                 f"  sorry  -- TODO: prove against MachLib foundations",
             ])
         return proof_lines
@@ -414,7 +443,7 @@ class LeanBackend:
             name = str(node.value)
             if name == "result" and result_subst is not None:
                 return f"({result_subst})"
-            return name
+            return _safe_id(name)
 
         if kind == NodeKind.UNARYOP:
             sub = self._emit_expr(node.children[0],
@@ -431,10 +460,13 @@ class LeanBackend:
             right = self._emit_expr(node.children[1],
                                     result_subst=result_subst)
             op = node.value
-            # Lean binop spelling matches except for boolean ops.
+            # Lean binop spelling differs for boolean and inequality
+            # operators. EML uses C-style `!=`; Lean wants `≠`.
             lean_op = {
                 "&&": "∧",
                 "||": "∨",
+                "!=": "≠",
+                "==": "=",
             }.get(op, op)
             return f"({left} {lean_op} {right})"
 
@@ -475,8 +507,10 @@ class LeanBackend:
             )
             # Stdlib activation / EML-family calls pass through
             # by their EML name; the downstream MachLib stdlib
-            # provides their definitions.
-            name = str(node.value)
+            # provides their definitions. Sanitise Lean-keyword
+            # collisions on the call site too so they match the
+            # `_safe_id`-renamed declaration.
+            name = _safe_id(str(node.value))
             return f"({name} {args})"
 
         if kind == NodeKind.TUPLE:
