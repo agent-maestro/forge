@@ -1,0 +1,87 @@
+// vpd_control.eml -- vapor pressure deficit (VPD) for greenhouse control.
+//
+// VPD is the difference between the saturation vapor pressure (the
+// maximum amount of water vapor air can hold at a given temperature)
+// and the actual vapor pressure. Plants transpire faster when VPD is
+// higher; greenhouse climate controllers regulate humidity to keep
+// VPD inside a crop-specific sweet spot (typically 0.4-1.6 kPa).
+//
+//   saturation_vp(T)        Tetens equation
+//                           e_s(T) = 0.6108 * exp(17.27 T / (237.3 + T))
+//                           returns kPa, T in degrees Celsius.
+//
+//   vpd(T, RH)              e_s(T) * (1 - RH/100)
+//
+//   vpd_safe(T, RH)         contract-bounded form for control loops --
+//                           strictly positive output for any indoor
+//                           greenhouse climate (0 < T, 0 < RH < 100).
+//
+// The Tetens form (a = 17.27, b = 237.3) is the agricultural-extension
+// variant, distinct from the WMO Magnus form in scientific/climate/
+// humidity.eml (a = 17.62, b = 243.12). Both are valid; Tetens is what
+// every greenhouse controller manual / FAO Penman-Monteith reference
+// uses, so kernels meant to be cross-referenced with horticultural
+// literature should target this file.
+//
+// Chain order 1 (single exp). Companion to agriculture/crop/ and
+// agriculture/photosynthesis/ kernels.
+
+module vpd_control;
+
+const TETENS_A:    Real = 17.27
+const TETENS_B:    Real = 237.3
+const TETENS_REF:  Real = 0.6108
+
+// Greenhouse-realistic temperature window. Outside this band the
+// Tetens approximation degrades and the control loop should swap
+// to a fuller Magnus formulation (see scientific/climate/humidity).
+const T_MIN_C:     Real = 0.0
+const T_MAX_C:     Real = 60.0
+
+type VaporPressure = Real where chain_order <= 1
+type VPD           = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float32)
+fn saturation_vp(temp_c: Real) -> VaporPressure
+    where chain_order <= 1
+    requires (temp_c >= T_MIN_C)
+    requires (temp_c <= T_MAX_C)
+{
+    TETENS_REF * exp((TETENS_A * temp_c) / (TETENS_B + temp_c))
+}
+
+@target(fpga, clock_mhz = 200, precision = float32)
+fn vpd(temp_c: Real, humidity_pct: Real) -> VPD
+    where chain_order <= 1
+    requires (temp_c >= T_MIN_C)
+    requires (temp_c <= T_MAX_C)
+    requires (humidity_pct >= 0.0)
+    requires (humidity_pct <= 100.0)
+{
+    let svp = saturation_vp(temp_c);
+    svp * (1.0 - humidity_pct / 100.0)
+}
+
+// Strict-bounds contract form. The control loop calls this on the
+// hot path; the @verify annotation produces a Lean theorem proving
+// VPD stays strictly positive for any well-formed greenhouse state,
+// so the controller can divide by `vpd_safe(...)` without a
+// runtime nonzero guard.
+//
+// Body is inlined (rather than calling vpd(...)) so the Lean codegen
+// produces a concrete definition the prover can reduce, instead of
+// an axiomatised wrapper that would force the proof to assume a
+// helper-function fact.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "vpd_positive")
+fn vpd_safe(temp_c: Real, humidity_pct: Real) -> VPD
+    where chain_order <= 1
+    requires (temp_c >= T_MIN_C)
+    requires (temp_c <= T_MAX_C)
+    requires (humidity_pct > 0.0)
+    requires (humidity_pct < 100.0)
+    ensures  (result > 0.0)
+{
+    TETENS_REF * exp((TETENS_A * temp_c) / (TETENS_B + temp_c))
+        * (1.0 - humidity_pct / 100.0)
+}
