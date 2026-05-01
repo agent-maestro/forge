@@ -54,6 +54,9 @@ xsim.dir/
 scratch/
 *.scratch.*
 
+# live_counts.py per-machine slow-cache (pytest count + lake build seconds)
+.live_counts_cache.json
+
 # Local environment
 .env
 .env.local
