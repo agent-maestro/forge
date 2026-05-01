@@ -168,13 +168,16 @@ fn f(x: Real) -> Real
     assert "mg_sigmoid" not in out
 
 
-# ── Complex bodies become opaque ────────────────────────────────────
+# ── Complex bodies become axiom declarations ───────────────────────
+# Lean 4's `opaque` requires an executable default value; our `Real`
+# is noncomputable so we declare these as `axiom` instead, which
+# Lean accepts as a pure signature without a body.
 
 
-def test_complex_body_emits_opaque(profiler, backend):
-    """A function with `let mut` / `while` should be declared as
-    opaque (Lean doesn't have first-class iteration in pure terms),
-    so the theorem can still talk about it."""
+def test_complex_body_emits_axiom(profiler, backend):
+    """A function with `let mut` / `while` is declared as an axiom
+    (Lean doesn't have first-class iteration in pure terms), so the
+    theorem can still talk about it."""
     src = '''module t;
 @verify(lean, theorem = "thm")
 fn loop_fn(n: u8) -> Real
@@ -190,14 +193,14 @@ fn loop_fn(n: u8) -> Real
     mod = parse_source(src, "<test>")
     profiler.profile_module(mod)
     out = backend.compile_module(mod)
-    assert "opaque loop_fn" in out
-    # The theorem still renders (against the opaque def)
+    assert "axiom loop_fn" in out
+    # The theorem still renders (against the axiom-declared def)
     assert "theorem thm" in out
 
 
-def test_tuple_return_emits_opaque(profiler, backend):
-    """Tuple-return functions become opaque (Lean tuple types are
-    declared inline; backend defers to Phase 2.5)."""
+def test_tuple_return_emits_axiom(profiler, backend):
+    """Tuple-return functions become axiom declarations (Lean tuple
+    types are declared inline; backend defers to Phase 2.5)."""
     src = '''module t;
 @verify(lean, theorem = "thm")
 fn pair(x: Real) -> (Real, Real)
@@ -208,4 +211,4 @@ fn pair(x: Real) -> (Real, Real)
     mod = parse_source(src, "<test>")
     profiler.profile_module(mod)
     out = backend.compile_module(mod)
-    assert "opaque pair" in out
+    assert "axiom pair" in out
