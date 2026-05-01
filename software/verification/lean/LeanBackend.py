@@ -124,6 +124,20 @@ class LeanBackend:
             "open MachLib.Real",
             "",
         ]
+        # Emit module-level constants. Without this, kernel bodies
+        # that reference module constants (G_GRAVITY, VEL_MAX, ...)
+        # fail Lean elaboration with `unknown identifier`.
+        if mod.constants:
+            for const in mod.constants:
+                try:
+                    val = self._emit_expr(const.value)
+                except _UnsupportedNode as e:
+                    val = f"sorry  -- TODO: const value unsupported ({e})"
+                lean_type = _lean_type(const.type_name)
+                lines.append(
+                    f"noncomputable def {const.name} : {lean_type} := {val}"
+                )
+            lines.append("")
         for fn in verified:
             lines.extend(self._compile_one(fn, mod))
             lines.append("")
@@ -247,14 +261,20 @@ class LeanBackend:
         else:
             proof_lines[-1] += " :"
         proof_lines.append(f"    {conclusion} := by")
-        # Proof body: sorry. The proof obligation is left for the
-        # downstream agent / human; MachLib intentionally ships
-        # without `eml_auto`-style omnibus tactics so that the
-        # corpus contains the actual proofs, not auto-closures.
-        proof_lines.extend([
-            f"  unfold {func.name}",
-            f"  sorry  -- TODO: prove against MachLib foundations",
-        ])
+        # Proof body. When the kernel has no `ensures`, the goal
+        # reduces to `True` -- `unfold` cannot reduce `True`, so we
+        # close it with `trivial`. Otherwise we leave a `sorry` after
+        # an `unfold` that exposes the body, deferring the actual
+        # proof to the downstream agent / human. MachLib intentionally
+        # ships without `eml_auto`-style omnibus tactics so the corpus
+        # contains real proofs, not auto-closures.
+        if conclusion == "True":
+            proof_lines.append(f"  trivial")
+        else:
+            proof_lines.extend([
+                f"  unfold {func.name}",
+                f"  sorry  -- TODO: prove against MachLib foundations",
+            ])
         return proof_lines
 
     # ── Helpers ───────────────────────────────────────────────
