@@ -1,0 +1,114 @@
+// cook_torrance_ggx.eml -- physically based microfacet BRDF.
+//
+// The Cook-Torrance (1982) microfacet BRDF with the modern
+// Walter-et-al GGX (Trowbridge-Reitz) normal distribution:
+//
+//   f_r = D(h) * F(v.h) * G(l, v) / (4 * (n.l) * (n.v))
+//
+// where:
+//   D(h)     GGX normal distribution = alpha^2 /
+//                                      (pi * ((n.h)^2 * (alpha^2 - 1) + 1)^2)
+//   F(v.h)   Schlick Fresnel = F0 + (1 - F0) * (1 - v.h)^5
+//   G        Smith-Schlick masking-shadowing geometry
+//
+// Each component ships as its own kernel so the FPGA backend can
+// emit them as parallel pipelines and the verifier attaches one
+// theorem per term. Chain order 1 throughout (pow on chain-0
+// inputs); the composer is chain 0 once the three terms exist.
+//
+// drift_risk LOW under the rendered-image convention that all dot
+// products are pre-clamped to [0, 1]. Sibling to phong (the simple
+// shading model) and shadow_pcf (the visibility gate).
+
+module cook_torrance_ggx;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const FOUR:        Real = 4.0
+const FIVE:        Real = 5.0
+const PI:          Real = 3.141592653589793
+const TINY:        Real = 1.0e-7    // floor for divisor
+
+const ALPHA_MIN:   Real = 0.001
+const ALPHA_MAX:   Real = 1.0       // perfectly rough
+
+type BrdfTerm = Real where chain_order <= 1
+
+// GGX normal distribution function. Chain order 1 (pow only).
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "ggx_distribution_nonneg")
+fn ggx_distribution(n_dot_h_clamped: Real, alpha: Real) -> BrdfTerm
+    where chain_order <= 1
+    requires (n_dot_h_clamped >= 0.0)
+    requires (n_dot_h_clamped <= ONE)
+    requires (alpha >= ALPHA_MIN)
+    requires (alpha <= ALPHA_MAX)
+    ensures  (result >= 0.0)
+{
+    let alpha_sq = alpha * alpha;
+    let denom    = n_dot_h_clamped * n_dot_h_clamped * (alpha_sq - ONE) + ONE;
+    alpha_sq / (PI * denom * denom + TINY)
+}
+
+// Schlick Fresnel approximation. Chain order 1 (pow on (1 - v.h)).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "schlick_fresnel_in_unit_interval_when_f0_is")
+fn schlick_fresnel(v_dot_h_clamped: Real, f0: Real) -> BrdfTerm
+    where chain_order <= 1
+    requires (v_dot_h_clamped >= 0.0)
+    requires (v_dot_h_clamped <= ONE)
+    requires (f0 >= 0.0)
+    requires (f0 <= ONE)
+    ensures  (result >= f0)
+    ensures  (result <= ONE)
+{
+    f0 + (ONE - f0) * pow(ONE - v_dot_h_clamped, FIVE)
+}
+
+// Smith-Schlick geometry term G(l,v) — height-correlated form.
+// Caller supplies n.l and n.v already clamped. Chain order 0
+// (pure rational once alpha is squared).
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "smith_schlick_geometry_in_unit_interval")
+fn smith_schlick_geometry(
+    n_dot_l_clamped: Real, n_dot_v_clamped: Real, alpha: Real,
+) -> BrdfTerm
+    where chain_order <= 0
+    requires (n_dot_l_clamped > 0.0)
+    requires (n_dot_l_clamped <= ONE)
+    requires (n_dot_v_clamped > 0.0)
+    requires (n_dot_v_clamped <= ONE)
+    requires (alpha >= ALPHA_MIN)
+    requires (alpha <= ALPHA_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= ONE)
+{
+    let k    = alpha * alpha / 2.0;
+    let g_l  = n_dot_l_clamped / (n_dot_l_clamped * (ONE - k) + k);
+    let g_v  = n_dot_v_clamped / (n_dot_v_clamped * (ONE - k) + k);
+    g_l * g_v
+}
+
+// Final Cook-Torrance specular term. Caller pre-computes D, F, G
+// via the three sibling kernels.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "cook_torrance_specular_nonneg")
+fn specular(
+    distribution: Real, fresnel: Real, geometry: Real,
+    n_dot_l_clamped: Real, n_dot_v_clamped: Real,
+) -> BrdfTerm
+    where chain_order <= 0
+    requires (distribution >= 0.0)
+    requires (fresnel >= 0.0)
+    requires (fresnel <= ONE)
+    requires (geometry >= 0.0)
+    requires (geometry <= ONE)
+    requires (n_dot_l_clamped > 0.0)
+    requires (n_dot_l_clamped <= ONE)
+    requires (n_dot_v_clamped > 0.0)
+    requires (n_dot_v_clamped <= ONE)
+    ensures  (result >= 0.0)
+{
+    distribution * fresnel * geometry
+        / (FOUR * n_dot_l_clamped * n_dot_v_clamped + TINY)
+}

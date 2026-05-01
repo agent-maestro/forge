@@ -1,0 +1,99 @@
+// phong.eml -- Phong/Blinn-Phong shading model.
+//
+// Phong's local-illumination decomposition (1975) splits surface
+// reflectance into three additive terms — ambient, diffuse, specular:
+//
+//   I = k_a*I_a + k_d*max(0, N.L)*I_d + k_s*max(0, R.V)^shininess*I_s
+//
+// where N is the surface normal, L the light direction, V the view
+// direction, and R = 2*(N.L)*N - L the reflected light. The
+// Blinn-Phong variant replaces R.V with N.H (the half-vector
+// formulation) and is mathematically identical here once the caller
+// passes the corresponding cosine.
+//
+// We expose three chain-0 component kernels and one chain-1
+// composer. Chain order 1 from `pow` in the specular lobe.
+// drift_risk LOW under the convention that all dot products are
+// pre-clamped to [0, 1] by the caller's lighting front-end.
+//
+// Sibling to cook_torrance_ggx (microfacet BRDF) and to
+// shadow_pcf (the visibility gate that scales the diffuse and
+// specular terms before the final composition).
+
+module phong;
+
+const ZERO:           Real = 0.0
+const ONE:            Real = 1.0
+const SHININESS_MIN:  Real = 1.0
+const SHININESS_MAX:  Real = 1024.0     // very glossy chrome
+
+type Intensity = Real where chain_order <= 1
+
+// Ambient term — pure modulation. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "phong_ambient_below_input")
+fn ambient(k_ambient: Real, light_ambient: Real) -> Intensity
+    where chain_order <= 0
+    requires (k_ambient >= 0.0)
+    requires (k_ambient <= ONE)
+    requires (light_ambient >= 0.0)
+    requires (light_ambient <= ONE)
+{
+    k_ambient * light_ambient
+}
+
+// Lambertian diffuse term. Caller pre-clamps n_dot_l = max(0, N.L).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "phong_diffuse_below_kd_times_id")
+fn diffuse(
+    k_diffuse: Real,
+    n_dot_l_clamped: Real,
+    light_diffuse: Real,
+) -> Intensity
+    where chain_order <= 0
+    requires (k_diffuse >= 0.0)
+    requires (k_diffuse <= ONE)
+    requires (n_dot_l_clamped >= 0.0)
+    requires (n_dot_l_clamped <= ONE)
+    requires (light_diffuse >= 0.0)
+    requires (light_diffuse <= ONE)
+{
+    k_diffuse * n_dot_l_clamped * light_diffuse
+}
+
+// Specular term — the only chain-1 component (pow on a clamped
+// dot product). Caller pre-clamps r_dot_v = max(0, R.V) (or
+// n_dot_h if you prefer Blinn-Phong) and supplies the shininess.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "phong_specular_below_ks_times_is")
+fn specular(
+    k_specular: Real,
+    r_dot_v_clamped: Real,
+    shininess: Real,
+    light_specular: Real,
+) -> Intensity
+    where chain_order <= 1
+    requires (k_specular >= 0.0)
+    requires (k_specular <= ONE)
+    requires (r_dot_v_clamped >= 0.0)
+    requires (r_dot_v_clamped <= ONE)
+    requires (shininess >= SHININESS_MIN)
+    requires (shininess <= SHININESS_MAX)
+    requires (light_specular >= 0.0)
+    requires (light_specular <= ONE)
+{
+    k_specular * pow(r_dot_v_clamped, shininess) * light_specular
+}
+
+// Final Phong composition. Caller pre-computes the three component
+// intensities. Chain order 0 — pure addition.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "phong_total_above_each_component")
+fn shade(ambient_i: Real, diffuse_i: Real, specular_i: Real) -> Intensity
+    where chain_order <= 0
+    requires (ambient_i >= 0.0)
+    requires (diffuse_i >= 0.0)
+    requires (specular_i >= 0.0)
+{
+    ambient_i + diffuse_i + specular_i
+}

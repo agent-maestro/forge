@@ -1,0 +1,80 @@
+// van_genuchten.eml -- soil water retention curve theta(psi).
+//
+// The van Genuchten (1980) closed-form fits volumetric soil water
+// content theta against matric potential psi using three shape
+// parameters (alpha, n, residual/saturated content):
+//
+//   Se     = (1 + |alpha * psi|^n)^(-m),  m = 1 - 1/n
+//   theta  = theta_r + (theta_s - theta_r) * Se
+//
+// where:
+//   theta_r  residual water content (volumetric, dimensionless)
+//   theta_s  saturated water content
+//   alpha    inverse of the air-entry value           (1/cm)
+//   n        pore-size distribution shape exponent
+//   psi      soil matric head (negative = drier)      (cm)
+//
+// Sibling to penman_monteith (the atmospheric demand) and
+// farquhar_c3 (the canopy uptake) — together they close the
+// soil-plant-atmosphere continuum in agronomic-decision tools.
+// Chain order 2 from pow-of-pow in the saturation kernel;
+// drift_risk LOW under the hydraulic bounds in the requires
+// clauses.
+
+module van_genuchten;
+
+const ZERO:  Real = 0.0
+const ONE:   Real = 1.0
+
+const PSI_MAX:        Real = 1.5e4       // cm head — wilting at 15 bar
+const ALPHA_MAX:      Real = 1.0         // 1/cm — coarse sand upper
+const N_MIN:          Real = 1.05        // n > 1 strict; floor for stability
+const N_MAX:          Real = 6.0         // very-coarse-sand ceiling
+const THETA_MAX:      Real = 0.65        // ~peat saturation upper bound
+
+type WaterContent = Real where chain_order <= 2
+
+// Effective saturation Se = (1 + |alpha*psi|^n)^(-m), m = 1 - 1/n.
+// Returned in [0, 1]; 1 at full saturation, 0 in the dry limit.
+// Chain order 2 (pow wraps pow on a polynomial inner argument).
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "vg_effective_saturation_in_unit_interval")
+fn effective_saturation(
+    psi: Real, alpha: Real, n_shape: Real,
+) -> Real
+    where chain_order <= 2
+    requires (psi >= 0.0)               // |psi| supplied by caller
+    requires (psi <= PSI_MAX)
+    requires (alpha >= 0.0)
+    requires (alpha <= ALPHA_MAX)
+    requires (n_shape >= N_MIN)
+    requires (n_shape <= N_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= ONE)
+{
+    let m = ONE - ONE / n_shape;
+    pow(ONE + pow(alpha * psi, n_shape), -m)
+}
+
+// Volumetric water content theta = theta_r + (theta_s - theta_r) * Se.
+// Caller supplies Se from `effective_saturation` (or a pre-tabulated
+// lookup) so the kernel stays chain-0 once Se is materialised.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "vg_theta_within_residual_saturated_band")
+fn water_content(
+    theta_residual: Real,
+    theta_saturated: Real,
+    effective_sat: Real,
+) -> WaterContent
+    where chain_order <= 0
+    requires (theta_residual >= 0.0)
+    requires (theta_residual <= THETA_MAX)
+    requires (theta_saturated >= theta_residual)
+    requires (theta_saturated <= THETA_MAX)
+    requires (effective_sat >= 0.0)
+    requires (effective_sat <= ONE)
+    ensures  (result >= theta_residual)
+    ensures  (result <= theta_saturated)
+{
+    theta_residual + (theta_saturated - theta_residual) * effective_sat
+}

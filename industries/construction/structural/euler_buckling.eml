@@ -1,0 +1,118 @@
+// euler_buckling.eml -- Euler critical-load formula for column buckling.
+//
+// Leonhard Euler (1757). The smallest axial load that causes a
+// slender pin-ended column to buckle elastically:
+//
+//   P_cr = pi^2 * E * I / (K * L)^2
+//
+// where:
+//   E    Young's modulus                            (Pa)
+//   I    second moment of area about the buckling axis (m^4)
+//   K    effective-length factor (boundary conditions)
+//   L    unsupported length                         (m)
+//
+// Effective-length factor K:
+//   pin-pin    K = 1.0  (idealised reference case)
+//   fix-pin    K = 0.7
+//   fix-fix    K = 0.5
+//   fix-free   K = 2.0  (cantilever)
+//
+// Companion kernels: slenderness ratio (used to gate which mode
+// applies — Euler is valid above the proportional-limit
+// slenderness) and Johnson's parabolic short-column formula for
+// the inelastic regime. Chain order 0 throughout. drift_risk LOW.
+//
+// Sibling to construction/beam/euler_bernoulli (deflection of the
+// same column under transverse load) and to construction/soil/
+// terzaghi_bearing (the foundation under the column).
+
+module euler_buckling;
+
+const PI_SQUARED: Real = 9.869604401089358    // pi^2
+const ONE:        Real = 1.0
+const TWO:        Real = 2.0
+
+const E_MIN:     Real = 1.0e8     // 100 MPa
+const E_MAX:     Real = 1.0e12    // 1 TPa
+const I_MIN:     Real = 1.0e-12
+const I_MAX:     Real = 1.0
+const K_MIN:     Real = 0.5       // fixed-fixed
+const K_MAX:     Real = 2.0       // fixed-free cantilever
+const L_MIN:     Real = 0.1       // 10 cm
+const L_MAX:     Real = 1.0e3     // 1 km — generous upper
+const R_GYRATION_MIN: Real = 1.0e-3
+const R_GYRATION_MAX: Real = 10.0
+const SLENDERNESS_MAX: Real = 500.0
+const SY_MIN:    Real = 1.0e6     // 1 MPa — soft material floor
+const SY_MAX:    Real = 1.0e10    // 10 GPa — extreme HSLA
+
+type Load           = Real where chain_order <= 0
+type Slenderness    = Real where chain_order <= 0
+
+// Euler critical buckling load. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "euler_critical_load_nonneg")
+fn critical_load(
+    modulus: Real, second_moment: Real,
+    effective_length_factor: Real, unsupported_length: Real,
+) -> Load
+    where chain_order <= 0
+    requires (modulus >= E_MIN)
+    requires (modulus <= E_MAX)
+    requires (second_moment >= I_MIN)
+    requires (second_moment <= I_MAX)
+    requires (effective_length_factor >= K_MIN)
+    requires (effective_length_factor <= K_MAX)
+    requires (unsupported_length >= L_MIN)
+    requires (unsupported_length <= L_MAX)
+    ensures  (result >= 0.0)
+{
+    let k_l = effective_length_factor * unsupported_length;
+    PI_SQUARED * modulus * second_moment / (k_l * k_l)
+}
+
+// Slenderness ratio = K * L / r, where r = sqrt(I / A) is the
+// radius of gyration. Above ~120 the Euler regime applies; below
+// it Johnson's parabolic formula governs.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "slenderness_ratio_nonneg")
+fn slenderness_ratio(
+    effective_length_factor: Real,
+    unsupported_length: Real,
+    radius_of_gyration: Real,
+) -> Slenderness
+    where chain_order <= 0
+    requires (effective_length_factor >= K_MIN)
+    requires (effective_length_factor <= K_MAX)
+    requires (unsupported_length >= L_MIN)
+    requires (unsupported_length <= L_MAX)
+    requires (radius_of_gyration >= R_GYRATION_MIN)
+    requires (radius_of_gyration <= R_GYRATION_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= SLENDERNESS_MAX)
+{
+    effective_length_factor * unsupported_length / radius_of_gyration
+}
+
+// Johnson short-column parabolic formula for the inelastic regime
+// (slenderness below the Euler-Johnson transition):
+//   sigma_cr = sigma_y - (sigma_y * (KL/r))^2 / (4 * pi^2 * E)
+// Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "johnson_short_column_below_yield")
+fn johnson_short_column_stress(
+    yield_strength: Real, slenderness: Real, modulus: Real,
+) -> Load
+    where chain_order <= 0
+    requires (yield_strength >= SY_MIN)
+    requires (yield_strength <= SY_MAX)
+    requires (slenderness >= 0.0)
+    requires (slenderness <= SLENDERNESS_MAX)
+    requires (modulus >= E_MIN)
+    requires (modulus <= E_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= yield_strength)
+{
+    let term = yield_strength * slenderness;
+    yield_strength - term * term / (4.0 * PI_SQUARED * modulus)
+}

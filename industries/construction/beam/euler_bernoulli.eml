@@ -1,0 +1,130 @@
+// euler_bernoulli.eml -- Euler-Bernoulli beam deflection primitives.
+//
+// The Euler-Bernoulli beam equation governs the small-deflection
+// response of a slender prismatic beam:
+//
+//   d^4 y / d x^4 = w(x) / (E * I)
+//
+// The closed-form maximum deflection for the canonical load cases
+// drops out of integration with the standard boundary conditions.
+// We ship the three most-used cases plus the bending-stress
+// gate that pairs with them in any structural-design check:
+//
+//   simply-supported, center load:     y_max = F * L^3 / (48 * E * I)
+//   simply-supported, UDL:             y_max = 5 * w * L^4 / (384 * E * I)
+//   cantilever, end load:              y_max = F * L^3 / (3  * E * I)
+//   bending stress at extreme fiber:   sigma = M * c / I
+//
+// Chain order 0 throughout — pure rational. drift_risk LOW under
+// the structural-engineering bounds (deflections small enough that
+// shear deformation can be neglected, i.e., L/h > 10).
+//
+// Sibling to construction/concrete/abrams_strength (the f_c that
+// feeds E via E = 4700*sqrt(f_c)) and to construction/structural/
+// euler_buckling (the column-stability counterpart).
+
+module euler_bernoulli;
+
+const ONE:           Real = 1.0
+const THREE:         Real = 3.0
+const FOURTY_EIGHT:  Real = 48.0
+const FIVE:          Real = 5.0
+const THREE_EIGHTY_FOUR: Real = 384.0
+
+const F_MAX:    Real = 1.0e8     // 100 MN -- bridge-span level
+const W_MAX:    Real = 1.0e6     // N/m
+const L_MIN:    Real = 0.1       // 10 cm minimum span
+const L_MAX:    Real = 1.0e3     // 1 km — generous upper
+const E_MIN:    Real = 1.0e8     // 100 MPa — soft polymers
+const E_MAX:    Real = 1.0e12    // 1 TPa — diamond-stiff ceiling
+const I_MIN:    Real = 1.0e-12
+const I_MAX:    Real = 1.0       // m^4
+const C_MAX:    Real = 10.0      // m — extreme depth
+const M_MAX:    Real = 1.0e10    // N*m — generous
+
+type Deflection = Real where chain_order <= 0
+type Stress     = Real where chain_order <= 0
+
+// Simply-supported beam under a center point load. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "ssb_center_load_deflection_nonneg")
+fn deflection_simple_center(
+    point_load: Real, span_length: Real, modulus: Real, second_moment: Real,
+) -> Deflection
+    where chain_order <= 0
+    requires (point_load >= 0.0)
+    requires (point_load <= F_MAX)
+    requires (span_length >= L_MIN)
+    requires (span_length <= L_MAX)
+    requires (modulus >= E_MIN)
+    requires (modulus <= E_MAX)
+    requires (second_moment >= I_MIN)
+    requires (second_moment <= I_MAX)
+    ensures  (result >= 0.0)
+{
+    point_load * span_length * span_length * span_length
+        / (FOURTY_EIGHT * modulus * second_moment)
+}
+
+// Simply-supported beam under uniformly distributed load.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "ssb_udl_deflection_nonneg")
+fn deflection_simple_udl(
+    distributed_load: Real,
+    span_length: Real,
+    modulus: Real,
+    second_moment: Real,
+) -> Deflection
+    where chain_order <= 0
+    requires (distributed_load >= 0.0)
+    requires (distributed_load <= W_MAX)
+    requires (span_length >= L_MIN)
+    requires (span_length <= L_MAX)
+    requires (modulus >= E_MIN)
+    requires (modulus <= E_MAX)
+    requires (second_moment >= I_MIN)
+    requires (second_moment <= I_MAX)
+    ensures  (result >= 0.0)
+{
+    FIVE * distributed_load
+        * span_length * span_length * span_length * span_length
+        / (THREE_EIGHTY_FOUR * modulus * second_moment)
+}
+
+// Cantilever, end point load.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "cantilever_end_load_deflection_nonneg")
+fn deflection_cantilever_end(
+    point_load: Real, span_length: Real, modulus: Real, second_moment: Real,
+) -> Deflection
+    where chain_order <= 0
+    requires (point_load >= 0.0)
+    requires (point_load <= F_MAX)
+    requires (span_length >= L_MIN)
+    requires (span_length <= L_MAX)
+    requires (modulus >= E_MIN)
+    requires (modulus <= E_MAX)
+    requires (second_moment >= I_MIN)
+    requires (second_moment <= I_MAX)
+    ensures  (result >= 0.0)
+{
+    point_load * span_length * span_length * span_length
+        / (THREE * modulus * second_moment)
+}
+
+// Bending stress at the extreme fiber: sigma = M * c / I.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "bending_stress_signed_with_moment")
+fn bending_stress(
+    moment: Real, distance_to_fiber: Real, second_moment: Real,
+) -> Stress
+    where chain_order <= 0
+    requires (moment >= -M_MAX)
+    requires (moment <= M_MAX)
+    requires (distance_to_fiber >= 0.0)
+    requires (distance_to_fiber <= C_MAX)
+    requires (second_moment >= I_MIN)
+    requires (second_moment <= I_MAX)
+{
+    moment * distance_to_fiber / second_moment
+}

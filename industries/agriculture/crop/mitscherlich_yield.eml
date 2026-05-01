@@ -1,0 +1,71 @@
+// mitscherlich_yield.eml -- diminishing-returns crop-yield response.
+//
+// The Mitscherlich (1909) law of physiological relations describes
+// crop yield Y as an exponential approach to a maximum potential
+// Y_max as the limiting input X (fertiliser, water, light, etc.)
+// is increased:
+//
+//   Y = Y_max * (1 - exp(-k * (X - X_baseline)))
+//
+// where:
+//   Y_max       upper-asymptote yield (t/ha or equivalent)
+//   k           response coefficient (1 / input-unit)
+//   X           applied input level
+//   X_baseline  pre-existing background level
+//
+// The economic optimum is found where marginal product equals input
+// price; we expose `marginal_yield` as a chain-1 sibling so the
+// downstream optimiser can solve the Lagrangian without re-deriving.
+// Chain order 1 from `exp`. Sibling to farquhar_c3 (the leaf-level
+// uptake) and to penman_monteith (the water-budget constraint).
+
+module mitscherlich_yield;
+
+const ZERO:    Real = 0.0
+const ONE:     Real = 1.0
+const Y_MAX:   Real = 100.0        // t/ha — generous ceiling for any crop
+const K_MAX:   Real = 5.0          // typical agronomic 0.01..1.5
+const X_MAX:   Real = 1000.0       // kg/ha N application or similar
+
+type Yield = Real where chain_order <= 1
+
+// Mitscherlich yield function. Chain order 1.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "mitscherlich_yield_below_potential")
+fn yield_response(
+    y_max: Real, k_coefficient: Real, input_applied: Real, input_baseline: Real,
+) -> Yield
+    where chain_order <= 1
+    requires (y_max >= 0.0)
+    requires (y_max <= Y_MAX)
+    requires (k_coefficient >= 0.0)
+    requires (k_coefficient <= K_MAX)
+    requires (input_applied >= input_baseline)
+    requires (input_applied <= X_MAX)
+    requires (input_baseline >= 0.0)
+    ensures  (result >= 0.0)
+    ensures  (result <= y_max)
+{
+    y_max * (ONE - exp(-k_coefficient * (input_applied - input_baseline)))
+}
+
+// Marginal yield dY/dX = Y_max * k * exp(-k * (X - X_baseline)).
+// Used by economic-optimum solvers and sensitivity analysis.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "mitscherlich_marginal_yield_nonneg")
+fn marginal_yield(
+    y_max: Real, k_coefficient: Real, input_applied: Real, input_baseline: Real,
+) -> Yield
+    where chain_order <= 1
+    requires (y_max >= 0.0)
+    requires (y_max <= Y_MAX)
+    requires (k_coefficient >= 0.0)
+    requires (k_coefficient <= K_MAX)
+    requires (input_applied >= input_baseline)
+    requires (input_applied <= X_MAX)
+    requires (input_baseline >= 0.0)
+    ensures  (result >= 0.0)
+{
+    y_max * k_coefficient
+        * exp(-k_coefficient * (input_applied - input_baseline))
+}

@@ -1,0 +1,101 @@
+// farquhar_c3.eml -- Farquhar-von Caemmerer-Berry C3 photosynthesis.
+//
+// The Farquhar et al. (1980) biochemical model of net CO2 assimilation
+// in C3 plants. Net photosynthesis A is the minimum of two
+// instantaneous limitations, less dark respiration:
+//
+//   A_c = Vcmax * (Ci - Gamma_star)
+//                / (Ci + Kc * (1 + O / Ko))            -- Rubisco-limited
+//
+//   A_j = J * (Ci - Gamma_star) / (4*Ci + 8*Gamma_star) -- RuBP-regen-limited
+//
+//   A   = min(A_c, A_j) - R_d
+//
+// where Ci is intercellular CO2, Gamma_star is the CO2 compensation
+// point with no R_d, O is intercellular O2, Kc/Ko are the Rubisco
+// kinetics constants, Vcmax is max carboxylation, J is the electron
+// transport rate, and R_d is dark respiration.
+//
+// Chain order 0 — pure rational. drift_risk LOW under leaf-canopy
+// physiological bounds. Sibling to mitscherlich_yield (the canopy
+// integrator) and van_genuchten (the soil-water gate that
+// determines stomatal conductance upstream of Ci).
+
+module farquhar_c3;
+
+const FOUR:  Real = 4.0
+const EIGHT: Real = 8.0
+const ONE:   Real = 1.0
+
+const CI_MIN:    Real = 1.0       // ppm — closed stomata floor
+const CI_MAX:    Real = 1500.0    // ppm — elevated CO2 ceiling
+const O2_MIN:    Real = 1.0e4     // 10000 ppm — high altitude
+const O2_MAX:    Real = 3.0e5     // 300000 ppm — pure O2 chamber
+const VCMAX_MAX: Real = 300.0     // umol m^-2 s^-1 — extreme tropical
+const J_MAX:     Real = 500.0     // umol m^-2 s^-1
+const RD_MAX:    Real = 10.0
+const GAMMA_MAX: Real = 100.0     // ppm — ceiling well above any C3
+
+type Assimilation = Real where chain_order <= 0
+
+// Rubisco-limited net assimilation A_c. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "farquhar_ac_nonneg_when_ci_above_gamma_star")
+fn rubisco_limited(
+    ci: Real, gamma_star: Real, vcmax: Real,
+    kc: Real, ko: Real, o2: Real,
+) -> Assimilation
+    where chain_order <= 0
+    requires (ci >= CI_MIN)
+    requires (ci <= CI_MAX)
+    requires (gamma_star >= 0.0)
+    requires (gamma_star <= GAMMA_MAX)
+    requires (gamma_star <= ci)
+    requires (vcmax >= 0.0)
+    requires (vcmax <= VCMAX_MAX)
+    requires (kc > 0.0)
+    requires (ko > 0.0)
+    requires (o2 >= O2_MIN)
+    requires (o2 <= O2_MAX)
+    ensures  (result >= 0.0)
+{
+    vcmax * (ci - gamma_star) / (ci + kc * (ONE + o2 / ko))
+}
+
+// RuBP-regeneration-limited (light-limited) A_j. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "farquhar_aj_nonneg_when_ci_above_gamma_star")
+fn light_limited(
+    ci: Real, gamma_star: Real, electron_transport: Real,
+) -> Assimilation
+    where chain_order <= 0
+    requires (ci >= CI_MIN)
+    requires (ci <= CI_MAX)
+    requires (gamma_star >= 0.0)
+    requires (gamma_star <= GAMMA_MAX)
+    requires (gamma_star <= ci)
+    requires (electron_transport >= 0.0)
+    requires (electron_transport <= J_MAX)
+    ensures  (result >= 0.0)
+{
+    electron_transport * (ci - gamma_star) / (FOUR * ci + EIGHT * gamma_star)
+}
+
+// Net assimilation A = min(A_c, A_j) - R_d. Caller supplies the two
+// candidate rates and the dark-respiration term so the same kernel
+// also serves the smoothed-min variants used in some ESMs.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "farquhar_net_below_min_of_limits")
+fn net_assimilation(
+    rubisco_rate: Real, light_rate: Real, dark_respiration: Real,
+) -> Assimilation
+    where chain_order <= 0
+    requires (rubisco_rate >= 0.0)
+    requires (rubisco_rate <= VCMAX_MAX)
+    requires (light_rate >= 0.0)
+    requires (light_rate <= J_MAX)
+    requires (dark_respiration >= 0.0)
+    requires (dark_respiration <= RD_MAX)
+{
+    min(rubisco_rate, light_rate) - dark_respiration
+}

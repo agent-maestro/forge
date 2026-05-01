@@ -1,0 +1,79 @@
+// aqi_epa.eml -- EPA Air Quality Index breakpoint conversion.
+//
+// The U.S. EPA AQI (40 CFR Part 58, Appendix G) maps a measured
+// pollutant concentration C to a 0-500 health-band index using
+// piecewise-linear interpolation between breakpoints:
+//
+//   AQI = (AQI_hi - AQI_lo) / (C_hi - C_lo) * (C - C_lo) + AQI_lo
+//
+// Bands:
+//     0- 50  Good          (green)
+//    51-100  Moderate      (yellow)
+//   101-150  Unhealthy SG  (orange)
+//   151-200  Unhealthy     (red)
+//   201-300  Very Unhealthy (purple)
+//   301-500  Hazardous     (maroon)
+//
+// Caller looks up (C_lo, C_hi, AQI_lo, AQI_hi) for the band the
+// measurement falls into via a small table; the EML kernel
+// performs the scalar interpolation. Chain order 0.
+//
+// drift_risk LOW. Sibling to environmental/emissions/carbon_intensity
+// (the matching corporate-emissions gate) and to environmental/
+// water/dissolved_oxygen (the matching aquatic-quality gate).
+
+module aqi_epa;
+
+const ZERO:         Real = 0.0
+const AQI_MAX:      Real = 500.0
+const TINY:         Real = 1.0e-6   // floor for (C_hi - C_lo)
+const C_MAX:        Real = 1.0e5    // 100,000 — extreme upper for any pollutant
+
+type AqiValue = Real where chain_order <= 0
+
+// Linear AQI within a single band. Caller has already classified
+// the concentration into the appropriate band and supplied its
+// breakpoints.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "aqi_within_band_bounds")
+fn aqi_in_band(
+    concentration: Real,
+    c_low: Real, c_high: Real,
+    aqi_low: Real, aqi_high: Real,
+) -> AqiValue
+    where chain_order <= 0
+    requires (concentration >= c_low)
+    requires (concentration <= c_high)
+    requires (c_low >= 0.0)
+    requires (c_low < c_high)
+    requires (c_high <= C_MAX)
+    requires (aqi_low >= 0.0)
+    requires (aqi_low < aqi_high)
+    requires (aqi_high <= AQI_MAX)
+    ensures  (result >= aqi_low)
+    ensures  (result <= aqi_high)
+{
+    (aqi_high - aqi_low) / (c_high - c_low + TINY)
+        * (concentration - c_low) + aqi_low
+}
+
+// Composite AQI = max across all reported pollutants. The EPA
+// rule is that the *worst* pollutant defines the index, not an
+// average. Three-way exposed because PM2.5, ozone, and NO2 are
+// the typical regulatory triad; longer arrays fold pairwise.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "aqi_composite_above_each_input")
+fn composite_aqi(aqi_pm25: Real, aqi_ozone: Real, aqi_no2: Real) -> AqiValue
+    where chain_order <= 0
+    requires (aqi_pm25 >= 0.0)
+    requires (aqi_pm25 <= AQI_MAX)
+    requires (aqi_ozone >= 0.0)
+    requires (aqi_ozone <= AQI_MAX)
+    requires (aqi_no2 >= 0.0)
+    requires (aqi_no2 <= AQI_MAX)
+    ensures  (result >= aqi_pm25)
+    ensures  (result >= aqi_ozone)
+    ensures  (result >= aqi_no2)
+{
+    max(max(aqi_pm25, aqi_ozone), aqi_no2)
+}

@@ -1,0 +1,87 @@
+// penman_monteith.eml -- FAO-56 reference evapotranspiration ET0.
+//
+// The Penman-Monteith equation (FAO Irrigation Paper 56) gives the
+// reference-crop evapotranspiration ET0, the atmospheric water
+// demand for a hypothetical short grass surface:
+//
+//                 Delta * (Rn - G) + rho_a * c_p * (e_s - e_a) / r_a
+//   ET0 = -----------------------------------------------------------
+//             Delta + gamma * (1 + r_s / r_a)
+//
+// Variables (caller supplies pre-computed Delta, e_s, e_a from
+// `clausius_clapeyron`):
+//   Delta    saturation vapor pressure slope        (kPa/K)
+//   Rn       net radiation                          (MJ m^-2 day^-1)
+//   G        soil heat flux density                 (MJ m^-2 day^-1)
+//   rho_a    air density                            (kg/m^3)
+//   c_p      specific heat of moist air             (MJ kg^-1 K^-1)
+//   e_s      saturation vapor pressure              (kPa)
+//   e_a      actual vapor pressure                  (kPa)
+//   r_a      aerodynamic resistance                 (s/m)
+//   r_s      surface (canopy) resistance            (s/m)
+//   gamma    psychrometric constant                 (kPa/K)
+//
+// Chain order 0 — pure rational once vapor-pressure quantities
+// arrive pre-computed. drift_risk LOW under FAO-56 bounds. Sibling
+// to clausius_clapeyron (which feeds e_s, e_a, Delta), to
+// van_genuchten (the soil-side gate), and to farquhar_c3 (the leaf
+// uptake — together they close the SPAC continuum).
+
+module penman_monteith;
+
+const ONE:        Real = 1.0
+const DELTA_MAX:  Real = 1.0      // kPa/K, well above any sensible value
+const RN_MAX:     Real = 50.0     // MJ m^-2 d^-1, equatorial peak
+const RHO_A_MAX:  Real = 1.5
+const E_MAX:      Real = 12.0     // kPa, > 100°C saturation
+const R_MAX:      Real = 1.0e5    // s/m, fully closed canopy
+const GAMMA_MAX:  Real = 0.1
+const CP_MAX:     Real = 1.5e-3   // MJ kg^-1 K^-1
+
+type ET = Real where chain_order <= 0
+
+// FAO-56 reference evapotranspiration. Chain order 0 — caller
+// pre-computes vapor-pressure terms via `clausius_clapeyron` and
+// the slope `Delta` (often via the analytical derivative of CC).
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "penman_monteith_et0_nonneg_when_radiation_above_g")
+fn reference_et0(
+    delta_slope: Real,
+    net_radiation: Real,
+    soil_heat_flux: Real,
+    air_density: Real,
+    specific_heat: Real,
+    sat_vapor_pressure: Real,
+    actual_vapor_pressure: Real,
+    aero_resistance: Real,
+    surface_resistance: Real,
+    psychrometric: Real,
+) -> ET
+    where chain_order <= 0
+    requires (delta_slope >= 0.0)
+    requires (delta_slope <= DELTA_MAX)
+    requires (net_radiation >= -RN_MAX)
+    requires (net_radiation <= RN_MAX)
+    requires (soil_heat_flux >= -RN_MAX)
+    requires (soil_heat_flux <= RN_MAX)
+    requires (air_density >= 0.5)
+    requires (air_density <= RHO_A_MAX)
+    requires (specific_heat > 0.0)
+    requires (specific_heat <= CP_MAX)
+    requires (sat_vapor_pressure >= 0.0)
+    requires (sat_vapor_pressure <= E_MAX)
+    requires (actual_vapor_pressure >= 0.0)
+    requires (actual_vapor_pressure <= sat_vapor_pressure)
+    requires (aero_resistance > 1.0)
+    requires (aero_resistance <= R_MAX)
+    requires (surface_resistance >= 0.0)
+    requires (surface_resistance <= R_MAX)
+    requires (psychrometric >= 0.0)
+    requires (psychrometric <= GAMMA_MAX)
+{
+    let radiation_term = delta_slope * (net_radiation - soil_heat_flux);
+    let vapor_deficit  = sat_vapor_pressure - actual_vapor_pressure;
+    let aero_term      = air_density * specific_heat * vapor_deficit / aero_resistance;
+    let resist_factor  = ONE + surface_resistance / aero_resistance;
+    (radiation_term + aero_term) / (delta_slope + psychrometric * resist_factor)
+}
