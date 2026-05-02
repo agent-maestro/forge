@@ -1,0 +1,175 @@
+name: Apple Toolchain Validation
+
+# Validates that the Metal and Swift backend outputs compile cleanly
+# against Apple's real toolchain (xcrun metal + swiftc -typecheck).
+# Without this, those backends only have structural / pass-rate
+# coverage from the Python-side tests -- a real Apple compiler
+# could still reject the output for subtle reasons (attribute
+# placement, type-promotion rules, language-version edge cases).
+#
+# Why path-filtered triggers: macOS GitHub runners cost 10x of
+# Linux/Windows minutes on private repos. Restricting to changes
+# that could affect the Metal/Swift output keeps the bill bounded
+# while still catching every relevant regression.
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'software/backends/metal_backend.py'
+      - 'software/backends/swift_backend.py'
+      - 'lang/parser/**'
+      - 'lang/profiler/**'
+      - 'lang/optimizer/**'
+      - 'industries/**/*.eml'
+      - 'lang/spec/grammar/examples/**/*.eml'
+      - '.github/workflows/apple-validate.yml'
+      - 'pyproject.toml'
+  pull_request:
+    branches: [master, main]
+    paths:
+      - 'software/backends/metal_backend.py'
+      - 'software/backends/swift_backend.py'
+      - 'lang/parser/**'
+      - 'lang/profiler/**'
+      - 'lang/optimizer/**'
+      - 'industries/**/*.eml'
+      - 'lang/spec/grammar/examples/**/*.eml'
+      - '.github/workflows/apple-validate.yml'
+      - 'pyproject.toml'
+  workflow_dispatch:    # manual trigger from the Actions tab
+
+# Cancel in-progress runs when a new commit lands on the same ref.
+# Saves macOS minutes when someone pushes a stack of fixups.
+concurrency:
+  group: apple-validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Metal + Swift validation
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install forge
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Show toolchain versions
+        run: |
+          python --version
+          xcrun --version
+          xcrun -sdk macosx metal --version 2>&1 | head -3 || true
+          swiftc --version
+
+      # ─── Metal validation ────────────────────────────────────
+      # `xcrun -sdk macosx metal -c <file> -o /dev/null` runs the
+      # real Metal Shading Language compiler through the codegen
+      # phase. Output is discarded; we only care about the exit
+      # status and any diagnostics.
+      - name: Validate Metal output across the corpus
+        id: metal
+        run: |
+          set +e
+          mkdir -p artifacts/metal-failures
+          ok=0
+          fail=0
+          for eml in $(find industries lang/spec/grammar/examples -name '*.eml' 2>/dev/null | sort); do
+            stem=$(basename "$eml" .eml)
+            out="/tmp/${stem}.metal"
+
+            # Step 1: forge emit
+            if ! eml-compile --target metal "$eml" > "$out" 2>/tmp/emit.err; then
+              fail=$((fail + 1))
+              echo "::error file=$eml::eml-compile --target metal failed"
+              sed -n '1,20p' /tmp/emit.err
+              cp "$eml" "artifacts/metal-failures/${stem}.eml"
+              continue
+            fi
+
+            # Step 2: xcrun metal compile
+            if xcrun -sdk macosx metal -c "$out" -o /dev/null 2>/tmp/metal.err; then
+              ok=$((ok + 1))
+            else
+              fail=$((fail + 1))
+              echo "::error file=$eml::xcrun metal -c failed"
+              sed -n '1,20p' /tmp/metal.err
+              cp "$out" "artifacts/metal-failures/${stem}.metal"
+              cp /tmp/metal.err "artifacts/metal-failures/${stem}.err"
+            fi
+          done
+
+          total=$((ok + fail))
+          echo ""
+          echo "─────────────────────────────────────────────"
+          echo "  Metal validation: $ok / $total clean"
+          echo "─────────────────────────────────────────────"
+          echo "metal_ok=$ok"       >> "$GITHUB_OUTPUT"
+          echo "metal_fail=$fail"   >> "$GITHUB_OUTPUT"
+          echo "metal_total=$total" >> "$GITHUB_OUTPUT"
+          test "$fail" -eq 0
+
+      # ─── Swift validation ────────────────────────────────────
+      # `swiftc -typecheck` runs the parser and full type-checker
+      # without emitting object code. Faster than `-emit-object`
+      # and still catches every type-mapping bug in the backend.
+      - name: Validate Swift output across the corpus
+        id: swift
+        if: always()    # run even if Metal failed -- they're independent
+        run: |
+          set +e
+          mkdir -p artifacts/swift-failures
+          ok=0
+          fail=0
+          for eml in $(find industries lang/spec/grammar/examples -name '*.eml' 2>/dev/null | sort); do
+            stem=$(basename "$eml" .eml)
+            out="/tmp/${stem}.swift"
+
+            if ! eml-compile --target swift "$eml" > "$out" 2>/tmp/emit.err; then
+              fail=$((fail + 1))
+              echo "::error file=$eml::eml-compile --target swift failed"
+              sed -n '1,20p' /tmp/emit.err
+              cp "$eml" "artifacts/swift-failures/${stem}.eml"
+              continue
+            fi
+
+            if swiftc -typecheck "$out" 2>/tmp/swift.err; then
+              ok=$((ok + 1))
+            else
+              fail=$((fail + 1))
+              echo "::error file=$eml::swiftc -typecheck failed"
+              sed -n '1,20p' /tmp/swift.err
+              cp "$out" "artifacts/swift-failures/${stem}.swift"
+              cp /tmp/swift.err "artifacts/swift-failures/${stem}.err"
+            fi
+          done
+
+          total=$((ok + fail))
+          echo ""
+          echo "─────────────────────────────────────────────"
+          echo "  Swift validation: $ok / $total clean"
+          echo "─────────────────────────────────────────────"
+          echo "swift_ok=$ok"       >> "$GITHUB_OUTPUT"
+          echo "swift_fail=$fail"   >> "$GITHUB_OUTPUT"
+          echo "swift_total=$total" >> "$GITHUB_OUTPUT"
+          test "$fail" -eq 0
+
+      # ─── Failure artifacts ───────────────────────────────────
+      # Upload the .eml + .metal/.swift + .err triples for any file
+      # that failed, so the developer can grep through them locally
+      # without re-running the whole pipeline.
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-validate-failures
+          path: artifacts/
+          retention-days: 14
+          if-no-files-found: ignore
