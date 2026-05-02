@@ -72,6 +72,8 @@ def write_audit_bundle(
     out_root: Path,
     backend: SolidityBackend | None = None,
     machlib_root: Path | None = None,
+    with_prbmath: bool = True,
+    with_foundry_tests: bool = True,
 ) -> AuditBundle:
     """Build and write a complete audit bundle for ``mod``.
 
@@ -92,6 +94,12 @@ def write_audit_bundle(
     machlib_root
         Where to look for proofs. Defaults to ``$MACHLIB_ROOT`` then
         to ``<repo>/../machlib/foundations/MachLib/Discovered``.
+    with_prbmath
+        Emit the ``<Contract>WithPRBMath.sol`` override that wires the
+        parent's transcendental stubs to PRBMath SD59x18.
+    with_foundry_tests
+        Emit ``test/<Contract>Test.t.sol`` + ``foundry.toml``. Implies
+        ``with_prbmath`` (the tests deploy the override contract).
     """
     backend = backend or SolidityBackend()
     out_root = out_root.resolve()
@@ -101,6 +109,7 @@ def write_audit_bundle(
 
     sol_src = backend.compile(mod)
     spec = build_spec(mod, backend=backend)
+    used_builtins = set(backend._used_builtins)
     proofs_dir = out_root / "proofs"
     proofs_dir.mkdir()
     proof_results = _collect_proofs(
@@ -118,6 +127,41 @@ def write_audit_bundle(
         eml_source_path.read_bytes(),
     ))
     written.extend(proof_results)
+
+    # PRBMath override (forces on when foundry tests are requested).
+    override_name: str | None = None
+    if with_prbmath or with_foundry_tests:
+        from software.backends.solidity_prbmath import emit_prbmath_override
+        override = emit_prbmath_override(
+            parent_name=spec["contract"],
+            used_builtins=used_builtins,
+            parent_path="./contract.sol",
+        )
+        override_name = override.contract_name
+        written.append(_write(
+            out_root / f"{override.contract_name}.sol",
+            override.source,
+        ))
+
+    # Foundry test scaffold + foundry.toml.
+    if with_foundry_tests and override_name is not None:
+        from software.backends.solidity_foundry import emit_foundry_scaffold
+        scaffold = emit_foundry_scaffold(
+            spec=spec,
+            override_contract=override_name,
+            override_path=f"../{override_name}.sol",
+        )
+        test_dir = out_root / "test"
+        test_dir.mkdir(exist_ok=True)
+        written.append(_write(
+            test_dir / f"{scaffold.test_contract_name}.t.sol",
+            scaffold.test_source,
+        ))
+        written.append(_write(
+            out_root / "foundry.toml",
+            scaffold.foundry_toml,
+        ))
+
     written.append(_write(
         out_root / "AUDITOR.md",
         _auditor_md(spec=spec, proof_files=proof_results),
@@ -314,8 +358,12 @@ compiled from EML module `{module}`.
 
 ## Files
 
-- `contract.sol` — the deployable Solidity. NatSpec headers carry
-  the per-function gas estimate and Pfaffian profile.
+- `contract.sol` — the parent Solidity. NatSpec headers carry
+  the per-function gas estimate and Pfaffian profile. Transcendental
+  helpers (`_exp`, `_ln`, etc.) are virtual stubs that revert.
+- `{contract}WithPRBMath.sol` — deployable child contract that
+  overrides each transcendental via PRBMath SD59x18. This is the
+  contract you ship.
 - `spec.json` — structured formal spec. One entry per function with
   preconditions (Solidity-rendered + EML source line), postconditions,
   Lean theorem references, gas estimate.
@@ -324,6 +372,10 @@ compiled from EML module `{module}`.
 - `proofs/*.lean` — Lean theorem files copied out of MachLib for
   every `@verify(lean, theorem = X)` annotation. Missing theorems
   show up as `<theorem>.MISSING.txt` stubs.
+- `test/{contract}Test.t.sol` + `foundry.toml` — Foundry scaffold.
+  Verified functions get `testFuzz_*` tests that `vm.assume()` every
+  precondition, call the function, and `assertTrue` every
+  postcondition. Internal helpers get gas-snapshot tests.
 - `manifest.json` — `sha256` + byte size of every artifact. Pin
   the manifest's hash in your audit report; verify it locally with
   `sha256sum -c` on the listed paths.
@@ -344,9 +396,12 @@ compiled from EML module `{module}`.
 2. For each function in `spec.json` with `verified: true`, open
    `proofs/<theorem>.lean` and confirm the theorem statement matches
    the Solidity preconditions/postconditions.
-3. Deploy `contract.sol`, override the transcendental stubs with
-   PRBMath SD59x18 (see contract header), and run Foundry's
-   gas-bench to confirm the gas estimates are in the right ballpark.
+3. Drop the bundle into a Foundry project, run
+   `forge install foundry-rs/forge-std PaulRBerg/prb-math`, then
+   `forge test` to exercise every fuzz test + gas snapshot.
+4. Deploy `{contract}WithPRBMath.sol` (NOT the parent) — the parent
+   contains revert stubs for transcendentals; the override wires
+   them to PRBMath.
 """
 
 
