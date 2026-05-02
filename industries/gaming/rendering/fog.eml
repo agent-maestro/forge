@@ -1,0 +1,78 @@
+// fog.eml -- distance-based fog blending factors.
+//
+// Three fog models; pick the one whose visual character matches
+// the level. The blend factor `f` in [0, 1] is then used as
+//
+//   final_colour = mix(fog_colour, surface_colour, f)
+//
+// where f=1 means "no fog" and f=0 means "full fog colour".
+//
+//   linear:  f = (max - d) / (max - min), clamped
+//   exp:     f = exp(-density * d)
+//   exp2:    f = exp(-(density * d)^2)
+//
+// Linear fog is cheapest (chain 0) and matches the fixed-function
+// pipeline of older engines. Exp/exp2 (chain 1) are more
+// physically motivated and don't pop at the far plane.
+//
+// drift_risk LOW. Sibling to tonemap_aces.eml (runs after fog).
+
+module fog;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const TINY:        Real = 1.0e-7
+
+const D_MAX:       Real = 1.0e6        // 1000 km draw-distance cap
+const FAR_MIN:     Real = 1.0
+const FAR_MAX:     Real = 1.0e6
+const DENS_MIN:    Real = 1.0e-6
+const DENS_MAX:    Real = 1.0
+
+type Blend = Real where chain_order <= 1
+
+// Linear fog blend. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "linear_fog_in_unit_interval")
+fn linear_fog(d: Real, near: Real, far: Real) -> Blend
+    where chain_order <= 0
+    requires (d >= ZERO)
+    requires (d <= D_MAX)
+    requires (near >= ZERO)
+    requires (near <= FAR_MAX)
+    requires (far > near)
+    requires (far <= FAR_MAX)
+{
+    (far - d) / (far - near + TINY)
+}
+
+// Exponential fog blend. Chain order 1 (exp). drift_risk LOW.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "exp_fog_in_unit_interval")
+fn exp_fog(d: Real, density: Real) -> Blend
+    where chain_order <= 1
+    requires (d >= ZERO)
+    requires (d <= D_MAX)
+    requires (density >= DENS_MIN)
+    requires (density <= DENS_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    exp(-density * d)
+}
+
+// Exponential-squared fog blend (Quake-style). Chain order 1
+// (exp on chain-0). Visually denser falloff than plain exp_fog.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn exp2_fog(d: Real, density: Real) -> Blend
+    where chain_order <= 1
+    requires (d >= ZERO)
+    requires (d <= D_MAX)
+    requires (density >= DENS_MIN)
+    requires (density <= DENS_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    let dd = density * d;
+    exp(-(dd * dd))
+}

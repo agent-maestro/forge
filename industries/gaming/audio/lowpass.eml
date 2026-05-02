@@ -1,0 +1,66 @@
+// lowpass.eml -- single-pole IIR low-pass filter for game audio.
+//
+// Distinct from industries/audio/dsp/biquad_lowpass.eml (the
+// 2nd-order biquad used for pro-audio EQ chains). Game engines
+// often need a cheaper one-pole IIR for occlusion/distance
+// muffling -- the response shape is a 6 dB/octave roll-off, not
+// the steep 12 dB/octave biquad, but each tick costs one MAC
+// instead of five and the state is one sample instead of four.
+//
+//   y[n] = (1 - a) * x[n] + a * y[n-1]
+//
+// where a = exp(-2 * pi * fc / fs) is the per-sample retention
+// coefficient. The kernel exposes the per-sample step (host
+// stores y_prev between calls) and the coefficient generator
+// (called once per parameter change, not per sample).
+//
+// drift_risk LOW. Sibling to industries/audio/dsp/biquad_lowpass.eml
+// (the canonical biquad form) and to reverb.eml (the late-field
+// shaping that runs *after* this in a game audio chain).
+
+module lowpass;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const TWO_PI:      Real = 6.283185307179586
+
+const FC_MIN:      Real = 1.0          // 1 Hz cutoff floor
+const FC_MAX:      Real = 22000.0      // pre-Nyquist cap
+const FS_MIN:      Real = 8000.0
+const FS_MAX:      Real = 192000.0
+
+type Sample = Real where chain_order <= 1
+type Coef   = Real where chain_order <= 1
+
+// Per-sample one-pole step. Chain order 0 (pure rational on the
+// inputs; the coefficient `a` arrives pre-computed).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "single_pole_lowpass_step_bounded")
+fn single_pole_step(x: Real, y_prev: Real, a: Real) -> Sample
+    where chain_order <= 0
+    requires (abs(x) <= ONE)
+    requires (abs(y_prev) <= ONE)
+    requires (a >= ZERO)
+    requires (a <= ONE)
+    ensures  (abs(result) <= ONE)
+{
+    (ONE - a) * x + a * y_prev
+}
+
+// Compute the retention coefficient `a` for a target cutoff fc
+// at sample rate fs. Chain order 1 (exp). Called once when the
+// cutoff changes; the per-sample loop uses single_pole_step.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "single_pole_coef_in_unit_interval")
+fn single_pole_coef(fc: Real, fs: Real) -> Coef
+    where chain_order <= 1
+    requires (fc >= FC_MIN)
+    requires (fc <= FC_MAX)
+    requires (fs >= FS_MIN)
+    requires (fs <= FS_MAX)
+    requires (fc < fs / 2.0)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    exp(-TWO_PI * fc / fs)
+}

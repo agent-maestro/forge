@@ -1,0 +1,46 @@
+// tonemap_aces.eml -- ACES filmic tone mapping (Narkowicz fit).
+//
+// Maps high-dynamic-range linear scene radiance into [0, 1]
+// display-ready values with a filmic S-curve. The Krzysztof
+// Narkowicz approximation of the Academy Color Encoding System's
+// reference RRT+ODT chain, suitable for real-time:
+//
+//   tone(x) = clamp((x*(2.51*x + 0.03)) /
+//                   (x*(2.43*x + 0.59) + 0.14), 0, 1)
+//
+// Chain order 0 (rational with clamp on output). Caller invokes
+// per-channel after the existing exposure / pre-grading pass; the
+// output goes to the gamma stage. drift_risk LOW.
+//
+// Sibling to fog.eml (the in-frame fog blend that runs before
+// tonemap) and to fresnel.eml (the BRDF term whose output ends up
+// in this kernel).
+
+module tonemap_aces;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const A:           Real = 2.51
+const B:           Real = 0.03
+const C:           Real = 2.43
+const D:           Real = 0.59
+const E:           Real = 0.14
+const TINY:        Real = 1.0e-7
+
+const X_MAX:       Real = 1.0e3        // hard ceiling on input radiance
+
+type Display = Real where chain_order <= 0
+
+// ACES Narkowicz fit for one channel. Chain order 0. Output is
+// guaranteed >= 0 and approaches 1 asymptotically; callers that
+// need a hard [0, 1] clamp should clamp the result separately.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "aces_narkowicz_nonneg_when_input_nonneg")
+fn aces_narkowicz(x: Real) -> Display
+    where chain_order <= 0
+    requires (x >= ZERO)
+    requires (x <= X_MAX)
+    ensures  (result >= ZERO)
+{
+    x * (A * x + B) / (x * (C * x + D) + E + TINY)
+}

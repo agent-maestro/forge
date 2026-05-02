@@ -1,0 +1,74 @@
+// brdf_ggx.eml -- GGX (Trowbridge-Reitz) normal distribution.
+//
+// The microfacet normal-distribution term D(h) of the modern PBR
+// specular BRDF, in the GGX form (Walter et al. 2007). Replaces
+// the older Beckmann distribution with a long-tailed shape that
+// matches measured data better for rough surfaces:
+//
+//   D(h) = alpha^2 / (pi * ((n.h)^2 * (alpha^2 - 1) + 1)^2)
+//
+// where alpha = roughness^2 (Disney remap) and n.h is the dot of
+// the surface normal with the halfway vector. Caller pre-clamps
+// n.h to [0, 1] and pre-computes alpha = roughness * roughness.
+//
+// Sibling to fresnel.eml (the F term) and to
+// industries/graphics/shading/cook_torrance_ggx.eml (the full
+// D*F*G/(4*nl*nv) BRDF assembly). The gaming variant exposes
+// only the D term so a deferred-shading pass can pre-compute
+// distributions per pixel without paying for fresnel + geometry.
+// drift_risk LOW.
+
+module brdf_ggx;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const PI:          Real = 3.141592653589793
+const TINY:        Real = 1.0e-7
+
+const ALPHA_MIN:   Real = 0.001        // perfectly smooth floor
+const ALPHA_MAX:   Real = 1.0          // perfectly rough
+
+type Distribution = Real where chain_order <= 1
+
+// GGX normal distribution. Chain order 1 (the squaring of the
+// denominator is `pow(., 2)`). Result is non-negative and
+// integrates to 1 over the hemisphere when n.h is the half-vector.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "ggx_distribution_nonneg")
+fn ggx_distribution(n_dot_h_clamped: Real, alpha: Real) -> Distribution
+    where chain_order <= 1
+    requires (n_dot_h_clamped >= ZERO)
+    requires (n_dot_h_clamped <= ONE)
+    requires (alpha >= ALPHA_MIN)
+    requires (alpha <= ALPHA_MAX)
+    ensures  (result >= ZERO)
+{
+    let alpha_sq = alpha * alpha;
+    let denom    = n_dot_h_clamped * n_dot_h_clamped * (alpha_sq - ONE) + ONE;
+    alpha_sq / (PI * denom * denom + TINY)
+}
+
+// Smith-Schlick height-correlated geometry term G(l, v). Caller
+// supplies n.l and n.v already clamped. Chain order 0 (rational).
+// Used together with ggx_distribution above by a deferred-shading
+// composer.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "smith_schlick_geometry_in_unit_interval")
+fn smith_geometry(
+    n_dot_l_clamped: Real, n_dot_v_clamped: Real, alpha: Real,
+) -> Real
+    where chain_order <= 0
+    requires (n_dot_l_clamped > ZERO)
+    requires (n_dot_l_clamped <= ONE)
+    requires (n_dot_v_clamped > ZERO)
+    requires (n_dot_v_clamped <= ONE)
+    requires (alpha >= ALPHA_MIN)
+    requires (alpha <= ALPHA_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    let k    = alpha * alpha / 2.0;
+    let g_l  = n_dot_l_clamped / (n_dot_l_clamped * (ONE - k) + k);
+    let g_v  = n_dot_v_clamped / (n_dot_v_clamped * (ONE - k) + k);
+    g_l * g_v
+}

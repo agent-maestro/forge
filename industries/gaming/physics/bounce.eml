@@ -1,0 +1,78 @@
+// bounce.eml -- rigid-body restitution + bouncing-ball envelope.
+//
+// Two complementary kernels:
+//
+//   1. restitution_velocity -- the per-collision velocity update
+//      v_out = -e * v_in. Coefficient of restitution `e` in [0, 1]
+//      where e=0 is perfectly inelastic (sticky landing) and e=1
+//      is perfectly elastic (no energy loss). Real game tunings:
+//      rubber e ~ 0.85, wood e ~ 0.5, putty e ~ 0.05.
+//
+//   2. bounce_height_envelope -- the analytical height-vs-time of
+//      a ball dropped onto a surface with restitution e under
+//      gravity g, expressed as an exponentially-decaying cosine of
+//      the inter-bounce period. Useful for triggering audio /
+//      particle effects N bounces in advance without simulating
+//      the rigid body.
+//
+// drift_risk LOW. Sibling to spring.eml (analytical envelope) and
+// gravity.eml (acceleration source).
+
+module bounce;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const TWO:         Real = 2.0
+const TINY:        Real = 1.0e-9
+
+const VEL_MAX:     Real = 1.0e4       // game-world velocity cap
+const E_MIN:       Real = 0.0
+const E_MAX:       Real = 1.0
+const H_MAX:       Real = 1.0e4       // drop height cap (m)
+const G_MIN:       Real = 0.1         // moon-grav floor
+const G_MAX:       Real = 100.0       // jovian-grav cap
+const T_MAX:       Real = 60.0        // envelope time cap
+
+type Velocity = Real where chain_order <= 0
+type Height   = Real where chain_order <= 2
+
+// Coefficient-of-restitution velocity update for a 1D collision.
+// Chain order 0. Caller passes the incoming normal-component
+// velocity (positive into the surface); kernel returns the
+// outgoing velocity (positive away from the surface).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "restitution_magnitude_le_input")
+fn restitution_velocity(v_in: Real, e: Real) -> Velocity
+    where chain_order <= 0
+    requires (abs(v_in) <= VEL_MAX)
+    requires (e >= E_MIN)
+    requires (e <= E_MAX)
+{
+    e * v_in
+}
+
+// Analytical envelope of bouncing-ball peak height under
+// restitution e and gravity g. After bounce N, the next peak
+// height is h_0 * e^(2N). Continuous-time approximation:
+//
+//   h(t) ~ h_0 * exp(-t/tau) * (1 + cos(omega * t)) / 2
+//
+// where tau = -1 / (g * (e^2 - 1)) and omega is the inter-bounce
+// frequency. Chain order 2 (exp on chain-0, cos on chain-0; not
+// nested). Caller is responsible for providing tau + omega
+// precomputed from g/e/h_0.
+@target(fpga, clock_mhz = 250, precision = float32)
+fn bounce_height_envelope(h_0: Real, tau: Real, omega: Real, t: Real) -> Height
+    where chain_order <= 2
+    requires (h_0 >= ZERO)
+    requires (h_0 <= H_MAX)
+    requires (tau >= TINY)
+    requires (tau <= 1.0e3)
+    requires (omega >= TINY)
+    requires (omega <= 1.0e3)
+    requires (t >= ZERO)
+    requires (t <= T_MAX)
+    ensures  (result >= ZERO)
+{
+    h_0 * exp(-t / tau) * (ONE + cos(omega * t)) / TWO
+}

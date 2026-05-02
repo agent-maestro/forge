@@ -1,0 +1,64 @@
+// fbm.eml -- fractal-Brownian-motion octave parameters.
+//
+// fBm sums N octaves of a base noise (typically Perlin or simplex)
+// at increasing frequency and decreasing amplitude:
+//
+//   fBm(p) = sum_{i=0..N-1} amp_i * noise(freq_i * p)
+//
+// where:
+//   amp_i  = persistence^i        (typically persistence = 0.5)
+//   freq_i = lacunarity^i         (typically lacunarity   = 2.0)
+//
+// The kernel exposes the per-octave amplitude and frequency
+// generators so each can be its own pipeline stage on the FPGA
+// backend; the actual sum-loop and noise sampling happens on the
+// host. Chain order 1 (pow). drift_risk LOW.
+//
+// Sibling to perlin.eml (the per-octave noise primitive) and
+// voronoi.eml (an alternative noise base for fBm-style summation).
+
+module fbm;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const TINY:        Real = 1.0e-9
+
+const N_MAX:       Real = 16.0          // octave-count cap
+const PERSIST_MIN: Real = 0.0
+const PERSIST_MAX: Real = 0.999
+const LACUNARITY_MIN: Real = 1.001       // > 1 to keep frequency rising
+const LACUNARITY_MAX: Real = 8.0
+
+type Amplitude = Real where chain_order <= 1
+type Frequency = Real where chain_order <= 1
+
+// Per-octave amplitude. Chain order 1 (pow). Caller passes the
+// integer octave index `i` as a Real.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "fbm_amplitude_monotonic_decreasing")
+fn octave_amplitude(persistence: Real, i: Real) -> Amplitude
+    where chain_order <= 1
+    requires (persistence >= PERSIST_MIN)
+    requires (persistence <= PERSIST_MAX)
+    requires (i >= ZERO)
+    requires (i <= N_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    pow(persistence, i)
+}
+
+// Per-octave frequency. Chain order 1 (pow). Multiply this with
+// the sample point before passing into the noise primitive.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "fbm_frequency_monotonic_increasing")
+fn octave_frequency(lacunarity: Real, i: Real) -> Frequency
+    where chain_order <= 1
+    requires (lacunarity >= LACUNARITY_MIN)
+    requires (lacunarity <= LACUNARITY_MAX)
+    requires (i >= ZERO)
+    requires (i <= N_MAX)
+    ensures  (result >= ONE)
+{
+    pow(lacunarity, i)
+}

@@ -1,0 +1,81 @@
+// projectile.eml -- ballistic trajectory kernels.
+//
+// Closed-form kinematics for a projectile launched at speed v0 and
+// elevation theta under uniform gravity g, no air resistance:
+//
+//   x(t) = v0 * cos(theta) * t
+//   y(t) = v0 * sin(theta) * t - g * t^2 / 2
+//
+//   range  = v0^2 * sin(2 * theta) / g
+//   apex_t = v0 * sin(theta) / g
+//   apex_y = v0^2 * sin^2(theta) / (2 * g)
+//
+// Used for AI aim solvers (where will the grenade land?), trajectory
+// preview UI (the dashed arc above a thrown weapon), and ballistic
+// physics where a per-frame integrator is overkill. drift_risk LOW.
+//
+// Sibling to gravity.eml (the `g` source) and bounce.eml (the
+// after-impact dynamics).
+
+module projectile;
+
+const ZERO:        Real = 0.0
+const TWO:         Real = 2.0
+const TINY:        Real = 1.0e-9
+
+const V0_MAX:      Real = 1.0e3        // 1 km/s muzzle velocity cap
+const THETA_MAX:   Real = 1.5708       // pi/2 (vertical)
+const G_MIN:       Real = 0.1
+const G_MAX:       Real = 100.0
+const T_MAX:       Real = 600.0        // 10 minute flight cap
+
+type Coord = Real where chain_order <= 1
+
+// Horizontal position at time t. Chain order 1 (cos).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "projectile_x_monotonic_in_t")
+fn position_x(v0: Real, theta: Real, t: Real) -> Coord
+    where chain_order <= 1
+    requires (v0 >= ZERO)
+    requires (v0 <= V0_MAX)
+    requires (theta >= ZERO)
+    requires (theta <= THETA_MAX)
+    requires (t >= ZERO)
+    requires (t <= T_MAX)
+    ensures  (result >= ZERO)
+{
+    v0 * cos(theta) * t
+}
+
+// Vertical position at time t. Chain order 1 (sin).
+@target(fpga, clock_mhz = 500, precision = float32)
+fn position_y(v0: Real, theta: Real, g: Real, t: Real) -> Coord
+    where chain_order <= 1
+    requires (v0 >= ZERO)
+    requires (v0 <= V0_MAX)
+    requires (theta >= ZERO)
+    requires (theta <= THETA_MAX)
+    requires (g >= G_MIN)
+    requires (g <= G_MAX)
+    requires (t >= ZERO)
+    requires (t <= T_MAX)
+{
+    v0 * sin(theta) * t - g * t * t / TWO
+}
+
+// Range (horizontal distance to ground impact for a launch at
+// ground level). Chain order 1 (sin).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "projectile_range_max_at_pi_over_4")
+fn range(v0: Real, theta: Real, g: Real) -> Real
+    where chain_order <= 1
+    requires (v0 >= ZERO)
+    requires (v0 <= V0_MAX)
+    requires (theta >= ZERO)
+    requires (theta <= THETA_MAX)
+    requires (g >= G_MIN)
+    requires (g <= G_MAX)
+    ensures  (result >= ZERO)
+{
+    v0 * v0 * sin(TWO * theta) / (g + TINY)
+}

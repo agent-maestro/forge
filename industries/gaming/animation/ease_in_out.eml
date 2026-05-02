@@ -1,0 +1,73 @@
+// ease_in_out.eml -- standard tweening curves for UI / cutscenes.
+//
+// Two canonical "smooth" interpolators that game engines use to
+// animate UI, cameras, and material transitions:
+//
+//   smoothstep:   3t^2 - 2t^3                 (cubic Hermite)
+//   smootherstep: 6t^5 - 15t^4 + 10t^3        (quintic Hermite,
+//                                              C^2 at endpoints,
+//                                              Perlin's improved fade)
+//
+// Both interpolate t in [0, 1] to a smoothly-eased value also in
+// [0, 1] with zero derivative at both endpoints. Chain order 0
+// (pure polynomial). drift_risk LOW.
+//
+// Sibling to procedural/perlin.eml -- smootherstep is also Perlin's
+// fade(t) used inside gradient noise.
+
+module ease_in_out;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const TWO:         Real = 2.0
+const THREE:       Real = 3.0
+const SIX:         Real = 6.0
+const TEN:         Real = 10.0
+const FIFTEEN:     Real = 15.0
+
+type EasedT = Real where chain_order <= 0
+
+// Cubic smoothstep: 3t^2 - 2t^3. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "smoothstep_in_unit_interval")
+fn smoothstep(t: Real) -> EasedT
+    where chain_order <= 0
+    requires (t >= ZERO)
+    requires (t <= ONE)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    t * t * (THREE - TWO * t)
+}
+
+// Quintic smootherstep: 6t^5 - 15t^4 + 10t^3. Chain order 0.
+// Same shape as smoothstep but with zero second derivative at
+// endpoints -- visually smoother on shader / animation timing.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "smootherstep_in_unit_interval")
+fn smootherstep(t: Real) -> EasedT
+    where chain_order <= 0
+    requires (t >= ZERO)
+    requires (t <= ONE)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    let t3 = t * t * t;
+    let t4 = t3 * t;
+    let t5 = t4 * t;
+    SIX * t5 - FIFTEEN * t4 + TEN * t3
+}
+
+// Lerp between a and b using a smoothstep-eased parameter.
+// Convenience composer; chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn ease_in_out_lerp(a: Real, b: Real, t: Real) -> Real
+    where chain_order <= 0
+    requires (abs(a) <= 1.0e6)
+    requires (abs(b) <= 1.0e6)
+    requires (t >= ZERO)
+    requires (t <= ONE)
+{
+    let s = t * t * (THREE - TWO * t);
+    a + (b - a) * s
+}
