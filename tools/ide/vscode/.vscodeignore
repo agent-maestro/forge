@@ -1,15 +1,22 @@
-# Source files (only compiled out/ is needed at runtime)
+# Source TypeScript -- only the compiled out/ ships
 src/**
 tsconfig.json
 **/*.ts.map
 out/**/*.js.map
 
-# Repo-level files
+# Dev artifacts
 .gitignore
 .vscode/**
 .vscode-test/**
-
-# Dev artifacts
-node_modules/**
 package-lock.json
 *.vsix
+
+# node_modules: vsce ships production deps automatically. Keep
+# the development-only chunks out of the bundle.
+node_modules/**/*.md
+node_modules/**/*.ts
+node_modules/**/*.map
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/.bin/**
+node_modules/.cache/**

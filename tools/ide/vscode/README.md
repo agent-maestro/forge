@@ -24,13 +24,21 @@ source of truth. No parsing logic is reimplemented in TypeScript.
 ## Install (users)
 
 ```bash
-pip install monogate-forge
+pip install 'monogate-forge[lsp]'
 ```
 
-That gives you the `eml-compile` binary on `PATH`. Install the
-extension from the VS Code marketplace, open any `.eml` file
-anywhere on disk, and the lenses + diagnostics light up. No clone
-of `monogate-forge` required.
+The `[lsp]` extra adds the `eml-lsp` Language Server (pygls)
+that gives you **errors-as-you-type** + **hover-for-types**.
+Without it the extension still works -- it falls back to
+save-triggered diagnostics from `eml-compile`. Both binaries
+go on `PATH`; install the extension from the VS Code
+marketplace, open any `.eml` file anywhere on disk, lenses +
+diagnostics light up. No clone of `monogate-forge` required.
+
+If you only want the CLI without the LSP, drop the `[lsp]`:
+```bash
+pip install monogate-forge
+```
 
 ## Install (contributors editing the language itself)
 
@@ -52,9 +60,10 @@ installed `eml-compile`).
 | File | Role |
 |------|------|
 | `src/extension.ts` | Entry point — registers providers + commands |
-| `src/forgeCli.ts` | Resolves `eml-compile` (installed) or `python tools/cli/main.py` (in-clone) |
+| `src/forgeCli.ts` | Resolves `eml-compile` and `eml-lsp` on PATH |
+| `src/lspClient.ts` | Spawns `eml-lsp` and connects vscode-languageclient |
 | `src/profileProvider.ts` | CodeLens provider — runs `--profile-only`, parses dashboard |
-| `src/diagnostics.ts` | DiagnosticCollection — surfaces type-errors as squiggles |
+| `src/diagnostics.ts` | Save-triggered diagnostics fallback (used when LSP unavailable) |
 | `language-configuration.json` | Bracket auto-close, comment toggle |
 | `syntaxes/eml.tmLanguage.json` | TextMate grammar |
 

@@ -33,6 +33,7 @@ import * as vscode from 'vscode';
 import { ChainOrderDiagnostics } from './diagnostics';
 import { ProfileLensProvider } from './profileProvider';
 import { resolveForge, runForge } from './forgeCli';
+import { startLspClient } from './lspClient';
 
 const ALL_TARGETS: ReadonlyArray<{ id: string; description: string }> = [
     // Software
@@ -76,8 +77,16 @@ export function activate(context: vscode.ExtensionContext): void {
         ),
     );
 
-    const diagnostics = new ChainOrderDiagnostics();
-    context.subscriptions.push(diagnostics);
+    // Try to start the LSP server. When it succeeds, it owns the
+    // diagnostics pipeline (real-time as you type). When it
+    // doesn't (eml-lsp not on PATH), fall back to the legacy
+    // save-triggered ChainOrderDiagnostics so the extension still
+    // surfaces errors -- just only on save.
+    const lsp = startLspClient(context);
+    const diagnostics = lsp ? null : new ChainOrderDiagnostics();
+    if (diagnostics) {
+        context.subscriptions.push(diagnostics);
+    }
 
     const fpgaStatus = new FpgaStatusBarItem();
     context.subscriptions.push(fpgaStatus);
@@ -85,7 +94,10 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.workspace.onDidSaveTextDocument((doc) => {
             if (doc.languageId === 'eml') {
-                diagnostics.refresh(doc);
+                // Lenses + FPGA status still refresh on save --
+                // they're not diagnostics. The LSP (when present)
+                // handles errors-as-you-type without our help.
+                diagnostics?.refresh(doc);
                 lensProvider.refresh();
                 fpgaStatus.refresh(doc);
             }

@@ -38,6 +38,7 @@ export interface ForgeInvocation {
 
 
 let _cachedPackagePath: string | null | undefined; // undefined = unresolved
+let _cachedLspPath: string | null | undefined;
 let _shownMissingHint = false;
 const OUTPUT = vscode.window.createOutputChannel('Monogate Forge');
 
@@ -114,30 +115,41 @@ export function runForge(
 
 
 function findPackageCli(): string | null {
-    if (_cachedPackagePath !== undefined) {
-        return _cachedPackagePath;
-    }
-    // Use `where` on Windows / `which` on POSIX to find the binary.
-    // We do this once and cache; the user has to reload the window
-    // after a fresh `pip install monogate-forge`, which is reasonable.
+    return _findOnPath('eml-compile', '_cachedPackagePath');
+}
+
+
+/**
+ * Find the `eml-lsp` binary on PATH. Installed by
+ * `pip install monogate-forge[lsp]` -- the LSP is opt-in
+ * because pygls is a heavier dep than the rest of forge needs.
+ */
+export function findLspBinary(): string | null {
+    return _findOnPath('eml-lsp', '_cachedLspPath');
+}
+
+
+function _findOnPath(name: string, cacheKey: '_cachedPackagePath' | '_cachedLspPath'): string | null {
+    const cache = cacheKey === '_cachedPackagePath' ? _cachedPackagePath : _cachedLspPath;
+    if (cache !== undefined) return cache;
     const lookup = process.platform === 'win32' ? 'where' : 'which';
     try {
-        const out = cp.execFileSync(lookup, ['eml-compile'], {
+        const out = cp.execFileSync(lookup, [name], {
             encoding: 'utf-8',
             timeout: 3000,
         }).trim();
-        // `where` can return multiple lines (one per matching dir);
-        // take the first.
         const first = out.split(/\r?\n/)[0].trim();
         if (first && fs.existsSync(first)) {
-            _cachedPackagePath = first;
-            OUTPUT.appendLine(`forge CLI: ${first} (installed package)`);
+            if (cacheKey === '_cachedPackagePath') _cachedPackagePath = first;
+            else _cachedLspPath = first;
+            OUTPUT.appendLine(`${name}: ${first}`);
             return first;
         }
     } catch {
         // Not on PATH -- fall through.
     }
-    _cachedPackagePath = null;
+    if (cacheKey === '_cachedPackagePath') _cachedPackagePath = null;
+    else _cachedLspPath = null;
     return null;
 }
 
