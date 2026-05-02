@@ -159,6 +159,12 @@ def main(argv: list[str] | None = None) -> int:
                              "(constant folding + CSE + SuperBEST). "
                              "Useful when comparing optimized vs "
                              "unoptimized output.")
+    parser.add_argument("--no-gas-estimate", action="store_true",
+                        help="When used with --target solidity, omit "
+                             "the per-function NatSpec @dev gas "
+                             "estimate. Useful for diff tests + "
+                             "fixture comparisons that should be "
+                             "insensitive to the gas table.")
     parser.add_argument("--explain", action="store_true",
                         help="Print a per-function diff showing which "
                              "optimizer passes fired, before/after "
@@ -422,7 +428,10 @@ def main(argv: list[str] | None = None) -> int:
             if not is_pro: skipped_pro.append("solidity"); raise _ProTierRequired
             from software.backends.solidity_backend import SolidityBackend
             sol_path = out_dir / f"{stem}.sol"
-            sol_src = SolidityBackend(optimize=not args.no_optimize).compile(mod)
+            sol_src = SolidityBackend(
+                optimize=not args.no_optimize,
+                gas_estimate=not args.no_gas_estimate,
+            ).compile(mod)
             sol_path.write_text(sol_src, encoding="utf-8")
             results.append(("solidity", sol_path, len(sol_src)))
         except _ProTierRequired:
@@ -677,7 +686,10 @@ def main(argv: list[str] | None = None) -> int:
             SolidityBackend, CompileError as SolErr,
         )
         try:
-            s = SolidityBackend(optimize=not args.no_optimize).compile(mod)
+            s = SolidityBackend(
+                optimize=not args.no_optimize,
+                gas_estimate=not args.no_gas_estimate,
+            ).compile(mod)
         except SolErr as e:
             print(f"compile error (solidity backend): {e}", file=sys.stderr)
             return 1
