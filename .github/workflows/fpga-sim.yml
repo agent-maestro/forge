@@ -7,9 +7,15 @@ on:
       - "hardware/**"
       - "lang/**"
       - "tests/equivalence/**"
+      - ".github/workflows/fpga-sim.yml"
   pull_request:
     paths:
       - "hardware/**"
+      - ".github/workflows/fpga-sim.yml"
+  # Manual trigger from the Actions UI -- useful when only the
+  # workflow file or a Verilator-related dep changes and the
+  # paths filter above wouldn't otherwise fire it.
+  workflow_dispatch:
 
 # Opt into Node 24 for all JavaScript-based actions so the
 # deprecation banner stops firing on every run. See
