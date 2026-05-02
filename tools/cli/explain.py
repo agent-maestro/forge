@@ -23,7 +23,6 @@ import sys
 
 from lang.optimizer import (
     apply_cse,
-    fold_constants,
     inline_calls,
     shake_imports,
     superbest_module,
@@ -345,9 +344,6 @@ def _format_module(mod: EMLModule) -> str:
     ]
 
     # Snapshot the input.
-    n_local_in = sum(
-        1 for f in mod.functions if f.imported_from is None
-    )
     n_imported_in = sum(
         1 for f in mod.functions if f.imported_from is not None
     )

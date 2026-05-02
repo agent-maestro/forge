@@ -63,7 +63,6 @@ Reference: https://developer.apple.com/metal/Metal-Shading-Language-Specificatio
 from __future__ import annotations
 
 from lang.parser.ast_nodes import (
-    Annotation,
     ASTNode,
     EMLConstant,
     EMLFunction,

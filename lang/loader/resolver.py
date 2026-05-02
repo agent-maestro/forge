@@ -7,11 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from lang.parser.ast_nodes import (
-    EMLConstant,
-    EMLFunction,
     EMLImport,
     EMLModule,
-    EMLTypeAlias,
 )
 
 

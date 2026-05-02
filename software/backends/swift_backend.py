@@ -56,7 +56,6 @@ with EML variable / parameter names (``operator``, ``static``,
 from __future__ import annotations
 
 from lang.parser.ast_nodes import (
-    Annotation,
     ASTNode,
     EMLConstant,
     EMLFunction,

@@ -28,8 +28,6 @@ Reference: lang/spec/EML_LANG_DESIGN.md + Phase 4 backend roadmap.
 from __future__ import annotations
 
 from lang.parser.ast_nodes import (
-    Annotation,
-    EMLConstant,
     EMLFunction,
     EMLModule,
 )
@@ -223,9 +221,8 @@ class AadlBackend:
                 clk = a.args.get("clock_mhz")
                 if clk:
                     try:
-                        ms = 1.0 / (float(clk))  # 1 / N MHz = 1/N μs in float
-                        # 1/N μs = (1000/N) ns.  Express as μs.
-                        period_us = 1.0 / float(clk)  # in microseconds
+                        # 1 / N MHz = 1/N μs.  Express as μs.
+                        period_us = 1.0 / float(clk)
                         # Round to a sensible precision.
                         out.append(
                             f"Period => {period_us:.3f} us;"

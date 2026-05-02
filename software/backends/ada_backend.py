@@ -51,7 +51,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from lang.parser.ast_nodes import (
-    Annotation,
     ASTNode,
     EMLConstant,
     EMLFunction,

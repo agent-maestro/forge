@@ -28,7 +28,6 @@ magnitude during editing.
 
 from __future__ import annotations
 
-from typing import Optional
 
 from lang.parser.ast_nodes import ASTNode, EMLFunction, NodeKind
 

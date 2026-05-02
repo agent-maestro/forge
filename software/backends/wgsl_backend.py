@@ -60,7 +60,6 @@ Reference: https://www.w3.org/TR/WGSL/
 from __future__ import annotations
 
 from lang.parser.ast_nodes import (
-    Annotation,
     ASTNode,
     EMLConstant,
     EMLFunction,

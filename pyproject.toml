@@ -131,8 +131,62 @@ python_files = ["test_*.py"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = [
+    # Per-machine scratch outputs from compile-to-all sessions —
+    # gitignored already, but ruff still picks them up if present.
+    "demo",
+    "final_check",
+    "build",
+    ".venv",
+]
+
+[tool.ruff.lint]
+# Default ruleset (E + F) plus a small subset; explicit ignores
+# below cover idioms we use deliberately.
+ignore = [
+    # F541: f-strings without placeholders. Used liberally in
+    # diagnostic messages where a future revision is expected to
+    # interpolate; not worth churning the codebase to drop the f.
+    "F541",
+    # E741: ambiguous variable names (l, I, O). Mathematical
+    # kernels routinely use `l` for length, `I` for current /
+    # moment of inertia. Bigger lift to rename than to ignore.
+    "E741",
+    # E701/E702: multiple statements on one line (with colon or
+    # semicolon). Used in compact lookup tables and dispatch
+    # ladders inside the AST → SymPy / interpreter / formatter
+    # paths. Stylistic, not a defect.
+    "E701", "E702",
+    # E731: lambda assignment. Two intentional uses in dispatch
+    # tables where a lambda is more compact than a one-line def.
+    "E731",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test files deliberately import symbols just to assert they
+# exist (e.g. `from foo import CompileError as XErr`); F401
+# would force us to drop the only thing the test is checking.
+# Multi-statement lines (E701/E702) and unused-variable (F841)
+# also surface in test fixtures — ignore both in test trees.
+"**/tests/**/*.py" = ["F401", "F841", "E701", "E702", "E731"]
+"**/test_*.py"    = ["F401", "F841", "E701", "E702", "E731"]
+"conftest.py"     = ["F401", "F841", "E701", "E702", "E731"]
+# Top-of-file module imports are placed under a try/except guard
+# in two spots so the package is still importable when an
+# optional dep is missing. E402 doesn't understand that pattern.
+"tools/cli/main.py" = ["E402"]
+"lang/parser/parser.py" = ["E402"]
+"tools/benchmarks/regen_baselines.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.11"
 strict = false
 ignore_missing_imports = true
+# `lang/`, `software/`, `hardware/`, and `tools/` are PEP 420
+# namespace packages (no top-level __init__.py). Without these
+# two flags mypy reports each subpackage's modules as "found
+# under two different module names" (e.g. `loader.resolver` and
+# `lang.loader.resolver`) and aborts before checking anything.
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "."

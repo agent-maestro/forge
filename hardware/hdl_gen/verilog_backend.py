@@ -28,7 +28,6 @@ Reference: lang/spec/EML_LANG_DESIGN.md section 3.2.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 from hardware.allocator import AllocationPlan
 from hardware.hdl_gen.qformat import QFormat, default_q, format_verilog_literal
