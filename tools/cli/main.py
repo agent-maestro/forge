@@ -179,7 +179,18 @@ def main(argv: list[str] | None = None) -> int:
                              "EML source, copies of every referenced "
                              "Lean theorem, an AUDITOR.md guide, and "
                              "a manifest.json with sha256 of every "
-                             "artifact. Implies --spec-bundle.")
+                             "artifact. Implies --spec-bundle, "
+                             "--with-prbmath, --with-foundry-tests.")
+    parser.add_argument("--with-prbmath", action="store_true",
+                        help="When used with --target solidity, also "
+                             "emit a `<Contract>WithPRBMath.sol` child "
+                             "contract that wires the transcendental "
+                             "stubs to PRBMath SD59x18 implementations.")
+    parser.add_argument("--with-foundry-tests", action="store_true",
+                        help="When used with --target solidity, also "
+                             "emit `test/<Contract>Test.t.sol` plus "
+                             "`foundry.toml` so `forge test` runs out "
+                             "of the box. Implies --with-prbmath.")
     parser.add_argument("--machlib-root", type=Path, default=None,
                         help="Override the MachLib search root used "
                              "by --audit-bundle to locate Lean proof "
@@ -784,12 +795,57 @@ def main(argv: list[str] | None = None) -> int:
                     f"wrote {spec_path} ({len(spec_text)} bytes)",
                     file=sys.stderr,
                 )
+            if args.with_prbmath or args.with_foundry_tests:
+                from software.backends.solidity_prbmath import (
+                    emit_prbmath_override,
+                )
+                from software.backends.solidity_spec import build_spec
+                spec = build_spec(mod, backend=sol_backend)
+                override = emit_prbmath_override(
+                    parent_name=spec["contract"],
+                    used_builtins=set(sol_backend._used_builtins),
+                    parent_path=f"./{args.output.name}",
+                )
+                override_path = args.output.with_name(
+                    f"{override.contract_name}.sol",
+                )
+                override_path.write_text(override.source, encoding="utf-8")
+                print(
+                    f"wrote {override_path} ({len(override.source)} bytes)",
+                    file=sys.stderr,
+                )
+                if args.with_foundry_tests:
+                    from software.backends.solidity_foundry import (
+                        emit_foundry_scaffold,
+                    )
+                    scaffold = emit_foundry_scaffold(
+                        spec=spec,
+                        override_contract=override.contract_name,
+                        override_path=f"../{override.contract_name}.sol",
+                    )
+                    test_dir = args.output.parent / "test"
+                    test_dir.mkdir(exist_ok=True)
+                    test_path = test_dir / (
+                        f"{scaffold.test_contract_name}.t.sol"
+                    )
+                    test_path.write_text(
+                        scaffold.test_source, encoding="utf-8",
+                    )
+                    foundry_path = args.output.parent / "foundry.toml"
+                    foundry_path.write_text(
+                        scaffold.foundry_toml, encoding="utf-8",
+                    )
+                    print(
+                        f"wrote {test_path} + {foundry_path}",
+                        file=sys.stderr,
+                    )
         else:
             print(s, end="")
-            if args.spec_bundle:
+            if args.spec_bundle or args.with_prbmath or args.with_foundry_tests:
                 print(
-                    "warn: --spec-bundle ignored without -o (spec is "
-                    "always written as a sidecar file).",
+                    "warn: --spec-bundle / --with-prbmath / "
+                    "--with-foundry-tests ignored without -o "
+                    "(those write sidecar files).",
                     file=sys.stderr,
                 )
         return 0
