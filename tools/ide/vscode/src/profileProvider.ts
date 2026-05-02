@@ -14,11 +14,7 @@
  */
 
 import * as vscode from 'vscode';
-import { promisify } from 'util';
-import { exec as _exec } from 'child_process';
-import * as path from 'path';
-
-const exec = promisify(_exec);
+import { resolveForge, runForge } from './forgeCli';
 
 
 interface FnProfile {
@@ -84,17 +80,17 @@ export class ProfileLensProvider implements vscode.CodeLensProvider {
     }
 
     private async runProfiler(filePath: string): Promise<FnProfile[] | null> {
-        const repoRoot = findRepoRoot(filePath);
-        if (!repoRoot) return null;
+        const inv = resolveForge(filePath);
+        if (!inv) return null;
         try {
-            const { stdout } = await exec(
-                `python tools/cli/main.py "${filePath}" --profile-only`,
-                { cwd: repoRoot, timeout: 10000 },
-            );
+            const { stdout } = await runForge(inv, [
+                filePath, '--profile-only',
+            ]);
             return parseProfileOutput(stdout);
-        } catch (e) {
-            // Profiler failed (parse error in source, etc.). Surface
-            // nothing -- the diagnostics provider handles errors.
+        } catch {
+            // Profiler failed (parse error in source, etc.).
+            // Surface nothing -- the diagnostics provider handles
+            // errors.
             return null;
         }
     }
@@ -198,23 +194,3 @@ function fillDefaults(p: Partial<FnProfile>): FnProfile {
 }
 
 
-/**
- * Walk up from `filePath` looking for the monogate-forge repo
- * root (identified by `tools/cli/main.py` + `lang/spec/SPEC.md`).
- * Returns null when no repo found within 8 ancestor levels.
- */
-function findRepoRoot(filePath: string): string | null {
-    let dir = path.dirname(filePath);
-    const fs = require('fs') as typeof import('fs');
-    for (let i = 0; i < 8; i++) {
-        const cliPath = path.join(dir, 'tools', 'cli', 'main.py');
-        const specPath = path.join(dir, 'lang', 'spec', 'SPEC.md');
-        if (fs.existsSync(cliPath) && fs.existsSync(specPath)) {
-            return dir;
-        }
-        const parent = path.dirname(dir);
-        if (parent === dir) break;
-        dir = parent;
-    }
-    return null;
-}

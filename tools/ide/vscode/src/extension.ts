@@ -29,23 +29,42 @@
  * source of truth.
  */
 
-import * as cp from 'child_process';
-import * as path from 'path';
 import * as vscode from 'vscode';
 import { ChainOrderDiagnostics } from './diagnostics';
 import { ProfileLensProvider } from './profileProvider';
+import { resolveForge, runForge } from './forgeCli';
 
 const ALL_TARGETS: ReadonlyArray<{ id: string; description: string }> = [
-    { id: 'c',       description: 'C99 source via libmonogate' },
-    { id: 'rust',    description: 'Rust source via the monogate-sys crate' },
-    { id: 'python',  description: 'Python module using math.* (Tool 5)' },
-    { id: 'llvm',    description: 'Portable LLVM IR' },
-    { id: 'wasm',    description: 'WebAssembly bytecode (or LLVM IR fallback)' },
-    { id: 'verilog', description: 'Synthesizable Verilog (FPGA target)' },
-    { id: 'vhdl',    description: 'VHDL-2008 (FPGA target)' },
-    { id: 'chisel',  description: 'Chisel 3 / FIRRTL source' },
-    { id: 'lean',    description: 'Lean 4 verification artifacts' },
-    { id: 'all',     description: 'All live backends; writes to source dir' },
+    // Software
+    { id: 'c',             description: 'C99 source via libmonogate' },
+    { id: 'cpp',           description: 'C++17 source' },
+    { id: 'rust',          description: 'Rust source via the monogate-sys crate' },
+    { id: 'go',            description: 'Go source using math.* / gonum' },
+    { id: 'java',          description: 'Java source (java.lang.Math)' },
+    { id: 'kotlin',        description: 'Kotlin source (kotlin.math)' },
+    { id: 'python',        description: 'Python module using math.* (Tool 5)' },
+    { id: 'matlab',        description: 'MATLAB / Octave .m source' },
+    // Low-level / bytecode
+    { id: 'llvm',          description: 'Portable LLVM IR' },
+    { id: 'wasm',          description: 'WebAssembly bytecode (LLVM IR fallback)' },
+    // Hardware
+    { id: 'verilog',       description: 'Synthesizable Verilog (FPGA target)' },
+    { id: 'systemverilog', description: 'SystemVerilog with assertions' },
+    { id: 'vhdl',          description: 'VHDL-2008 (FPGA target)' },
+    { id: 'chisel',        description: 'Chisel 3 / FIRRTL source' },
+    // Safety-critical / certification
+    { id: 'ada',           description: 'Ada / SPARK 2014' },
+    { id: 'autosar',       description: 'AUTOSAR Classic (.arxml + C)' },
+    { id: 'aadl',          description: 'AADL architecture model' },
+    { id: 'ros2',          description: 'ROS 2 node skeleton' },
+    // Verification
+    { id: 'lean',          description: 'Lean 4 verification artifacts' },
+    { id: 'coq',           description: 'Coq / Rocq verification artifacts' },
+    { id: 'isabelle',      description: 'Isabelle/HOL theory file' },
+    // Smart contracts
+    { id: 'solidity',      description: 'Solidity contract (PRBMath SD59x18)' },
+    // Bulk
+    { id: 'all',           description: 'All live backends; writes to source dir' },
 ];
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -88,7 +107,10 @@ export function activate(context: vscode.ExtensionContext): void {
         ),
     );
 
-    // Commands users can invoke from the palette.
+    // Commands users can invoke from the palette. Per-target shortcut
+    // commands are registered in a loop so adding a 23rd backend only
+    // means appending one entry to ALL_TARGETS (and contributes.commands
+    // in package.json so the palette picks it up).
     context.subscriptions.push(
         vscode.commands.registerCommand(
             'monogate-forge.profile',
@@ -98,27 +120,15 @@ export function activate(context: vscode.ExtensionContext): void {
             'monogate-forge.compile.pick',
             () => compileToPicker(),
         ),
-        vscode.commands.registerCommand(
-            'monogate-forge.compile.c',       () => compileTo('c')),
-        vscode.commands.registerCommand(
-            'monogate-forge.compile.rust',    () => compileTo('rust')),
-        vscode.commands.registerCommand(
-            'monogate-forge.compile.python',  () => compileTo('python')),
-        vscode.commands.registerCommand(
-            'monogate-forge.compile.llvm',    () => compileTo('llvm')),
-        vscode.commands.registerCommand(
-            'monogate-forge.compile.wasm',    () => compileTo('wasm')),
-        vscode.commands.registerCommand(
-            'monogate-forge.compile.verilog', () => compileTo('verilog')),
-        vscode.commands.registerCommand(
-            'monogate-forge.compile.vhdl',    () => compileTo('vhdl')),
-        vscode.commands.registerCommand(
-            'monogate-forge.compile.chisel',  () => compileTo('chisel')),
-        vscode.commands.registerCommand(
-            'monogate-forge.compile.lean',    () => compileTo('lean')),
-        vscode.commands.registerCommand(
-            'monogate-forge.compile.all',     () => compileTo('all')),
     );
+    for (const t of ALL_TARGETS) {
+        context.subscriptions.push(
+            vscode.commands.registerCommand(
+                `monogate-forge.compile.${t.id}`,
+                () => compileTo(t.id),
+            ),
+        );
+    }
 
     // Refresh status bar for the editor that's already open at
     // activation, if any.
@@ -165,13 +175,22 @@ async function compileTo(target: string): Promise<void> {
     }
     await editor.document.save();
     const sourcePath = editor.document.uri.fsPath;
+    const inv = resolveForge(sourcePath);
+    if (!inv) return;  // resolveForge already showed an install hint
+
+    // Quote the source path so terminal users with spaces in their
+    // paths don't end up with a confusing parse error.
+    const quoted = `"${sourcePath}"`;
+    const terminalCmd = inv.source === 'package'
+        ? `eml-compile ${quoted} --target ${target}`
+        : `${inv.cmd} ${inv.args.join(' ')} ${quoted} --target ${target}`;
+
     const terminal = vscode.window.createTerminal({
         name: `eml-compile --target ${target}`,
+        cwd: inv.cwd,
     });
     terminal.show();
-    terminal.sendText(
-        `python tools/cli/main.py "${sourcePath}" --target ${target}`,
-    );
+    terminal.sendText(terminalCmd);
 }
 
 
@@ -183,36 +202,28 @@ async function compileTo(target: string): Promise<void> {
  * handled by VS Code automatically.
  */
 class EmlFormattingProvider implements vscode.DocumentFormattingEditProvider {
-    public provideDocumentFormattingEdits(
+    public async provideDocumentFormattingEdits(
         document: vscode.TextDocument,
-    ): vscode.ProviderResult<vscode.TextEdit[]> {
-        return new Promise((resolve) => {
-            const cli = pythonCli();
-            const repoRoot = workspaceRoot();
-            cp.execFile(
-                cli,
-                ['tools/cli/main.py', document.uri.fsPath, '--fmt'],
-                { cwd: repoRoot, encoding: 'utf-8', maxBuffer: 16 * 1024 * 1024 },
-                (err, stdout) => {
-                    if (err) {
-                        // Surface the error in the output channel; don't
-                        // mangle the document.
-                        const out = vscode.window.createOutputChannel(
-                            'Monogate Forge'
-                        );
-                        out.appendLine(`fmt error: ${err.message}`);
-                        out.show(true);
-                        resolve([]);
-                        return;
-                    }
-                    const fullRange = new vscode.Range(
-                        document.positionAt(0),
-                        document.positionAt(document.getText().length),
-                    );
-                    resolve([vscode.TextEdit.replace(fullRange, stdout)]);
-                },
+    ): Promise<vscode.TextEdit[]> {
+        const inv = resolveForge(document.uri.fsPath);
+        if (!inv) return [];
+        try {
+            const { stdout } = await runForge(
+                inv,
+                [document.uri.fsPath, '--fmt'],
+                15_000,
             );
-        });
+            const fullRange = new vscode.Range(
+                document.positionAt(0),
+                document.positionAt(document.getText().length),
+            );
+            return [vscode.TextEdit.replace(fullRange, stdout)];
+        } catch (err) {
+            const out = vscode.window.createOutputChannel('Monogate Forge');
+            out.appendLine(`fmt error: ${(err as Error).message}`);
+            out.show(true);
+            return [];
+        }
     }
 }
 
@@ -239,44 +250,39 @@ class FpgaStatusBarItem implements vscode.Disposable {
         this.item.command = 'monogate-forge.profile';
     }
 
-    public refresh(doc: vscode.TextDocument): void {
+    public async refresh(doc: vscode.TextDocument): Promise<void> {
         if (doc.languageId !== 'eml') {
             this.item.hide();
             return;
         }
-        const cli = pythonCli();
-        const repoRoot = workspaceRoot();
+        const inv = resolveForge(doc.uri.fsPath);
+        if (!inv) {
+            this.item.hide();
+            return;
+        }
         const target = vscode.workspace
             .getConfiguration('eml.fpga')
             .get<string>('target', 'xilinx.artix7');
 
         const myToken = ++this.inflight;
-        cp.execFile(
-            cli,
-            ['tools/cli/main.py', doc.uri.fsPath, '--allocate',
-             '--fpga-target', target],
-            { cwd: repoRoot, encoding: 'utf-8', maxBuffer: 4 * 1024 * 1024 },
-            (err, stdout) => {
-                if (myToken !== this.inflight) {
-                    return;
-                }
-                if (err) {
-                    this.item.hide();
-                    return;
-                }
-                const summary = parseAllocationSummary(stdout);
-                if (!summary) {
-                    this.item.hide();
-                    return;
-                }
-                this.item.text =
-                    `$(circuit-board) ${summary.luts} LUT  ` +
-                    `${summary.dsps} DSP  ${summary.cycles} cy`;
-                this.item.tooltip =
-                    `FPGA target: ${target}\n${stdout}`;
-                this.item.show();
-            },
-        );
+        try {
+            const { stdout } = await runForge(inv, [
+                doc.uri.fsPath, '--allocate', '--fpga-target', target,
+            ]);
+            if (myToken !== this.inflight) return;
+            const summary = parseAllocationSummary(stdout);
+            if (!summary) {
+                this.item.hide();
+                return;
+            }
+            this.item.text =
+                `$(circuit-board) ${summary.luts} LUT  ` +
+                `${summary.dsps} DSP  ${summary.cycles} cy`;
+            this.item.tooltip = `FPGA target: ${target}\n${stdout}`;
+            this.item.show();
+        } catch {
+            if (myToken === this.inflight) this.item.hide();
+        }
     }
 
     public hide(): void {
@@ -308,21 +314,8 @@ function parseAllocationSummary(out: string):
 }
 
 
-function pythonCli(): string {
-    return vscode.workspace
-        .getConfiguration('eml.compile')
-        .get<string>('python', 'python');
-}
-
-function workspaceRoot(): string {
-    const ws = vscode.workspace.workspaceFolders;
-    if (ws && ws.length > 0) {
-        return ws[0].uri.fsPath;
-    }
-    // Fallback: use the directory of the active editor.
-    const editor = vscode.window.activeTextEditor;
-    if (editor) {
-        return path.dirname(editor.document.uri.fsPath);
-    }
-    return process.cwd();
-}
+// pythonCli + workspaceRoot used to live here; both moved into
+// forgeCli.resolveForge() so all CLI invocations share one
+// discovery + caching path. The legacy `eml.compile.python`
+// setting is still honored as the python executable in the
+// checkout-fallback branch (see forgeCli.ts).

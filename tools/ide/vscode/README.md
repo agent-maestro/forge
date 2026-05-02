@@ -10,33 +10,55 @@ EML-lang language support for VS Code:
 - **Inline profile lenses** above every `fn` header, e.g.
   `chain_order=2  p2-d4-w2-c0  4 MAC + 1 trig (8cy @ 32-bit)  drift=MEDIUM`
 - **Chain-order diagnostics** on save (red squiggles + Problems-tab)
-- **Compile commands** (palette + right-click): C / Rust / Lean / Verilog / all
+- **Compile commands** (palette + right-click) for all 22 backends:
+  - **Software**: C, C++, Rust, Go, Java, Kotlin, Python, MATLAB
+  - **Bytecode**: LLVM IR, WebAssembly
+  - **Hardware**: Verilog, SystemVerilog, VHDL, Chisel
+  - **Safety-critical**: Ada/SPARK, AUTOSAR, AADL, ROS 2
+  - **Verification**: Lean 4, Coq, Isabelle/HOL
+  - **Smart contracts**: Solidity
 
-The extension shells out to `python tools/cli/main.py` — the Python CLI
-is the source of truth. No parsing logic is reimplemented in TypeScript.
+The extension shells out to the Forge CLI — the Python CLI is the
+source of truth. No parsing logic is reimplemented in TypeScript.
 
-## Local install (dev)
+## Install (users)
 
 ```bash
-cd tools/ide/vscode
+pip install monogate-forge
+```
+
+That gives you the `eml-compile` binary on `PATH`. Install the
+extension from the VS Code marketplace, open any `.eml` file
+anywhere on disk, and the lenses + diagnostics light up. No clone
+of `monogate-forge` required.
+
+## Install (contributors editing the language itself)
+
+```bash
+git clone https://github.com/agent-maestro/monogate-forge
+cd monogate-forge/tools/ide/vscode
 npm install
 npm run compile
 ```
 
-Then in VS Code: `F1 → Developer: Install Extension from Location…` and
-point at this directory. Open any `.eml` file from a monogate-forge
-checkout — the lenses and diagnostics light up automatically on save.
+Then in VS Code: `F1 → Developer: Install Extension from Location…`
+and point at this directory. The extension auto-detects whether
+you're editing inside a forge checkout (uses `python tools/cli/main.py`
+so your unbuilt local changes apply) or outside one (uses the
+installed `eml-compile`).
 
 ## Architecture
 
 | File | Role |
 |------|------|
-| `src/extension.ts` | Entry point, registers providers + commands |
+| `src/extension.ts` | Entry point — registers providers + commands |
+| `src/forgeCli.ts` | Resolves `eml-compile` (installed) or `python tools/cli/main.py` (in-clone) |
 | `src/profileProvider.ts` | CodeLens provider — runs `--profile-only`, parses dashboard |
 | `src/diagnostics.ts` | DiagnosticCollection — surfaces type-errors as squiggles |
 | `language-configuration.json` | Bracket auto-close, comment toggle |
 | `syntaxes/eml.tmLanguage.json` | TextMate grammar |
 
-Both providers walk up from the open file to find the repo root
-(identified by `tools/cli/main.py` + `lang/spec/SPEC.md`). Files outside
-a forge checkout are silently ignored.
+The CLI discovery happens once per session (cached), then every
+invocation prefers the installed binary and falls back to a forge
+clone above the open file. If neither is available, the user gets
+a one-shot install hint with a "Copy command" button.
