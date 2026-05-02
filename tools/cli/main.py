@@ -120,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         "verilog", "systemverilog", "vhdl", "chisel", "lean",
         "ada", "matlab",
         "coq", "isabelle", "ros2",
-        "java", "kotlin", "go", "autosar", "aadl",
+        "java", "kotlin", "csharp", "go", "autosar", "aadl",
         "solidity",
         "all",
     ], help=("Output target. 'all' runs every live backend "
@@ -444,6 +444,17 @@ def main(argv: list[str] | None = None) -> int:
             results.append(("kotlin", Path("<skipped>"), 0))
             print(f"  kotlin skipped: {e}", file=sys.stderr)
 
+        # C# (Unity-ready)
+        try:
+            from software.backends.csharp_backend import CSharpBackend
+            cs_path = out_dir / f"{stem.title().replace('_', '')}.cs"
+            cs_src = CSharpBackend(optimize=not args.no_optimize).compile(mod)
+            cs_path.write_text(cs_src, encoding="utf-8")
+            results.append(("csharp", cs_path, len(cs_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("csharp", Path("<skipped>"), 0))
+            print(f"  csharp skipped: {e}", file=sys.stderr)
+
         # Go
         try:
             from software.backends.go_backend import GoBackend
@@ -726,6 +737,22 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wrote {args.output} ({len(k)} bytes)", file=sys.stderr)
         else:
             print(k, end="")
+        return 0
+
+    if args.target == "csharp":
+        from software.backends.csharp_backend import (
+            CSharpBackend, CompileError as CsErr,
+        )
+        try:
+            cs = CSharpBackend(optimize=not args.no_optimize).compile(mod)
+        except CsErr as e:
+            print(f"compile error (csharp backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(cs, encoding="utf-8")
+            print(f"wrote {args.output} ({len(cs)} bytes)", file=sys.stderr)
+        else:
+            print(cs, end="")
         return 0
 
     if args.target == "go":
