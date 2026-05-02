@@ -43,20 +43,19 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
 
 from lsprotocol import types as lsp
 from pygls.lsp.server import LanguageServer
 
 from lang.parser.ast_nodes import (
-    BUILTIN_TO_KIND, EMLConstant, EMLFunction, EMLModule, EMLTypeAlias,
+    BUILTIN_TO_KIND, EMLModule,
 )
 from lang.parser.lexer import KEYWORDS, LexError
 from lang.parser.parser import ParseError, parse_source
 from lang.parser.type_checker import type_check_program
 from tools.fmt.formatter import format_source
 from tools.ide.lsp.workspace import (
-    RefHit, WorkspaceIndex, collect_refs_in_module, is_renameable,
+    WorkspaceIndex, collect_refs_in_module, is_renameable,
 )
 
 

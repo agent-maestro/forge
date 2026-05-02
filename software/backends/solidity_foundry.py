@@ -285,11 +285,6 @@ def _render_gas_snapshot_test(
     fn: dict, *, deployed_contract: str, indent: str,
 ) -> list[str]:
     """Bench an internal helper through the harness wrapper."""
-    sig = ", ".join(
-        f"{p['solidity_type']} {p['solidity_name']}"
-        for p in fn["params"]
-    )
-    call_args = ", ".join(p["solidity_name"] for p in fn["params"])
     # Pick zero values for each param so the test compiles without
     # requiring the user to invent inputs. The point of this test
     # is the gas number, not the result correctness.

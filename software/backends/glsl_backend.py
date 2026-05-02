@@ -80,7 +80,6 @@ Notable differences from the HLSL backend
 from __future__ import annotations
 
 from lang.parser.ast_nodes import (
-    Annotation,
     ASTNode,
     EMLConstant,
     EMLFunction,

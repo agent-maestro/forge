@@ -32,10 +32,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from lang.parser.ast_nodes import (
-    Annotation,
     EMLFunction,
     EMLModule,
-    NodeKind,
 )
 from software.backends.c_backend import CBackend
 
@@ -145,9 +143,6 @@ class AutosarBackend:
         """
         runnable = f"Run_{primary.name}"
         fn = primary
-
-        rdata = "\n".join(self._port_data_element(p.name) for p in fn.params)
-        sdata = self._port_data_element("result")
 
         rports = "\n".join(self._receiver_port(p.name) for p in fn.params)
         sports = self._sender_port("result")

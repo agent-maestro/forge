@@ -41,7 +41,6 @@ Reference: lang/spec/EML_LANG_DESIGN.md + Phase 4 backend roadmap.
 from __future__ import annotations
 
 from lang.parser.ast_nodes import (
-    Annotation,
     ASTNode,
     EMLConstant,
     EMLFunction,

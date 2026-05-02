@@ -56,7 +56,6 @@ The output is loadable via Roblox's `require()`, Lune, vanilla Lua
 from __future__ import annotations
 
 from lang.parser.ast_nodes import (
-    Annotation,
     ASTNode,
     EMLConstant,
     EMLFunction,

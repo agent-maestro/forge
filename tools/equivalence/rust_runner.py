@@ -18,7 +18,7 @@ import tempfile
 from pathlib import Path
 from typing import Iterable
 
-from lang.parser.ast_nodes import EMLFunction, EMLModule
+from lang.parser.ast_nodes import EMLModule
 from software.backends.rust_backend import RustBackend, _rust_type
 
 

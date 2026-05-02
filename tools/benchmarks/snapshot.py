@@ -23,7 +23,7 @@ import json
 from pathlib import Path
 
 from lang.optimizer import optimize_module
-from lang.parser.ast_nodes import ASTNode, EMLModule, NodeKind
+from lang.parser.ast_nodes import ASTNode, EMLModule
 from lang.parser.parser import parse_file
 from lang.profiler.profiler import Profiler
 

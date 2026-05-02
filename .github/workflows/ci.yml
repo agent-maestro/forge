@@ -6,6 +6,14 @@ on:
   pull_request:
     branches: [master, main]
 
+# Opt into Node 24 for all JavaScript-based actions (checkout,
+# setup-python, cache, etc.) so we don't get the Node-20-deprecation
+# warning that's slated to start failing builds on 2026-06-02.
+# Documented in
+# https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   test:
     name: ${{ matrix.os }} / py${{ matrix.python-version }}

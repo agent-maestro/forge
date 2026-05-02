@@ -34,9 +34,7 @@ from tools.equivalence.c_runner import (
     gcc_available,
 )
 from tools.equivalence.lean_runner import (
-    LeanCheckResult,
     LeanRunner,
-    LeanRunnerError,
 )
 
 
