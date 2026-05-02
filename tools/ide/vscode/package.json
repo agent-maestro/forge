@@ -1,8 +1,8 @@
 {
   "name": "monogate-forge-vscode",
   "displayName": "Monogate Forge",
-  "description": "EML-lang LSP (errors-as-you-type, hover-for-types) + syntax highlighting + inline profiling + 22-target compile",
-  "version": "0.4.0",
+  "description": "EML-lang LSP (errors-as-you-type, hover, completion, goto-def, outline) + syntax highlighting + inline profiling + snippets + 22-target compile",
+  "version": "0.4.1",
   "publisher": "monogate-research",
   "license": "MIT",
   "homepage": "https://monogate.dev/learn/eml",
@@ -33,6 +33,10 @@
       "language": "eml",
       "scopeName": "source.eml",
       "path": "./syntaxes/eml.tmLanguage.json"
+    }],
+    "snippets": [{
+      "language": "eml",
+      "path": "./snippets/eml.json"
     }],
     "commands": [
       { "command": "monogate-forge.profile",              "title": "Refresh profile lenses",      "category": "Monogate Forge" },
