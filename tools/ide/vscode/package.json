@@ -1,8 +1,8 @@
 {
   "name": "monogate-forge-vscode",
   "displayName": "Monogate Forge",
-  "description": "EML-lang syntax highlighting + inline profiling + chain-order diagnostics + 9-target compile",
-  "version": "0.2.0",
+  "description": "EML-lang syntax highlighting + inline profiling + chain-order diagnostics + 22-target compile",
+  "version": "0.3.0",
   "publisher": "monogate-research",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Programming Languages", "Linters", "Formatters"],
@@ -23,66 +23,31 @@
       "path": "./syntaxes/eml.tmLanguage.json"
     }],
     "commands": [
-      {
-        "command": "monogate-forge.profile",
-        "title": "Monogate Forge: Refresh profile lenses",
-        "category": "Monogate Forge"
-      },
-      {
-        "command": "monogate-forge.compile.pick",
-        "title": "Monogate Forge: Compile to...",
-        "category": "Monogate Forge"
-      },
-      {
-        "command": "monogate-forge.compile.c",
-        "title": "Monogate Forge: Compile to C",
-        "category": "Monogate Forge"
-      },
-      {
-        "command": "monogate-forge.compile.rust",
-        "title": "Monogate Forge: Compile to Rust",
-        "category": "Monogate Forge"
-      },
-      {
-        "command": "monogate-forge.compile.python",
-        "title": "Monogate Forge: Compile to Python",
-        "category": "Monogate Forge"
-      },
-      {
-        "command": "monogate-forge.compile.llvm",
-        "title": "Monogate Forge: Compile to LLVM IR",
-        "category": "Monogate Forge"
-      },
-      {
-        "command": "monogate-forge.compile.wasm",
-        "title": "Monogate Forge: Compile to WebAssembly",
-        "category": "Monogate Forge"
-      },
-      {
-        "command": "monogate-forge.compile.verilog",
-        "title": "Monogate Forge: Compile to Verilog",
-        "category": "Monogate Forge"
-      },
-      {
-        "command": "monogate-forge.compile.vhdl",
-        "title": "Monogate Forge: Compile to VHDL",
-        "category": "Monogate Forge"
-      },
-      {
-        "command": "monogate-forge.compile.chisel",
-        "title": "Monogate Forge: Compile to Chisel",
-        "category": "Monogate Forge"
-      },
-      {
-        "command": "monogate-forge.compile.lean",
-        "title": "Monogate Forge: Compile to Lean",
-        "category": "Monogate Forge"
-      },
-      {
-        "command": "monogate-forge.compile.all",
-        "title": "Monogate Forge: Compile to all targets",
-        "category": "Monogate Forge"
-      }
+      { "command": "monogate-forge.profile",              "title": "Refresh profile lenses",      "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.pick",         "title": "Compile to...",               "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.c",            "title": "Compile to C",                "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.cpp",          "title": "Compile to C++",              "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.rust",         "title": "Compile to Rust",             "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.go",           "title": "Compile to Go",               "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.java",         "title": "Compile to Java",             "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.kotlin",       "title": "Compile to Kotlin",           "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.python",       "title": "Compile to Python",           "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.matlab",       "title": "Compile to MATLAB",           "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.llvm",         "title": "Compile to LLVM IR",          "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.wasm",         "title": "Compile to WebAssembly",      "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.verilog",      "title": "Compile to Verilog",          "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.systemverilog","title": "Compile to SystemVerilog",    "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.vhdl",         "title": "Compile to VHDL",             "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.chisel",       "title": "Compile to Chisel",           "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.ada",          "title": "Compile to Ada / SPARK",      "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.autosar",      "title": "Compile to AUTOSAR",          "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.aadl",         "title": "Compile to AADL",             "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.ros2",         "title": "Compile to ROS 2",            "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.lean",         "title": "Compile to Lean 4",           "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.coq",          "title": "Compile to Coq",              "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.isabelle",     "title": "Compile to Isabelle/HOL",     "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.solidity",     "title": "Compile to Solidity",         "category": "Monogate Forge" },
+      { "command": "monogate-forge.compile.all",          "title": "Compile to all 22 targets",   "category": "Monogate Forge" }
     ],
     "menus": {
       "editor/context": [
