@@ -4,6 +4,18 @@
   "description": "EML-lang syntax highlighting + inline profiling + chain-order diagnostics + 22-target compile",
   "version": "0.3.0",
   "publisher": "monogate-research",
+  "license": "MIT",
+  "homepage": "https://monogate.dev/learn/eml",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agent-maestro/monogate-forge.git",
+    "directory": "tools/ide/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/agent-maestro/monogate-forge/issues"
+  },
+  "keywords": ["eml", "monogate", "forge", "verified-math", "lean",
+               "verilog", "vhdl", "fpga", "verification"],
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Programming Languages", "Linters", "Formatters"],
   "main": "./out/extension.js",

@@ -1,0 +1,15 @@
+# Source files (only compiled out/ is needed at runtime)
+src/**
+tsconfig.json
+**/*.ts.map
+out/**/*.js.map
+
+# Repo-level files
+.gitignore
+.vscode/**
+.vscode-test/**
+
+# Dev artifacts
+node_modules/**
+package-lock.json
+*.vsix
