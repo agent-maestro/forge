@@ -121,7 +121,8 @@ def main(argv: list[str] | None = None) -> int:
         "ada", "matlab",
         "coq", "isabelle", "ros2",
         "java", "kotlin", "csharp", "hlsl", "glsl", "glsles",
-        "wgsl",
+        "wgsl", "metal", "swift",
+        "javascript", "luau",
         "gdscript",
         "go", "autosar", "aadl",
         "solidity",
@@ -517,6 +518,54 @@ def main(argv: list[str] | None = None) -> int:
             results.append(("wgsl", Path("<skipped>"), 0))
             print(f"  wgsl skipped: {e}", file=sys.stderr)
 
+        # Metal (Apple iOS / macOS / iPadOS shaders)
+        try:
+            from software.backends.metal_backend import MetalBackend
+            mt_path = out_dir / f"{stem}.metal"
+            mt_src = MetalBackend(optimize=not args.no_optimize).compile(mod)
+            mt_path.write_text(mt_src, encoding="utf-8")
+            results.append(("metal", mt_path, len(mt_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("metal", Path("<skipped>"), 0))
+            print(f"  metal skipped: {e}", file=sys.stderr)
+
+        # Swift
+        try:
+            from software.backends.swift_backend import SwiftBackend
+            sw_path = out_dir / f"{stem}.swift"
+            sw_src = SwiftBackend(optimize=not args.no_optimize).compile(mod)
+            sw_path.write_text(sw_src, encoding="utf-8")
+            results.append(("swift", sw_path, len(sw_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("swift", Path("<skipped>"), 0))
+            print(f"  swift skipped: {e}", file=sys.stderr)
+
+        # JavaScript (ES module)
+        try:
+            from software.backends.javascript_backend import (
+                JavaScriptBackend,
+            )
+            js_path = out_dir / f"{stem}.mjs"
+            js_src = JavaScriptBackend(
+                optimize=not args.no_optimize,
+            ).compile(mod)
+            js_path.write_text(js_src, encoding="utf-8")
+            results.append(("javascript", js_path, len(js_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("javascript", Path("<skipped>"), 0))
+            print(f"  javascript skipped: {e}", file=sys.stderr)
+
+        # Luau (Roblox typed Lua)
+        try:
+            from software.backends.luau_backend import LuauBackend
+            lu_path = out_dir / f"{stem}.luau"
+            lu_src = LuauBackend(optimize=not args.no_optimize).compile(mod)
+            lu_path.write_text(lu_src, encoding="utf-8")
+            results.append(("luau", lu_path, len(lu_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("luau", Path("<skipped>"), 0))
+            print(f"  luau skipped: {e}", file=sys.stderr)
+
         # Go
         try:
             from software.backends.go_backend import GoBackend
@@ -851,6 +900,70 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wrote {args.output} ({len(gl)} bytes)", file=sys.stderr)
         else:
             print(gl, end="")
+        return 0
+
+    if args.target == "javascript":
+        from software.backends.javascript_backend import (
+            JavaScriptBackend, CompileError as JsErr,
+        )
+        try:
+            js = JavaScriptBackend(optimize=not args.no_optimize).compile(mod)
+        except JsErr as e:
+            print(f"compile error (javascript backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(js, encoding="utf-8")
+            print(f"wrote {args.output} ({len(js)} bytes)", file=sys.stderr)
+        else:
+            print(js, end="")
+        return 0
+
+    if args.target == "luau":
+        from software.backends.luau_backend import (
+            LuauBackend, CompileError as LuauErr,
+        )
+        try:
+            lu = LuauBackend(optimize=not args.no_optimize).compile(mod)
+        except LuauErr as e:
+            print(f"compile error (luau backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(lu, encoding="utf-8")
+            print(f"wrote {args.output} ({len(lu)} bytes)", file=sys.stderr)
+        else:
+            print(lu, end="")
+        return 0
+
+    if args.target == "swift":
+        from software.backends.swift_backend import (
+            SwiftBackend, CompileError as SwErr,
+        )
+        try:
+            sw = SwiftBackend(optimize=not args.no_optimize).compile(mod)
+        except SwErr as e:
+            print(f"compile error (swift backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(sw, encoding="utf-8")
+            print(f"wrote {args.output} ({len(sw)} bytes)", file=sys.stderr)
+        else:
+            print(sw, end="")
+        return 0
+
+    if args.target == "metal":
+        from software.backends.metal_backend import (
+            MetalBackend, CompileError as MtlErr,
+        )
+        try:
+            mt = MetalBackend(optimize=not args.no_optimize).compile(mod)
+        except MtlErr as e:
+            print(f"compile error (metal backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(mt, encoding="utf-8")
+            print(f"wrote {args.output} ({len(mt)} bytes)", file=sys.stderr)
+        else:
+            print(mt, end="")
         return 0
 
     if args.target == "wgsl":
