@@ -1,0 +1,102 @@
+// fbm_warped.eml -- domain-warped fBm with growing chain order.
+//
+// Iñigo Quilez's domain warping technique injects the previous
+// noise layer's output back into the next layer's input:
+//
+//   warp_1(x, y) = noise(x, y)
+//   warp_2(x, y) = noise(x + warp_1(x, y), y + warp_1(x, y))
+//   warp_3(x, y) = noise(x + warp_2(x, y), y + warp_2(x, y))
+//
+// Each new warp level NESTS another transcendental inside the
+// previous one, so BOTH chain_order AND eml_depth grow with
+// warp depth. The Forge profiler reports:
+//
+//   warp_base       chain_order 2    eml_depth 7     drift MEDIUM
+//   warp_depth_2    chain_order 4    eml_depth 16    drift HIGH
+//   warp_depth_3    chain_order 6    eml_depth 25    drift HIGH
+//
+// This is the procedural-content kernel where the Forge profiler
+// pays off the most. A naive level designer might add domain
+// warping until the noise "looks right" and ship a deep-nested
+// kernel that misses GPU frame budget on the target hardware,
+// or worse, ship one whose float32 rounding errors compound
+// through the whole sin-of-sin-of-sin chain into visible
+// banding. The profiler reports both growth rates.
+//
+// Sibling to fbm_octaves.eml (the parallel-sum variant where
+// eml_depth stays bounded).
+
+module fbm_warped;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const HALF:        Real = 0.5
+
+const HASH_X:      Real = 12.9898
+const HASH_Y:      Real = 78.233
+
+const COORD_MAX:   Real = 1.0e6
+const FREQ_MIN:    Real = 1.0e-6
+const FREQ_MAX:    Real = 1.0e2
+const WARP_AMP:    Real = 4.0          // "how curly" the warping is
+
+type WarpedNoise = Real where chain_order <= 6
+
+// Single-layer base noise. Chain order 1. Stored as its own kernel
+// so the deeper warps can call it; if forge inlines, chain order
+// is preserved by the surrounding expression's tree.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "warp_base_in_unit_interval")
+fn warp_base(x: Real, y: Real, freq: Real) -> WarpedNoise
+    where chain_order <= 2
+    requires (abs(x) <= COORD_MAX)
+    requires (abs(y) <= COORD_MAX)
+    requires (freq >= FREQ_MIN)
+    requires (freq <= FREQ_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    sin(freq * x * HASH_X + freq * y * HASH_Y) * HALF + HALF
+}
+
+// Depth-2 domain-warped noise. Chain order 2 (sin of an expression
+// containing another sin). drift_risk LOW.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "warp_depth_2_in_unit_interval")
+fn warp_depth_2(x: Real, y: Real, freq: Real) -> WarpedNoise
+    where chain_order <= 4
+    requires (abs(x) <= COORD_MAX)
+    requires (abs(y) <= COORD_MAX)
+    requires (freq >= FREQ_MIN)
+    requires (freq <= FREQ_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    let w1   = sin(freq * x * HASH_X + freq * y * HASH_Y) * HALF + HALF;
+    let w2_x = x + WARP_AMP * w1;
+    let w2_y = y + WARP_AMP * w1;
+    sin(freq * w2_x * HASH_X + freq * w2_y * HASH_Y) * HALF + HALF
+}
+
+// Depth-3 domain-warped noise. Chain order 3 (sin nested inside
+// sin nested inside sin). drift_risk MEDIUM -- the float32 rounding
+// at the outermost sin can leak through the entire warp chain.
+@target(fpga, clock_mhz = 125, precision = float32)
+@verify(lean, theorem = "warp_depth_3_in_unit_interval")
+fn warp_depth_3(x: Real, y: Real, freq: Real) -> WarpedNoise
+    where chain_order <= 6
+    requires (abs(x) <= COORD_MAX)
+    requires (abs(y) <= COORD_MAX)
+    requires (freq >= FREQ_MIN)
+    requires (freq <= FREQ_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    let w1   = sin(freq * x * HASH_X + freq * y * HASH_Y) * HALF + HALF;
+    let w2_x = x + WARP_AMP * w1;
+    let w2_y = y + WARP_AMP * w1;
+    let w2   = sin(freq * w2_x * HASH_X + freq * w2_y * HASH_Y) * HALF + HALF;
+    let w3_x = x + WARP_AMP * w2;
+    let w3_y = y + WARP_AMP * w2;
+    sin(freq * w3_x * HASH_X + freq * w3_y * HASH_Y) * HALF + HALF
+}

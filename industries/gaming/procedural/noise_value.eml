@@ -1,0 +1,79 @@
+// noise_value.eml -- analytical sine-based value noise.
+//
+// A purely analytical noise primitive that callers can drop into
+// any expression tree without needing a permutation table. The
+// classic shadertoy hash:
+//
+//   noise(x)    = sin(x * 12.9898) * 0.5 + 0.5            (1D)
+//   noise(x, y) = sin(x * 12.9898 + y * 78.233) * 0.5 + 0.5 (2D)
+//
+// Chain order 1 (single sin per call). Output in [0, 1] by
+// construction. Less random-looking than a true Perlin/value noise
+// over a permutation table, but every byte of state is in the
+// expression -- useful for FPGA targets where a permutation table
+// would burn 256 BRAM entries per axis.
+//
+// Sibling to perlin.eml (the table-based noise primitive) and the
+// inputs to fbm_octaves.eml. drift_risk LOW.
+
+module noise_value;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const HALF:        Real = 0.5
+
+const HASH_X:      Real = 12.9898
+const HASH_Y:      Real = 78.233
+const HASH_Z:      Real = 37.719
+
+const COORD_MAX:   Real = 1.0e6
+const FREQ_MIN:    Real = 1.0e-6
+const FREQ_MAX:    Real = 1.0e3
+
+type NoiseUnit = Real where chain_order <= 1
+
+// 1D analytical value noise. Chain order 1.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "value_noise_1d_in_unit_interval")
+fn value_noise_1d(x: Real, freq: Real) -> NoiseUnit
+    where chain_order <= 1
+    requires (abs(x) <= COORD_MAX)
+    requires (freq >= FREQ_MIN)
+    requires (freq <= FREQ_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    sin(freq * x * HASH_X) * HALF + HALF
+}
+
+// 2D analytical value noise. Chain order 1.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "value_noise_2d_in_unit_interval")
+fn value_noise_2d(x: Real, y: Real, freq: Real) -> NoiseUnit
+    where chain_order <= 1
+    requires (abs(x) <= COORD_MAX)
+    requires (abs(y) <= COORD_MAX)
+    requires (freq >= FREQ_MIN)
+    requires (freq <= FREQ_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    sin(freq * x * HASH_X + freq * y * HASH_Y) * HALF + HALF
+}
+
+// 3D analytical value noise. Chain order 1. Drop in for animated
+// 2D noise (use t as the third axis) or for volumetric textures.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "value_noise_3d_in_unit_interval")
+fn value_noise_3d(x: Real, y: Real, z: Real, freq: Real) -> NoiseUnit
+    where chain_order <= 1
+    requires (abs(x) <= COORD_MAX)
+    requires (abs(y) <= COORD_MAX)
+    requires (abs(z) <= COORD_MAX)
+    requires (freq >= FREQ_MIN)
+    requires (freq <= FREQ_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    sin(freq * x * HASH_X + freq * y * HASH_Y + freq * z * HASH_Z) * HALF + HALF
+}

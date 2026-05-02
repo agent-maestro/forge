@@ -1574,6 +1574,48 @@
     "node_count": 4,
     "trig_units": 0
   },
+  "fbm_octaves::fbm_2_octaves": {
+    "chain_order": 4,
+    "fpga_cycles": 20,
+    "mac_units": 10,
+    "node_count": 50,
+    "trig_units": 2
+  },
+  "fbm_octaves::fbm_4_octaves": {
+    "chain_order": 8,
+    "fpga_cycles": 20,
+    "mac_units": 10,
+    "node_count": 106,
+    "trig_units": 4
+  },
+  "fbm_octaves::fbm_8_octaves": {
+    "chain_order": 16,
+    "fpga_cycles": 18,
+    "mac_units": 9,
+    "node_count": 200,
+    "trig_units": 8
+  },
+  "fbm_warped::warp_base": {
+    "chain_order": 2,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 17,
+    "trig_units": 1
+  },
+  "fbm_warped::warp_depth_2": {
+    "chain_order": 4,
+    "fpga_cycles": 32,
+    "mac_units": 16,
+    "node_count": 46,
+    "trig_units": 3
+  },
+  "fbm_warped::warp_depth_3": {
+    "chain_order": 6,
+    "fpga_cycles": 50,
+    "mac_units": 25,
+    "node_count": 75,
+    "trig_units": 7
+  },
   "feed_rate::chip_thinning_compensation": {
     "chain_order": 0,
     "fpga_cycles": 8,
@@ -2728,6 +2770,27 @@
     "mac_units": 4,
     "node_count": 17,
     "trig_units": 0
+  },
+  "noise_value::value_noise_1d": {
+    "chain_order": 2,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 11,
+    "trig_units": 1
+  },
+  "noise_value::value_noise_2d": {
+    "chain_order": 2,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 17,
+    "trig_units": 1
+  },
+  "noise_value::value_noise_3d": {
+    "chain_order": 2,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 23,
+    "trig_units": 1
   },
   "ofdm_subcarrier::carrier_freq_offset": {
     "chain_order": 0,
