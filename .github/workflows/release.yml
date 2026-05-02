@@ -4,6 +4,11 @@ on:
   push:
     tags: ["v*"]
 
+# Opt into Node 24 for all JavaScript-based actions so the Node-20
+# deprecation banner stops firing on every run.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   release:
     runs-on: ubuntu-latest

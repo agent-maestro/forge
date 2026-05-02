@@ -16,6 +16,11 @@ permissions:
   contents: write
   pull-requests: write
 
+# Opt into Node 24 for all JavaScript-based actions so the Node-20
+# deprecation banner stops firing on every run.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   sweep:
     name: Sweep industries/ kernels
