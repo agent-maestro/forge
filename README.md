@@ -78,16 +78,16 @@ Five-minute tour: [`docs/quickstart.md`](docs/quickstart.md). Full tutorial: [mo
 | Go | `--target go` | Free |
 | Java | `--target java` | Free |
 | Kotlin | `--target kotlin` | Free |
+| C# | `--target csharp` | Free |
+| JavaScript | `--target javascript` | Free |
 | MATLAB | `--target matlab` | Free |
-| C# | `--target csharp` | Pro |
 | Swift | `--target swift` | Pro |
-| JavaScript | `--target javascript` | Pro |
 
 ### Compiler IRs
 | Target | Flag | Tier |
 |---|---|---|
+| WebAssembly | `--target wasm` | Free |
 | LLVM IR | `--target llvm` | Pro |
-| WebAssembly | `--target wasm` | Pro |
 
 ### GPU shaders
 | Target | Flag | Tier |
@@ -132,7 +132,7 @@ Five-minute tour: [`docs/quickstart.md`](docs/quickstart.md). Full tutorial: [mo
 |---|---|---|
 | Solidity (PRBMath SD59x18) | `--target solidity` | Pro |
 
-The Free tier is enough to use Forge productively for general-purpose software and Lean proofs. A Pro license unlocks every other target. Get a license at [monogateforge.com/get-started](https://monogateforge.com/get-started).
+The Free tier — 12 targets covering general-purpose software (C, C++, Rust, Python, Go, Java, Kotlin, C#, JavaScript), web/edge runtimes (WebAssembly), MATLAB, and Lean 4 proofs — is enough to take any EML kernel from your laptop to the browser to a formal proof without a license. A Pro license unlocks the remaining 20: hardware (Verilog, VHDL, SystemVerilog, Chisel, LLVM IR), GPU shaders (HLSL, GLSL, GLSL ES, WGSL, Metal), Apple Swift, safety-critical (Ada, AUTOSAR, AADL, ROS 2), Coq, Isabelle/HOL, Solidity, and gaming (Luau, GDScript). Get a license at [monogateforge.com/get-started](https://monogateforge.com/get-started).
 
 ---
 
@@ -174,7 +174,9 @@ Industrial automation today is stuck on ladder logic — Boolean rungs from the 
 
 External:
 
-- [monogate.dev/learn/eml/intro](https://monogate.dev/learn/eml/intro) — guided tutorial.
+- [monogate.dev/learn/eml/intro](https://monogate.dev/learn/eml/intro) — guided beginner tutorial.
+- [monogate.dev/learn/eml/engineering](https://monogate.dev/learn/eml/engineering) — intermediate engineering course (chain orders, contracts, FPGA targeting, Lean verification).
+- [monogateforge.com/get-started](https://monogateforge.com/get-started) — install the CLI and pick a tier.
 - [monogate.org](https://monogate.org) — research papers and theory.
 - [machlib.org](https://machlib.org) — formal library of mathematical kernels with Lean proofs.
 - [arXiv preprint](https://arxiv.org/) — the EML cost conjecture and Pfaffian profile.

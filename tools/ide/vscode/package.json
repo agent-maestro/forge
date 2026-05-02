@@ -1,7 +1,7 @@
 {
   "name": "monogate-forge-vscode",
   "displayName": "Monogate Forge",
-  "description": "EML-lang for VS Code. Free: syntax + snippets + completion + outline. With Forge CLI: LSP (errors-as-you-type, hover, cross-file goto-def + references + rename, format, workspace symbol search), builtin docs, inline profiling, FPGA status, 22-target compile.",
+  "description": "EML-lang for VS Code. Free: syntax + snippets + completion + outline. With Forge CLI: LSP (errors-as-you-type, hover, cross-file goto-def + references + rename, format, workspace symbol search), builtin docs, inline profiling, FPGA status, 32-target compile.",
   "version": "0.8.1",
   "publisher": "Monogate",
   "license": "MIT",
@@ -63,7 +63,7 @@
       { "command": "monogate-forge.compile.coq",          "title": "Compile to Coq",              "category": "Monogate Forge" },
       { "command": "monogate-forge.compile.isabelle",     "title": "Compile to Isabelle/HOL",     "category": "Monogate Forge" },
       { "command": "monogate-forge.compile.solidity",     "title": "Compile to Solidity",         "category": "Monogate Forge" },
-      { "command": "monogate-forge.compile.all",          "title": "Compile to all 22 targets",   "category": "Monogate Forge" }
+      { "command": "monogate-forge.compile.all",          "title": "Compile to all targets (your tier)", "category": "Monogate Forge" }
     ],
     "menus": {
       "editor/context": [

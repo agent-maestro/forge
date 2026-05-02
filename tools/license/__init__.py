@@ -1,8 +1,10 @@
 """Forge license verification.
 
 Open-core gate. The CLI is free to install; the Free tier
-(9 software backends) works without any license. Pro tier
-backends (FPGA / safety-critical / verification / Solidity)
+(12 application + Lean backends — C / C++ / Rust / Python / Go /
+Java / Kotlin / C# / JavaScript / WebAssembly / MATLAB / Lean 4)
+works without any license. Pro tier backends (FPGA, GPU shaders,
+safety-critical, Coq/Isabelle, Solidity, Apple Swift, gaming)
 check for a signed license token at runtime.
 
 License resolution order (first hit wins):

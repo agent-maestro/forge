@@ -164,4 +164,9 @@ For a complete safety-critical example with a working Lean proof, see `industrie
 
 ---
 
-Next: [FPGA guide](fpga-guide.md) for the hardware path, or back to [language reference](language-reference.md) for the contract syntax in detail.
+Continue learning:
+
+- **[Engineering course — Lesson 3: Verification](https://monogate.dev/learn/eml/engineering#lesson-3)** — guided walkthrough of `@verify`, MachLib lemma matching, and discharging `sorry` placeholders against a real avionics kernel.
+- [FPGA guide](fpga-guide.md) — pair the verified math with an FPGA synthesis target.
+- [Language reference](language-reference.md) — full contract syntax (`requires`, `ensures`, `result`).
+- [machlib.org](https://machlib.org) — browse the formal library of mathematical kernels with Lean proofs.

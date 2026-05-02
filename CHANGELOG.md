@@ -45,9 +45,14 @@ First public release on PyPI. `pip install monogate-forge`.
 
 ### Free vs Pro
 
-- **Free tier:** C, C++, Rust, Python, Go, Java, Kotlin, Lean,
-  MATLAB. Use the CLI without any license.
-- **Pro tier:** all remaining 23 targets. Get a license at
+- **Free tier (12 targets):** C, C++, Rust, Python, Go, Java,
+  Kotlin, C#, JavaScript, WebAssembly, MATLAB, Lean. Covers
+  general-purpose software, web/edge runtimes, and formal
+  proofs without a license.
+- **Pro tier (20 targets):** Verilog, SystemVerilog, VHDL,
+  Chisel, LLVM IR, HLSL, GLSL, GLSL ES, WGSL, Metal, Swift,
+  Ada/SPARK, AUTOSAR, AADL, ROS 2, Coq, Isabelle/HOL, Solidity,
+  Luau, GDScript. Get a license at
   [monogateforge.com/get-started](https://monogateforge.com/get-started).
 
 ### Documentation

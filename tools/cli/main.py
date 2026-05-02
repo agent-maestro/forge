@@ -125,11 +125,12 @@ def main(argv: list[str] | None = None) -> int:
             "  eml-compile manpage                          # print the man page\n"
             "\n"
             "TIERS\n"
-            "  Free:  c, cpp, rust, python, go, java, kotlin, lean, matlab\n"
-            "  Pro:   verilog, vhdl, systemverilog, chisel, llvm, wasm,\n"
-            "         hlsl, glsl, glsles, wgsl, metal, swift, csharp,\n"
-            "         javascript, luau, gdscript, ada, autosar, aadl,\n"
-            "         ros2, coq, isabelle, solidity\n"
+            "  Free:  c, cpp, rust, python, go, java, kotlin, csharp,\n"
+            "         javascript, wasm, matlab, lean\n"
+            "  Pro:   verilog, vhdl, systemverilog, chisel, llvm,\n"
+            "         hlsl, glsl, glsles, wgsl, metal, swift,\n"
+            "         luau, gdscript, ada, autosar, aadl, ros2,\n"
+            "         coq, isabelle, solidity\n"
             "  Get a Pro license at https://monogateforge.com/get-started\n"
             "\n"
             "DOCS\n"
@@ -155,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
         "solidity",
         "all",
     ], help=("Output target. 'all' runs every backend your "
-            "license tier permits (Free: 9 software + Lean; "
+            "license tier permits (Free: 12 application + Lean; "
             "Pro: all 32) and writes <stem>.<ext> files into "
             "--output (must be a directory) or alongside the "
             "source. See `--help` epilog for the tier list."))

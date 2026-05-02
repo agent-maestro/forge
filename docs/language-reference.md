@@ -328,4 +328,6 @@ Identifiers that collide with backend keywords (e.g., `class` in Java, `kernel` 
 
 ---
 
-For the formal grammar, see `lang/spec/grammar/EmlLang.g4` in the repo. For semantic details and the cost-conjecture model, see [monogate.dev/learn/eml/intro](https://monogate.dev/learn/eml/intro).
+For the formal grammar, see `lang/spec/grammar/EmlLang.g4` in the repo.
+
+For semantic details and the cost-conjecture model, see [monogate.dev/learn/eml/intro](https://monogate.dev/learn/eml/intro). For a deeper dive into chain orders, contracts, and the `@target` / `@verify` annotations in real engineering kernels, work through the [Engineering course](https://monogate.dev/learn/eml/engineering).
