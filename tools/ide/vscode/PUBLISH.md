@@ -1,7 +1,7 @@
 # Marketplace publish playbook
 
 Mechanical steps to push the extension to the VS Code marketplace
-once you have an Azure DevOps PAT under the `monogate-research`
+once you have an Azure DevOps PAT under the `Monogate`
 publisher.
 
 ## One-time setup
@@ -10,7 +10,7 @@ publisher.
 
 Go to https://marketplace.visualstudio.com/manage and sign in with
 the same Microsoft account that owns the Azure DevOps org backing
-the PAT. Create a publisher with `id = monogate-research` (the
+the PAT. Create a publisher with `id = Monogate` (the
 value already wired into `package.json`'s `publisher` field).
 
 ### 2. Generate the PAT
@@ -44,7 +44,7 @@ npx @vscode/vsce package        # produces .vsix in this dir
 code --install-extension monogate-forge-vscode-0.3.0.vsix
 # Open a .eml file from anywhere on disk; lenses + diagnostics
 # should light up. Uninstall when done:
-code --uninstall-extension monogate-research.monogate-forge-vscode
+code --uninstall-extension Monogate.monogate-forge-vscode
 
 # 4. Publish (will prompt for PAT, or set VSCE_PAT env var)
 npx @vscode/vsce publish
@@ -53,7 +53,7 @@ npx @vscode/vsce publish patch  # 0.3.0 -> 0.3.1
 npx @vscode/vsce publish minor  # 0.3.0 -> 0.4.0
 
 # 5. Live at:
-#    https://marketplace.visualstudio.com/items?itemName=monogate-research.monogate-forge-vscode
+#    https://marketplace.visualstudio.com/items?itemName=Monogate.monogate-forge-vscode
 ```
 
 ## What the extension assumes about the user

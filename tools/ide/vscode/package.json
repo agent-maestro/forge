@@ -3,7 +3,7 @@
   "displayName": "Monogate Forge",
   "description": "EML-lang LSP (errors-as-you-type, hover, completion, cross-file goto-def, outline, document links) + syntax highlighting + inline profiling + snippets + 22-target compile",
   "version": "0.5.0",
-  "publisher": "monogate-research",
+  "publisher": "Monogate",
   "license": "MIT",
   "homepage": "https://monogate.dev/learn/eml",
   "repository": {
