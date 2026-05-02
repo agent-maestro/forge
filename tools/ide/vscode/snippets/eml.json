@@ -80,6 +80,16 @@
     "body": ["@verify(lean, theorem = \"${1:my_theorem}\")"],
     "description": "@verify annotation for Lean export"
   },
+  "@verify Coq": {
+    "prefix": "verifycoq",
+    "body": ["@verify(coq, theorem = \"${1:my_theorem}\")"],
+    "description": "@verify annotation for Coq export"
+  },
+  "@verify Isabelle": {
+    "prefix": "verifyisabelle",
+    "body": ["@verify(isabelle, theorem = \"${1:my_theorem}\")"],
+    "description": "@verify annotation for Isabelle/HOL export"
+  },
   "let binding": {
     "prefix": "let",
     "body": ["let ${1:x} = ${2:expr};"],
@@ -95,5 +105,100 @@
       "}"
     ],
     "description": "If-else expression"
+  },
+  "gaming: physics step (spring-mass-damper)": {
+    "prefix": "fnphysics",
+    "body": [
+      "@verify(lean, theorem = \"${1:energy_bounded}\")",
+      "fn ${2:spring_step}(x: Real, v: Real, dt: Real) -> Real",
+      "    where chain_order <= 1",
+      "    requires (dt > 0.0)",
+      "    ensures  (result == result)",
+      "{",
+      "    let k = ${3:1.0};",
+      "    let damping = ${4:0.05};",
+      "    let a = -k * x - damping * v;",
+      "    v + a * dt",
+      "}"
+    ],
+    "description": "Gaming physics step with @verify (spring-mass-damper)"
+  },
+  "gaming: smooth easing curve": {
+    "prefix": "fnease",
+    "body": [
+      "@verify(lean, theorem = \"${1:ease_in_unit_interval}\")",
+      "fn ${2:ease_in_out}(t: Real) -> Real",
+      "    where chain_order <= 1",
+      "    requires (t >= 0.0)",
+      "    requires (t <= 1.0)",
+      "    ensures  (result >= 0.0)",
+      "    ensures  (result <= 1.0)",
+      "{",
+      "    t * t * (3.0 - 2.0 * t)",
+      "}"
+    ],
+    "description": "Smoothstep easing with [0,1] contract"
+  },
+  "gaming: PBR Fresnel (Schlick)": {
+    "prefix": "fnfresnel",
+    "body": [
+      "@verify(lean, theorem = \"${1:fresnel_unit_interval}\")",
+      "fn ${2:fresnel_schlick}(cos_theta: Real, f0: Real) -> Real",
+      "    where chain_order <= 1",
+      "    requires (cos_theta >= 0.0)",
+      "    requires (cos_theta <= 1.0)",
+      "    requires (f0 >= 0.0)",
+      "    requires (f0 <= 1.0)",
+      "    ensures  (result >= 0.0)",
+      "    ensures  (result <= 1.0)",
+      "{",
+      "    let one_minus_c = 1.0 - cos_theta;",
+      "    f0 + (1.0 - f0) * pow(one_minus_c, 5.0)",
+      "}"
+    ],
+    "description": "Schlick Fresnel approximation with @verify"
+  },
+  "gaming: ease snippet (cubic)": {
+    "prefix": "easecubic",
+    "body": [
+      "fn ${1:ease_in_cubic}(t: Real) -> Real",
+      "    where chain_order <= 0",
+      "    requires (t >= 0.0)",
+      "    requires (t <= 1.0)",
+      "    ensures  (result >= 0.0)",
+      "    ensures  (result <= 1.0)",
+      "{",
+      "    t * t * t",
+      "}"
+    ],
+    "description": "Cubic ease-in (no @verify; chain_order = 0)"
+  },
+  "crypto: constant-time scalar mul (skeleton)": {
+    "prefix": "fnconsttime",
+    "body": [
+      "@verify(lean, theorem = \"${1:constant_time}\")",
+      "@target(constant_time)",
+      "fn ${2:scalar_mul}(scalar: U256, point: Point) -> Point",
+      "    where chain_order <= 1",
+      "    ensures  (timing_independent_of(scalar))",
+      "{",
+      "    $0",
+      "}"
+    ],
+    "description": "Constant-time crypto skeleton with @target(constant_time)"
+  },
+  "@target multi-platform": {
+    "prefix": "targetmulti",
+    "body": [
+      "@target(${1|fpga,gpu,cpu,constant_time|}, ${2:latency_cycles = 8})"
+    ],
+    "description": "@target annotation with platform picker"
+  },
+  "extern fn declaration": {
+    "prefix": "extern",
+    "body": [
+      "extern fn ${1:helper}(${2:x: Real}) -> ${3:Real};"
+    ],
+    "description": "Forward declaration of an external EML helper"
   }
 }
