@@ -1,18 +1,24 @@
-"""Workspace symbol index for cross-file goto-definition.
+"""Workspace symbol index for cross-file goto-definition,
+references, and rename.
 
-The MVP indexes the bundled stdlib (math, ml, signal, linalg,
-control, constants) by parsing each .eml at server startup.
-Workspace folders containing user .eml files are added on
-demand as the user opens them.
+Indexes:
+- The bundled stdlib (math, ml, signal, linalg, control,
+  constants) at server startup.
+- User .eml files under each workspace folder, crawled on
+  initialize and refreshed when files are saved.
 
 Lookup model:
-- An EMLImport `use stdlib::math::{lerp};` registers the symbol
-  `lerp` as imported from the (`stdlib`, `math`) module.
+- An EMLImport `use stdlib::math::{lerp};` registers `lerp` as
+  imported from the (`stdlib`, `math`) module.
 - A goto-def request on a name first checks local decls, then
   walks the open document's imports to find a matching cross-
   module symbol, and returns its `(file, line, col)`.
 - documentLink walks the open document's imports and emits one
   link per `use stdlib::*` clause pointing at the resolved .eml.
+- find-references walks every indexed module's AST collecting
+  VAR + CALL nodes that match the name. Builtin function names
+  (exp/ln/sin/...) are excluded -- they are language constructs,
+  not symbols.
 """
 
 from __future__ import annotations
@@ -21,7 +27,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from lang.parser.ast_nodes import EMLImport, EMLModule
+from lang.parser.ast_nodes import (
+    ASTNode, BUILTIN_NAMES, EMLImport, EMLModule, NodeKind,
+)
 from lang.parser.parser import parse_source
 
 
@@ -64,6 +72,51 @@ class WorkspaceIndex:
             return
         for eml in sorted(stdlib_root.glob("*.eml")):
             self._index_file(("stdlib", eml.stem), eml)
+
+    def index_workspace_folder(self, folder: Path) -> int:
+        """Crawl ``folder`` for .eml files and index each one
+        under ``("local", module_name)``. Returns the file count.
+        Skips files under stdlib/ to avoid double-indexing."""
+        if not folder.is_dir():
+            return 0
+        count = 0
+        for eml in folder.rglob("*.eml"):
+            # Skip files that are part of an in-tree forge clone's
+            # bundled stdlib; we already indexed those.
+            if "spec" in eml.parts and "stdlib" in eml.parts:
+                continue
+            module_name = self._read_module_name(eml) or eml.stem
+            self._index_file(("local", module_name), eml)
+            count += 1
+        return count
+
+    def refresh_file(self, file_path: str) -> None:
+        """Re-parse a single file and update its index entry.
+        Called from textDocument/didSave + didOpen."""
+        eml = Path(file_path)
+        if not eml.is_file():
+            return
+        # Find which path key this file is registered under, or
+        # derive a new one if it's brand new.
+        for key, mod in list(self._modules.items()):
+            if Path(mod.file_path) == eml:
+                self._index_file(key, eml)
+                return
+        module_name = self._read_module_name(eml) or eml.stem
+        self._index_file(("local", module_name), eml)
+
+    @staticmethod
+    def _read_module_name(eml: Path) -> str | None:
+        """Cheap module-name lookup: scan the first ~4 KB for
+        `module foo;` so we don't pay the parse cost twice."""
+        import re
+        try:
+            head = eml.read_text(encoding="utf-8", errors="replace")[:4096]
+        except OSError:
+            return None
+        m = re.search(r"^\s*module\s+([A-Za-z_][A-Za-z0-9_]*)\s*;",
+                      head, re.MULTILINE)
+        return m.group(1) if m else None
 
     def _index_file(self, path_key: tuple[str, ...], eml: Path) -> None:
         """Parse ``eml`` and record its top-level decls under
@@ -129,3 +182,70 @@ class WorkspaceIndex:
         n_mods = len(self._modules)
         n_syms = sum(len(m.symbols) for m in self._modules.values())
         return f"{n_mods} modules, {n_syms} symbols"
+
+    def all_indexed_files(self) -> list[str]:
+        """Every indexed file path. Used by find-references to
+        scan beyond the open document."""
+        return [m.file_path for m in self._modules.values()]
+
+
+# ─── reference + rename helpers ────────────────────────────────────
+
+@dataclass(frozen=True)
+class RefHit:
+    """One occurrence of a name in a file's AST."""
+    file_path: str
+    line: int
+    col: int
+    length: int
+
+
+def collect_refs_in_module(
+    mod: EMLModule, name: str, file_path: str,
+) -> list[RefHit]:
+    """Walk every fn body in ``mod`` collecting VAR + CALL nodes
+    whose value matches ``name``. Also yields the position of any
+    matching top-level decl (so callers can include the decl in
+    the reference set when LSP `includeDeclaration=True`)."""
+    hits: list[RefHit] = []
+
+    def add(line: int, col: int) -> None:
+        hits.append(RefHit(file_path=file_path, line=line, col=col,
+                           length=len(name)))
+
+    # Top-level decl positions
+    for fn in mod.functions:
+        if fn.name == name:
+            add(fn.line, fn.col)
+    for c in mod.constants:
+        if c.name == name:
+            add(c.line, c.col)
+    for t in mod.types:
+        if t.name == name:
+            add(t.line, t.col)
+
+    # Body usages
+    for fn in mod.functions:
+        if fn.body is not None:
+            _walk_node(fn.body, name, add)
+    return hits
+
+
+def _walk_node(node: ASTNode, name: str, add) -> None:
+    """Recursive AST walk emitting matches. Inlined hot path so
+    the LSP doesn't pay a generator's overhead per node."""
+    if (node.kind in (NodeKind.VAR, NodeKind.CALL)
+            and node.value == name):
+        add(node.line, node.col)
+    for child in node.children:
+        _walk_node(child, name, add)
+
+
+def is_renameable(name: str) -> bool:
+    """Builtin transcendentals (exp, ln, sin, ...) and language
+    keywords are not renameable -- they're language constructs.
+    Checked by prepareRename so VS Code suppresses the input box
+    instead of letting the user type a doomed rename."""
+    if name in BUILTIN_NAMES:
+        return False
+    return True
