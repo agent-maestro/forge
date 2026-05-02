@@ -62,6 +62,7 @@ fn restitution_velocity(v_in: Real, e: Real) -> Velocity
 // nested). Caller is responsible for providing tau + omega
 // precomputed from g/e/h_0.
 @target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "bounce_envelope_nonneg")
 fn bounce_height_envelope(h_0: Real, tau: Real, omega: Real, t: Real) -> Height
     where chain_order <= 2
     requires (h_0 >= ZERO)

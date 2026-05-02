@@ -48,12 +48,14 @@ fn breath_simple(base: Real, amp: Real, omega: Real, phase: Real, t: Real) -> Of
     requires (abs(phase) <= PHASE_MAX)
     requires (t >= ZERO)
     requires (t <= T_MAX)
+    ensures  (abs(result - base) <= amp)
 {
     base + amp * sin(omega * t + phase)
 }
 
 // Two-mode breath with inhale/exhale asymmetry. Chain order 1.
 @target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "breathing_asymmetric_in_extended_band")
 fn breath_asymmetric(
     base: Real, amp: Real, omega: Real, asym: Real, t: Real,
 ) -> Offset
@@ -67,6 +69,7 @@ fn breath_asymmetric(
     requires (asym <= ASYM_MAX)
     requires (t >= ZERO)
     requires (t <= T_MAX)
+    ensures  (abs(result - base) <= amp + asym * amp)
 {
     base + amp * (sin(omega * t) + asym * sin(TWO * omega * t))
 }

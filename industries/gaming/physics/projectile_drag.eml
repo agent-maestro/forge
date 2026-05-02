@@ -1,0 +1,118 @@
+// projectile_drag.eml -- ballistic trajectory with linear drag.
+//
+// The drag-free projectile.eml is fine for arcade games; for
+// realism (longer flights, slow-moving objects, mortars, paper
+// airplanes) you need drag. Linear drag (drag force proportional
+// to velocity) gives closed-form solutions:
+//
+//   v_x(t)  = v0_x * exp(-k*t/m)
+//   v_y(t)  = v_y_terminal + (v0_y - v_y_terminal) * exp(-k*t/m)
+//   x(t)    = (v0_x * m / k) * (1 - exp(-k*t/m))
+//   y(t)    = v_y_terminal*t + ((v0_y - v_y_terminal)*m/k)
+//             * (1 - exp(-k*t/m))
+//
+// where v_y_terminal = -m*g/k is the steady-state fall velocity.
+//
+// Linear drag is a low-Reynolds approximation; quadratic drag
+// (more realistic for fast objects in air) requires numerical
+// integration and isn't expressible as a closed form. Caller
+// switches between this kernel and the drag-free
+// industries/gaming/physics/projectile.eml based on speed regime.
+//
+// Chain order 1 throughout (single exp). drift_risk LOW. Sibling
+// to projectile.eml (drag-free) and to spring.eml (analytical
+// underdamped spring -- same exp-decay pattern).
+
+module projectile_drag;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const TINY:        Real = 1.0e-9
+
+const V_MAX:       Real = 1.0e3      // 1 km/s muzzle cap
+const G_MIN:       Real = 0.1
+const G_MAX:       Real = 100.0
+const K_MIN:       Real = 1.0e-6     // near-frictionless
+const K_MAX:       Real = 100.0      // very draggy (paper)
+const M_MIN:       Real = 1.0e-3     // 1 g floor
+const M_MAX:       Real = 1.0e6      // 1000 t cap
+const T_MAX:       Real = 600.0      // 10-minute flight cap
+
+type Velocity = Real where chain_order <= 1
+type Coord    = Real where chain_order <= 1
+
+// Horizontal velocity at time t. Chain order 1 (exp).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "drag_velocity_x_decays_to_zero")
+fn velocity_x_drag(v0_x: Real, k_drag: Real, mass: Real, t: Real) -> Velocity
+    where chain_order <= 1
+    requires (abs(v0_x) <= V_MAX)
+    requires (k_drag >= K_MIN)
+    requires (k_drag <= K_MAX)
+    requires (mass >= M_MIN)
+    requires (mass <= M_MAX)
+    requires (t >= ZERO)
+    requires (t <= T_MAX)
+{
+    v0_x * exp(-k_drag * t / mass)
+}
+
+// Vertical velocity at time t (with gravity + drag). Chain 1.
+// Asymptotically approaches v_y_terminal = -m*g/k as t -> infinity.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn velocity_y_drag(
+    v0_y: Real, g: Real, k_drag: Real, mass: Real, t: Real,
+) -> Velocity
+    where chain_order <= 1
+    requires (abs(v0_y) <= V_MAX)
+    requires (g >= G_MIN)
+    requires (g <= G_MAX)
+    requires (k_drag >= K_MIN)
+    requires (k_drag <= K_MAX)
+    requires (mass >= M_MIN)
+    requires (mass <= M_MAX)
+    requires (t >= ZERO)
+    requires (t <= T_MAX)
+{
+    let v_terminal = -mass * g / k_drag;
+    v_terminal + (v0_y - v_terminal) * exp(-k_drag * t / mass)
+}
+
+// Horizontal position at time t. Chain 1 (exp). Approaches the
+// asymptotic range v0_x * m / k as t -> infinity.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "drag_position_x_bounded_by_asymptotic_range")
+fn position_x_drag(v0_x: Real, k_drag: Real, mass: Real, t: Real) -> Coord
+    where chain_order <= 1
+    requires (abs(v0_x) <= V_MAX)
+    requires (k_drag >= K_MIN)
+    requires (k_drag <= K_MAX)
+    requires (mass >= M_MIN)
+    requires (mass <= M_MAX)
+    requires (t >= ZERO)
+    requires (t <= T_MAX)
+{
+    let asymptotic_range = v0_x * mass / k_drag;
+    asymptotic_range * (ONE - exp(-k_drag * t / mass))
+}
+
+// Vertical position at time t (under gravity + drag). Chain 1.
+@target(fpga, clock_mhz = 250, precision = float32)
+fn position_y_drag(
+    v0_y: Real, g: Real, k_drag: Real, mass: Real, t: Real,
+) -> Coord
+    where chain_order <= 1
+    requires (abs(v0_y) <= V_MAX)
+    requires (g >= G_MIN)
+    requires (g <= G_MAX)
+    requires (k_drag >= K_MIN)
+    requires (k_drag <= K_MAX)
+    requires (mass >= M_MIN)
+    requires (mass <= M_MAX)
+    requires (t >= ZERO)
+    requires (t <= T_MAX)
+{
+    let v_terminal = -mass * g / k_drag;
+    let tau        = mass / k_drag;
+    v_terminal * t + (v0_y - v_terminal) * tau * (ONE - exp(-t / tau))
+}
