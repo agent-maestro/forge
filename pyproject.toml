@@ -14,6 +14,9 @@ authors = [
 requires-python = ">=3.11"
 dependencies = [
     "eml-cost>=0.19.0",
+    # License token signature verification. Used by tools/license/
+    # to gate Pro backends behind an Ed25519-signed token.
+    "cryptography>=42",
 ]
 
 [project.optional-dependencies]
