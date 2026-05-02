@@ -1,0 +1,60 @@
+// tonemap_reinhard.eml -- Reinhard tone-mapping operator.
+//
+// The original (Reinhard 2002) HDR-to-LDR operator and its
+// "extended" variant with a configurable white point. Simpler
+// than ACES Narkowicz, slightly more washed-out look, and used
+// in many shipped engines (Unity HDRP "Neutral", Frostbite's
+// neutral tonemapper, classic mobile-friendly fallback).
+//
+//   simple:    tone(x) = x / (1 + x)
+//   extended:  tone(x) = x * (1 + x / w^2) / (1 + x)
+//
+// Both are monotonically non-decreasing and bounded in [0, 1]
+// (simple: asymptote 1; extended: maps the white point exactly to 1).
+//
+// Chain order 0 (rational). Sibling to tonemap_aces.eml; pick by
+// art direction. drift_risk LOW.
+
+module tonemap_reinhard;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const TINY:        Real = 1.0e-7
+
+const X_MAX:       Real = 1.0e3        // hard ceiling on input radiance
+const W_MIN:       Real = 0.1
+const W_MAX:       Real = 1.0e3        // up to 1000-stop scenes
+
+type Display = Real where chain_order <= 0
+
+// Simple Reinhard for one channel. Chain order 0. Maps [0, +inf)
+// monotonically to [0, 1). 50% scene radiance ends up at 33% display.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "reinhard_simple_in_unit_interval")
+fn reinhard_simple(x: Real) -> Display
+    where chain_order <= 0
+    requires (x >= ZERO)
+    requires (x <= X_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    x / (ONE + x)
+}
+
+// Extended Reinhard with explicit white point. Chain order 0.
+// At x = w the result equals 1 exactly. For x < w the response is
+// near-linear; for x > w the curve compresses gracefully. Common
+// choice: w = max scene luminance for the frame (auto-exposure).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "reinhard_extended_nonneg")
+fn reinhard_extended(x: Real, w: Real) -> Display
+    where chain_order <= 0
+    requires (x >= ZERO)
+    requires (x <= X_MAX)
+    requires (w >= W_MIN)
+    requires (w <= W_MAX)
+    ensures  (result >= ZERO)
+{
+    let w_sq = w * w;
+    x * (ONE + x / w_sq) / (ONE + x + TINY)
+}

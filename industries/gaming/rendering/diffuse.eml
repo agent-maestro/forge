@@ -1,0 +1,88 @@
+// diffuse.eml -- diffuse BRDF terms.
+//
+// Two diffuse models for real-time PBR:
+//
+//   lambert(n.l)            = n.l / pi              (chain 0)
+//   burley(n.l, n.v, l.h, alpha) = the Disney/Burley diffuse
+//                                  approximation             (chain 1)
+//
+// Lambert is the "physically wrong but cheap" diffuse used by
+// 99% of game shaders. Burley (Disney 2012) adds a Fresnel-like
+// edge enhancement that matches MERL measurements and looks
+// noticeably more 3D on rough surfaces. Both are normalized so
+// that integrating over the hemisphere with constant illumination
+// returns the albedo (energy conservation).
+//
+// Chain orders 0 and 1. Sibling to brdf_ggx.eml (the specular
+// counterparts) and to fresnel.eml (the term burley re-uses).
+// drift_risk LOW.
+
+module diffuse;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const HALF:        Real = 0.5
+const TWO:         Real = 2.0
+const FIVE:        Real = 5.0
+const PI:          Real = 3.141592653589793
+const INV_PI:      Real = 0.3183098861837907
+
+const ALPHA_MIN:   Real = 0.001
+const ALPHA_MAX:   Real = 1.0
+
+type Diffuse = Real where chain_order <= 1
+
+// Lambert diffuse. Chain order 0. Caller pre-clamps n.l to [0, 1]
+// (back-faces drop to zero). Result in [0, 1/pi] -- multiply by
+// the surface albedo and the light's irradiance to get the final
+// outgoing radiance.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "lambert_diffuse_in_unit_interval")
+fn lambert_diffuse(n_dot_l_clamped: Real) -> Diffuse
+    where chain_order <= 0
+    requires (n_dot_l_clamped >= ZERO)
+    requires (n_dot_l_clamped <= ONE)
+    ensures  (result >= ZERO)
+    ensures  (result <= INV_PI)
+{
+    n_dot_l_clamped * INV_PI
+}
+
+// Burley/Disney diffuse with Fresnel-like edge term. Chain order 1
+// (pow on (1 - n.l) and (1 - n.v) -- algebraically merged into one
+// pow via the Schlick approximation). Caller pre-clamps n.l, n.v
+// and supplies l.h = dot(light, half) clamped to [0, 1] and
+// alpha = roughness * roughness.
+//
+//   F90 = 0.5 + 2 * roughness * (l.h)^2
+//   fd  = (1 + (F90-1) * (1 - n.l)^5) * (1 + (F90-1) * (1 - n.v)^5)
+//   burley(...) = fd * n.l / pi
+//
+// Note: the canonical paper uses two pow(., 5) calls; we keep both
+// (still chain 1 since they are not nested -- chain order is the
+// max-depth of nested transcendentals, and pow is a single-step
+// transcendental in EML's chain accounting).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "burley_diffuse_nonneg")
+fn burley_diffuse(
+    n_dot_l_clamped: Real,
+    n_dot_v_clamped: Real,
+    l_dot_h_clamped: Real,
+    alpha: Real,
+) -> Diffuse
+    where chain_order <= 1
+    requires (n_dot_l_clamped >= ZERO)
+    requires (n_dot_l_clamped <= ONE)
+    requires (n_dot_v_clamped >= ZERO)
+    requires (n_dot_v_clamped <= ONE)
+    requires (l_dot_h_clamped >= ZERO)
+    requires (l_dot_h_clamped <= ONE)
+    requires (alpha >= ALPHA_MIN)
+    requires (alpha <= ALPHA_MAX)
+    ensures  (result >= ZERO)
+{
+    let f90      = HALF + TWO * alpha * l_dot_h_clamped * l_dot_h_clamped;
+    let edge_l   = ONE + (f90 - ONE) * pow(ONE - n_dot_l_clamped, FIVE);
+    let edge_v   = ONE + (f90 - ONE) * pow(ONE - n_dot_v_clamped, FIVE);
+    edge_l * edge_v * n_dot_l_clamped * INV_PI
+}

@@ -1056,6 +1056,20 @@
     "node_count": 8,
     "trig_units": 0
   },
+  "diffuse::burley_diffuse": {
+    "chain_order": 2,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 42,
+    "trig_units": 0
+  },
+  "diffuse::lambert_diffuse": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
   "dilithium::dilithium_butterfly": {
     "chain_order": -1,
     "fpga_cycles": 0,
@@ -4253,6 +4267,20 @@
     "fpga_cycles": 12,
     "mac_units": 6,
     "node_count": 20,
+    "trig_units": 0
+  },
+  "tonemap_reinhard::reinhard_extended": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "tonemap_reinhard::reinhard_simple": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
     "trig_units": 0
   },
   "tool_wear_taylor::extended_tool_life": {
