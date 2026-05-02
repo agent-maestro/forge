@@ -1,0 +1,142 @@
+// fbm_octaves.eml -- unrolled fractal Brownian motion at fixed
+// octave counts. Each kernel is the same expression tree shape;
+// only the number of octaves differs. Picking the right one is a
+// performance / detail trade-off:
+//
+//   fbm_2_octaves   ~ 2 sin calls    cheap distance fog noise
+//   fbm_4_octaves   ~ 4 sin calls    standard terrain heightmap
+//   fbm_8_octaves   ~ 8 sin calls    high-detail clouds / cliff faces
+//
+// EML chain_order grows LINEARLY with octave count (2 * N for N
+// octaves, since each sin contributes 2 to the metric). The
+// Forge profiler reports:
+//
+//   fbm_2_octaves   chain_order 4    eml_depth 10    drift HIGH
+//   fbm_4_octaves   chain_order 8    eml_depth 10    drift HIGH
+//   fbm_8_octaves   chain_order 16   eml_depth 9     drift HIGH
+//
+// Crucially, eml_depth (expression-tree NESTING depth) stays
+// roughly constant -- because the octaves are PARALLEL sums, not
+// nested calls. Cost grows linearly, but float32 rounding errors
+// don't compound through the whole chain the way they do in the
+// nested fbm_warped variant. Compare with fbm_warped.eml where
+// both chain_order AND eml_depth grow with depth.
+//
+// Lacunarity is hard-coded at 2.0 and persistence at 0.5 (the
+// Mandelbrot-default values used in 95% of game shaders) so the
+// kernel stays a pure function of (x, y, base_freq). For tunable
+// fBm see fbm.eml (which exposes pow-based amp/freq generators).
+//
+// drift_risk LOW. Sibling to fbm_warped.eml (the chain-order-
+// growing variant) and noise_value.eml (the per-octave primitive).
+
+module fbm_octaves;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const HALF:        Real = 0.5
+const TWO:         Real = 2.0
+const FOUR:        Real = 4.0
+const EIGHT:       Real = 8.0
+const SIXTEEN:     Real = 16.0
+const THIRTY_TWO:  Real = 32.0
+const SIXTY_FOUR:  Real = 64.0
+const ONE_TWENTY_EIGHT: Real = 128.0
+
+const HASH_X:      Real = 12.9898
+const HASH_Y:      Real = 78.233
+
+const COORD_MAX:   Real = 1.0e6
+const FREQ_MIN:    Real = 1.0e-6
+const FREQ_MAX:    Real = 1.0e2
+
+type FbmOutput = Real where chain_order <= 16
+
+// Inline analytical value noise (lacunarity-folded into freq).
+// Chain 1. Inlined so the chain accounting per kernel stays clean.
+
+// 2-octave fBm. Persistence 0.5, lacunarity 2.0. Chain order 1.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "fbm_2_octaves_bounded")
+fn fbm_2_octaves(x: Real, y: Real, base_freq: Real) -> FbmOutput
+    where chain_order <= 4
+    requires (abs(x) <= COORD_MAX)
+    requires (abs(y) <= COORD_MAX)
+    requires (base_freq >= FREQ_MIN)
+    requires (base_freq <= FREQ_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    let f1 = base_freq;
+    let f2 = base_freq * TWO;
+    let n1 = sin(f1 * x * HASH_X + f1 * y * HASH_Y) * HALF + HALF;
+    let n2 = sin(f2 * x * HASH_X + f2 * y * HASH_Y) * HALF + HALF;
+    (n1 + HALF * n2) / (ONE + HALF)
+}
+
+// 4-octave fBm. Persistence 0.5, lacunarity 2.0. Chain order 1.
+// Total amplitude normaliser = 1 + 1/2 + 1/4 + 1/8 = 15/8.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "fbm_4_octaves_bounded")
+fn fbm_4_octaves(x: Real, y: Real, base_freq: Real) -> FbmOutput
+    where chain_order <= 8
+    requires (abs(x) <= COORD_MAX)
+    requires (abs(y) <= COORD_MAX)
+    requires (base_freq >= FREQ_MIN)
+    requires (base_freq <= FREQ_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    let f1 = base_freq;
+    let f2 = base_freq * TWO;
+    let f3 = base_freq * FOUR;
+    let f4 = base_freq * EIGHT;
+    let n1 = sin(f1 * x * HASH_X + f1 * y * HASH_Y) * HALF + HALF;
+    let n2 = sin(f2 * x * HASH_X + f2 * y * HASH_Y) * HALF + HALF;
+    let n3 = sin(f3 * x * HASH_X + f3 * y * HASH_Y) * HALF + HALF;
+    let n4 = sin(f4 * x * HASH_X + f4 * y * HASH_Y) * HALF + HALF;
+    let summed = n1 + HALF * n2 + 0.25 * n3 + 0.125 * n4;
+    summed / (ONE + HALF + 0.25 + 0.125)
+}
+
+// 8-octave fBm. Persistence 0.5, lacunarity 2.0. Chain order 1.
+// Total amplitude normaliser = sum_{i=0..7} (1/2)^i = 255/128.
+// Caller picks this when surface detail (cliff faces, clouds)
+// matters more than per-pixel cost.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "fbm_8_octaves_bounded")
+fn fbm_8_octaves(x: Real, y: Real, base_freq: Real) -> FbmOutput
+    where chain_order <= 16
+    requires (abs(x) <= COORD_MAX)
+    requires (abs(y) <= COORD_MAX)
+    requires (base_freq >= FREQ_MIN)
+    requires (base_freq <= FREQ_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    let f1 = base_freq;
+    let f2 = base_freq * TWO;
+    let f3 = base_freq * FOUR;
+    let f4 = base_freq * EIGHT;
+    let f5 = base_freq * SIXTEEN;
+    let f6 = base_freq * THIRTY_TWO;
+    let f7 = base_freq * SIXTY_FOUR;
+    let f8 = base_freq * ONE_TWENTY_EIGHT;
+    let n1 = sin(f1 * x * HASH_X + f1 * y * HASH_Y) * HALF + HALF;
+    let n2 = sin(f2 * x * HASH_X + f2 * y * HASH_Y) * HALF + HALF;
+    let n3 = sin(f3 * x * HASH_X + f3 * y * HASH_Y) * HALF + HALF;
+    let n4 = sin(f4 * x * HASH_X + f4 * y * HASH_Y) * HALF + HALF;
+    let n5 = sin(f5 * x * HASH_X + f5 * y * HASH_Y) * HALF + HALF;
+    let n6 = sin(f6 * x * HASH_X + f6 * y * HASH_Y) * HALF + HALF;
+    let n7 = sin(f7 * x * HASH_X + f7 * y * HASH_Y) * HALF + HALF;
+    let n8 = sin(f8 * x * HASH_X + f8 * y * HASH_Y) * HALF + HALF;
+    let summed = n1
+               + HALF * n2
+               + 0.25 * n3
+               + 0.125 * n4
+               + 0.0625 * n5
+               + 0.03125 * n6
+               + 0.015625 * n7
+               + 0.0078125 * n8;
+    summed / 1.9921875
+}
