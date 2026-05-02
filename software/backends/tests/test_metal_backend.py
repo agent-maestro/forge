@@ -223,3 +223,28 @@ def test_no_optimize_flag_still_produces_valid_output():
     out = MetalBackend(optimize=False).compile(_profile(SPRING))
     assert "#include <metal_stdlib>" in out
     assert "inline " in out
+
+
+# ── Forward declarations ──────────────────────────────────────
+
+
+class TestMetalForwardDeclarations:
+    def test_forward_decls_section_emitted(self):
+        out = MetalBackend().compile(_profile(SPRING))
+        assert "// Forward declarations" in out
+
+    def test_externs_resolve_via_forward_decls(self):
+        # Regression for Issue #2: aes.eml declares gf256_square as
+        # `extern fn` AT THE BOTTOM of the file but calls it from
+        # the body of gf256_inverse near the top. Without forward
+        # decls the Metal C++ compiler fails with "use of undeclared
+        # identifier 'gf256_square'".
+        aes = REPO_ROOT / "industries" / "crypto" / "symmetric" / "aes.eml"
+        out = MetalBackend().compile(_profile(aes))
+        # The forward decl should appear before the first body that
+        # references gf256_square.
+        decl_idx = out.index("inline float gf256_square(float b);")
+        first_use_idx = out.index("gf256_square(input)")
+        assert decl_idx < first_use_idx, (
+            "forward declaration must precede first use"
+        )

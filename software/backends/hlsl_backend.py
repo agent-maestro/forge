@@ -137,6 +137,10 @@ _DRIFT_WARN_CHAIN_FLOOR = 2
 # parse as a modifier or built-in. Function calls that target
 # in-module functions also get renamed transparently.
 _HLSL_RESERVED: frozenset[str] = frozenset({
+    # Geometry-shader primitive topology modifiers (these parse as
+    # modifiers before a parameter type; using them as identifiers
+    # gives "modifiers must appear before type")
+    "point", "line", "triangle", "lineadj", "triangleadj",
     # Interpolation modifiers
     "linear", "nointerpolation", "noperspective", "sample", "centroid",
     # Parameter direction modifiers
@@ -318,6 +322,22 @@ class HLSLBackend:
         if mod.constants:
             lines.append("")
 
+        # Forward declarations for every function, before any body.
+        # HLSL DXC (and FXC) accept C-style forward declarations for
+        # free functions. Without these, an .eml file that defines
+        # `caller()` BEFORE its callee `helper()` -- or that declares
+        # `helper()` as `extern fn` (which we lower to a stub body
+        # at the bottom of the file) -- fails compile with
+        # "use of undeclared identifier `helper`".
+        decl_lines: list[str] = [
+            "// Forward declarations -- ensures every CALL target is",
+            "// visible regardless of source order or extern placement.",
+        ]
+        for fn in mod.functions:
+            decl_lines.append(self._emit_forward_decl(fn))
+        decl_lines.append("")
+        lines.extend(decl_lines)
+
         # Functions -- emit into a buffer first so we know which
         # synthesized helpers were referenced before we lay them out.
         fn_lines: list[str] = []
@@ -328,9 +348,9 @@ class HLSLBackend:
                 fn_lines.extend(self._emit_function(fn))
             fn_lines.append("")
 
-        # Prepend synthesized helpers (if any were used). These must
-        # appear before the first call site -- HLSL has no forward
-        # declarations for free functions.
+        # Synthesized helper definitions (if any). These must precede
+        # their first call site -- emitted between forward decls and
+        # function bodies so callers in fn_lines can resolve them.
         for helper_key in sorted(self._helpers_used):
             _, src = _HELPERS_BY_REWRITE[helper_key]
             for ln in src.split("\n"):
@@ -341,6 +361,21 @@ class HLSLBackend:
 
         lines.append(f"#endif  // {guard}")
         return "\n".join(lines).rstrip() + "\n"
+
+    # ── Forward declarations ──────────────────────────────────
+
+    def _emit_forward_decl(self, fn: EMLFunction) -> str:
+        """Single-line `<ret> <name>(<params>);` so callers earlier
+        in the file can name the function before the body lands."""
+        if fn.return_tuple_types:
+            ret = _struct_name(fn.name)
+        else:
+            ret = _hlsl_type(fn.return_type or "Real")
+        params = ", ".join(
+            f"{_hlsl_type(p.type_name)} {_safe_ident(p.name)}"
+            for p in fn.params
+        )
+        return f"{ret} {_safe_ident(fn.name)}({params});"
 
     # ── Constants ─────────────────────────────────────────────
 

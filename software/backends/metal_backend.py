@@ -285,6 +285,21 @@ class MetalBackend:
         if mod.constants:
             lines.append("")
 
+        # Forward declarations for every function, before any body.
+        # Metal is C++14 and accepts standard forward declarations.
+        # Without these, an .eml file that defines `caller()` BEFORE
+        # its callee `helper()` -- or that declares `helper()` as
+        # `extern fn` (lowered to a stub at the bottom of the file)
+        # -- fails compile with "use of undeclared identifier".
+        decl_lines: list[str] = [
+            "// Forward declarations -- ensures every CALL target is",
+            "// visible regardless of source order or extern placement.",
+        ]
+        for fn in mod.functions:
+            decl_lines.append(self._emit_forward_decl(fn))
+        decl_lines.append("")
+        lines.extend(decl_lines)
+
         # Functions
         fn_lines: list[str] = []
         for fn in mod.functions:
@@ -304,6 +319,21 @@ class MetalBackend:
         lines.extend(fn_lines)
 
         return "\n".join(lines).rstrip() + "\n"
+
+    # ── Forward declarations ──────────────────────────────────
+
+    def _emit_forward_decl(self, fn: EMLFunction) -> str:
+        """Single-line `inline <ret> <name>(<params>);` so callers
+        earlier in the file can name the function before the body."""
+        if fn.return_tuple_types:
+            ret = _struct_name(fn.name)
+        else:
+            ret = _metal_type(fn.return_type or "Real")
+        params = ", ".join(
+            f"{_metal_type(p.type_name)} {_safe_ident(p.name)}"
+            for p in fn.params
+        )
+        return f"inline {ret} {_safe_ident(fn.name)}({params});"
 
     # ── Constants ─────────────────────────────────────────────
 
