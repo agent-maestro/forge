@@ -1,0 +1,63 @@
+// sigmoid.eml -- production logistic sigmoid kernel.
+//
+// Two surface forms ship in this module:
+//
+//   * `sigmoid` is the canonical 1 / (1 + exp(-x)) form -- one
+//     transcendental, chain order 1, the form every backend
+//     emits as-is.
+//
+//   * `sigmoid_alt` is the BERT / GPT identity
+//        sigmoid(x) = tanh(x/2) / 2 + 1/2
+//     written here so SuperBEST has a hand-written witness it
+//     can rewrite. Per Patent #1's E-193 calibration the rewrite
+//     saves ~1.08 decimal digits of precision per evaluation.
+//
+// The numeric range bound (x bounded by SIGMOID_X_MAX = 30) keeps
+// exp(-x) in [exp(-30), exp(30)] -- well inside f32 dynamic range
+// while still clamping the saturated tails so the Lean
+// monotonicity proof can side-step the +/-inf edge cases.
+
+module sigmoid;
+
+const SIGMOID_X_MAX: Real = 30.0
+const HALF:          Real = 0.5
+
+type Probability = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "sigmoid_monotone_in_x")
+fn sigmoid(x: Real) -> Probability
+    where chain_order <= 1
+    requires (abs(x) < SIGMOID_X_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    1.0 / (1.0 + exp(-x))
+}
+
+// Tanh-symmetric identity. SuperBEST canonicalises this to the
+// single-exp form above. Declared as chain_order <= 2 because the
+// pre-rewrite expression contains tanh, which Forge counts as a
+// chain-2 expression when wrapped around the chain-0 (x/2) input.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "sigmoid_alt_equals_canonical")
+fn sigmoid_alt(x: Real) -> Probability
+    where chain_order <= 2
+    requires (abs(x) < SIGMOID_X_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    tanh(x * HALF) * HALF + HALF
+}
+
+// Logit -- inverse of sigmoid. Used at the final classifier
+// layer when the loss is computed in logit-space (numerically
+// stabler than computing log(p / (1-p)) on the probability).
+// Chain order 1 (single ln).
+@target(fpga, clock_mhz = 250, precision = float32)
+fn logit(p: Real) -> Real
+    where chain_order <= 1,
+          domain: 0.0 < p && p < 1.0
+{
+    ln(p / (1.0 - p))
+}

@@ -1,0 +1,89 @@
+// proportional_navigation.eml -- PN guidance law.
+//
+// Proportional Navigation is the workhorse intercept law: the
+// commanded missile lateral acceleration is N times the closing
+// velocity times the line-of-sight (LOS) rate:
+//
+//   a_cmd = N * V_c * sigma_dot
+//
+// where:
+//   N         dimensionless gain, typically 3 -- 5
+//   V_c       closing speed along the LOS (m/s)
+//   sigma_dot LOS rate (rad/s)
+//
+// Chain order 0 (pure multiply). The LOS-rate computation
+// (atan2 of relative position derivatives) lives in a separate
+// gate so the host can wire it from a Kalman tracker.
+//
+// Verified against the Zarchan classical proof: PN with N >= 3
+// drives sigma_dot to zero against a non-manoeuvring target
+// for any non-tail-chase geometry.
+
+module proportional_navigation;
+
+const N_MIN:       Real = 2.0
+const N_MAX:       Real = 6.0
+const V_MAX:       Real = 5000.0       // beyond hypersonic
+const SIGMA_DOT_MAX: Real = 1.5         // rad/s, very high LOS rate
+
+type Acceleration = Real where chain_order <= 0
+type LosAngle     = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "pn_command_proportional_to_los_rate")
+fn pn_command(n: Real, closing_speed: Real, sigma_dot: Real) -> Acceleration
+    where chain_order <= 0
+    requires (n >= N_MIN)
+    requires (n <= N_MAX)
+    requires (closing_speed >= 0.0)
+    requires (closing_speed <= V_MAX)
+    requires (abs(sigma_dot) <= SIGMA_DOT_MAX)
+{
+    n * closing_speed * sigma_dot
+}
+
+// Augmented PN -- adds a target-acceleration feed-forward term.
+//   a_cmd = N * V_c * sigma_dot + 0.5 * N * a_target
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "augmented_pn_includes_target_accel")
+fn augmented_pn_command(
+    n: Real,
+    closing_speed: Real,
+    sigma_dot: Real,
+    target_accel: Real,
+) -> Acceleration
+    where chain_order <= 0
+    requires (n >= N_MIN)
+    requires (n <= N_MAX)
+    requires (closing_speed >= 0.0)
+    requires (closing_speed <= V_MAX)
+    requires (abs(sigma_dot) <= SIGMA_DOT_MAX)
+    requires (abs(target_accel) <= 500.0)
+{
+    n * closing_speed * sigma_dot + 0.5 * n * target_accel
+}
+
+// LOS angle from relative position. Chain order 1 (atan2).
+// The host loop differentiates this output to produce
+// `sigma_dot` for `pn_command`.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "los_angle_well_defined")
+fn los_angle(rel_x: Real, rel_y: Real) -> LosAngle
+    where chain_order <= 1
+    requires (abs(rel_x) <= 1.0e6)
+    requires (abs(rel_y) <= 1.0e6)
+    ensures  (result >= -3.1416)
+    ensures  (result <= 3.1416)
+{
+    atan2(rel_y, rel_x)
+}
+
+// Closing speed from range and range-rate (also useful when
+// the tracker provides them directly). Chain order 0.
+@target(fpga, clock_mhz = 400, precision = float32)
+fn closing_speed_from_rate(range_rate: Real) -> Real
+    where chain_order <= 0
+    requires (abs(range_rate) <= V_MAX)
+{
+    -range_rate
+}

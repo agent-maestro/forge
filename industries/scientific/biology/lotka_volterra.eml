@@ -1,0 +1,101 @@
+// lotka_volterra.eml -- predator-prey ODE step kernel.
+//
+// The classical 1925 Lotka-Volterra equations:
+//
+//   dx/dt =  alpha * x  -  beta  * x * y     (prey)
+//   dy/dt = -gamma * y  +  delta * x * y     (predator)
+//
+// where x is prey density, y is predator density, alpha is the
+// prey reproduction rate, beta the predation rate, gamma the
+// predator death rate, and delta the predator reproduction
+// rate per prey.
+//
+// The kernel here is the explicit-Euler step:
+//
+//   x[k+1] = x[k] + dt * (alpha*x[k] - beta*x[k]*y[k])
+//   y[k+1] = y[k] + dt * (-gamma*y[k] + delta*x[k]*y[k])
+//
+// Chain order 0 (pure polynomial). The host loop integrates
+// over time. Used in population ecology, epidemiology
+// (SIR-type models reduce to the same form), and in the
+// gradient-of-gradients dynamics of two-player GAN training.
+
+module lotka_volterra;
+
+const POP_MAX:  Real = 1.0e6
+const RATE_MAX: Real = 100.0
+const DT_MAX:   Real = 1.0
+
+type Population = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 400, precision = float64)
+@verify(lean, theorem = "prey_step_nonneg_under_small_dt")
+fn prey_step(
+    prey: Real,
+    predator: Real,
+    alpha: Real,
+    beta: Real,
+    dt: Real,
+) -> Population
+    where chain_order <= 0
+    requires (prey >= 0.0)
+    requires (prey <= POP_MAX)
+    requires (predator >= 0.0)
+    requires (predator <= POP_MAX)
+    requires (alpha >= 0.0)
+    requires (alpha <= RATE_MAX)
+    requires (beta >= 0.0)
+    requires (beta <= RATE_MAX)
+    requires (dt > 0.0)
+    requires (dt <= DT_MAX)
+{
+    prey + dt * (alpha * prey - beta * prey * predator)
+}
+
+@target(fpga, clock_mhz = 400, precision = float64)
+@verify(lean, theorem = "predator_step_decays_without_prey")
+fn predator_step(
+    prey: Real,
+    predator: Real,
+    gamma: Real,
+    delta: Real,
+    dt: Real,
+) -> Population
+    where chain_order <= 0
+    requires (prey >= 0.0)
+    requires (prey <= POP_MAX)
+    requires (predator >= 0.0)
+    requires (predator <= POP_MAX)
+    requires (gamma >= 0.0)
+    requires (gamma <= RATE_MAX)
+    requires (delta >= 0.0)
+    requires (delta <= RATE_MAX)
+    requires (dt > 0.0)
+    requires (dt <= DT_MAX)
+{
+    predator + dt * (-gamma * predator + delta * prey * predator)
+}
+
+// Conserved quantity (the Lotka-Volterra Lyapunov function):
+//   V = delta*x - gamma*ln(x) + beta*y - alpha*ln(y)
+// Chain order 1 (pair of independent ln). Used as a
+// numerical-stability monitor: if V drifts more than a few
+// percent over an orbit, the integrator is wrong.
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "lotka_volterra_conserves_lyapunov")
+fn lyapunov_invariant(
+    prey: Real,
+    predator: Real,
+    alpha: Real,
+    beta: Real,
+    gamma: Real,
+    delta: Real,
+) -> Real
+    where chain_order <= 1
+    requires (prey > 0.0)
+    requires (prey <= POP_MAX)
+    requires (predator > 0.0)
+    requires (predator <= POP_MAX)
+{
+    delta * prey - gamma * ln(prey) + beta * predator - alpha * ln(predator)
+}

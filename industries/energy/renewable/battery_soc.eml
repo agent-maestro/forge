@@ -1,0 +1,95 @@
+// battery_soc.eml -- battery state-of-charge estimation.
+//
+// Two canonical SOC estimators:
+//
+//   Coulomb counting (current integration):
+//     SOC[k+1] = SOC[k] - i * dt / Q_capacity
+//
+//   Open-circuit-voltage (OCV) lookup:
+//     SOC = soc_from_ocv(v_ocv)        (host LUT; gates expose
+//                                       the Li-ion polynomial fit)
+//
+// Mixed estimator (the "EKF-class" form some BMS use): blends
+// the two via a weight that increases when current is small
+// (when OCV is informative).
+//
+// Chain order 0. Battery management is IEC 62133 + UL 1973
+// regulated; the BMS-side hazard analysis is OEM-specific
+// (NRC-relevant for grid-scale storage).
+
+module battery_soc;
+
+const SOC_MIN:    Real = 0.0
+const SOC_MAX:    Real = 1.0
+const I_MAX:      Real = 1000.0
+const Q_MIN:      Real = 0.1            // Ah
+const Q_MAX:      Real = 1.0e4
+const V_MIN:      Real = 2.0
+const V_MAX:      Real = 5.0
+const DT_MAX:     Real = 60.0
+
+type StateOfCharge = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "soc_coulomb_count_decreases_under_discharge")
+fn coulomb_count_step(
+    soc_prev: Real,
+    current_a: Real,
+    capacity_ah: Real,
+    dt_s: Real,
+) -> StateOfCharge
+    where chain_order <= 0
+    requires (soc_prev >= SOC_MIN)
+    requires (soc_prev <= SOC_MAX)
+    requires (abs(current_a) <= I_MAX)
+    requires (capacity_ah >= Q_MIN)
+    requires (capacity_ah <= Q_MAX)
+    requires (dt_s >= 0.0)
+    requires (dt_s <= DT_MAX)
+    ensures  (result >= SOC_MIN)
+    ensures  (result <= SOC_MAX)
+{
+    let charge_delta = current_a * dt_s / 3600.0 / capacity_ah;
+    clamp(soc_prev - charge_delta, SOC_MIN, SOC_MAX)
+}
+
+// Li-ion OCV polynomial (3-coefficient cubic fit valid for the
+// linear bulk of the SOC range, 0.1-0.9). Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "ocv_curve_monotone_in_soc")
+fn lithium_ion_ocv_curve(soc: Real) -> Real
+    where chain_order <= 0
+    requires (soc >= 0.05)
+    requires (soc <= 0.95)
+    ensures  (result >= V_MIN)
+    ensures  (result <= V_MAX)
+{
+    let s = soc;
+    let s2 = s * s;
+    let s3 = s2 * s;
+    3.0 + 1.5 * s - 1.2 * s2 + 0.5 * s3
+}
+
+// Mixed estimator: blends Coulomb-count SOC with OCV-derived
+// SOC by an alpha weight (typ. 0.95 -- 0.99). Higher alpha
+// trusts current integration more; the host drops alpha when
+// |I| is small enough for OCV to be informative.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "mixed_soc_blends_estimators")
+fn mixed_soc_estimate(
+    soc_coulomb: Real,
+    soc_from_ocv: Real,
+    alpha: Real,
+) -> StateOfCharge
+    where chain_order <= 0
+    requires (soc_coulomb >= SOC_MIN)
+    requires (soc_coulomb <= SOC_MAX)
+    requires (soc_from_ocv >= SOC_MIN)
+    requires (soc_from_ocv <= SOC_MAX)
+    requires (alpha >= 0.0)
+    requires (alpha <= 1.0)
+    ensures  (result >= SOC_MIN)
+    ensures  (result <= SOC_MAX)
+{
+    alpha * soc_coulomb + (1.0 - alpha) * soc_from_ocv
+}

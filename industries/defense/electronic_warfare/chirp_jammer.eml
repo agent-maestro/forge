@@ -1,0 +1,81 @@
+// chirp_jammer.eml -- linear-FM (LFM) chirp generation.
+//
+// The canonical jammer waveform: a frequency-modulated tone
+// whose instantaneous phase is
+//
+//   phi(t) = 2*pi * (f0*t + 0.5*k*t^2)
+//
+// where f0 is the start frequency (Hz) and k is the chirp rate
+// (Hz/s). The output gate produces phi(t); the host (or the
+// next backend stage) takes cos(phi) for the radio carrier.
+//
+// Closely related to the CFAR / pulse-compression victim radar
+// in industries/radar/. Used in barrage and deception jamming
+// across defense electronic-warfare suites.
+//
+// Chain order 0 (the host applies the trig). MIL-STD-882 hazard
+// analysis classifies the jammer-failure modes.
+
+module chirp_jammer;
+
+const F0_MAX:   Real = 1.0e10           // 10 GHz max start
+const RATE_MAX: Real = 1.0e15           // 1 PHz/s upper safety bound
+const T_MAX:    Real = 1.0
+const TWO_PI:   Real = 6.283185307179586
+
+type ChirpPhase = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "chirp_phase_zero_at_t0")
+fn chirp_phase(start_freq: Real, chirp_rate: Real, time_s: Real) -> ChirpPhase
+    where chain_order <= 0
+    requires (start_freq >= 0.0)
+    requires (start_freq <= F0_MAX)
+    requires (abs(chirp_rate) <= RATE_MAX)
+    requires (time_s >= 0.0)
+    requires (time_s <= T_MAX)
+{
+    TWO_PI * (start_freq * time_s + 0.5 * chirp_rate * time_s * time_s)
+}
+
+// Instantaneous frequency of the chirp: f(t) = f0 + k*t.
+// Used by the spectrum monitor to verify the jammer is
+// sweeping inside its allocated band. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "chirp_instantaneous_freq_linear_in_t")
+fn chirp_instantaneous_freq(
+    start_freq: Real,
+    chirp_rate: Real,
+    time_s: Real,
+) -> Real
+    where chain_order <= 0
+    requires (start_freq >= 0.0)
+    requires (start_freq <= F0_MAX)
+    requires (abs(chirp_rate) <= RATE_MAX)
+    requires (time_s >= 0.0)
+    requires (time_s <= T_MAX)
+{
+    start_freq + chirp_rate * time_s
+}
+
+// Chirp carrier sample: the cos of phi(t). Chain order 1
+// (single cos). The host loop drives this at the DAC rate
+// (typ. 100 MS/s in modern jammers).
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "chirp_sample_bounded_by_unit")
+fn chirp_sample(
+    start_freq: Real,
+    chirp_rate: Real,
+    time_s: Real,
+) -> Real
+    where chain_order <= 1
+    requires (start_freq >= 0.0)
+    requires (start_freq <= F0_MAX)
+    requires (abs(chirp_rate) <= RATE_MAX)
+    requires (time_s >= 0.0)
+    requires (time_s <= T_MAX)
+    ensures  (result >= -1.0)
+    ensures  (result <= 1.0)
+{
+    cos(TWO_PI * (start_freq * time_s + 0.5 * chirp_rate * time_s * time_s))
+}

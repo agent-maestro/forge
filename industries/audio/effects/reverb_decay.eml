@@ -1,0 +1,73 @@
+// reverb_decay.eml -- exponential reverb-tail decay gate.
+//
+// Reverberation models the late energy decay of a room as an
+// exponential:
+//
+//   amplitude(t) = exp(-t / tau)         tau = RT60 / ln(1000)
+//
+// where RT60 is the time for the level to fall by 60 dB. This
+// kernel is the per-sample envelope; the host loop generates a
+// noise excitation, scales by amplitude(t), and adds to the
+// dry signal. Concert halls have RT60 ~ 2 s, small rooms
+// ~ 0.4 s, anechoic chambers ~ 0.05 s.
+//
+// Chain order 1 (single exp). Companion of biquad_lowpass.eml
+// in the audio vertical.
+
+module reverb_decay;
+
+const RT60_MIN:  Real = 0.05
+const RT60_MAX:  Real = 10.0
+const T_MAX:     Real = 60.0
+const LN_1000:   Real = 6.907755278982137
+
+type Envelope = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "reverb_envelope_decreases_with_time")
+fn reverb_envelope(time_s: Real, rt60: Real) -> Envelope
+    where chain_order <= 1
+    requires (time_s >= 0.0)
+    requires (time_s <= T_MAX)
+    requires (rt60 >= RT60_MIN)
+    requires (rt60 <= RT60_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    exp(-time_s * LN_1000 / rt60)
+}
+
+// Per-sample feedback-gain for a Schroeder all-pass / comb
+// filter. The decay across N delay-line samples is:
+//   gain = pow(target_decay, N / N_total)
+// where target_decay is the target amplitude after N_total
+// samples. Chain order 1 (pow).
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "schroeder_gain_in_unit_interval")
+fn schroeder_gain(target_decay: Real, n_samples: Real, n_total: Real) -> Envelope
+    where chain_order <= 1
+    requires (target_decay >= 1.0e-9)
+    requires (target_decay <= 1.0)
+    requires (n_samples >= 0.0)
+    requires (n_samples <= 1.0e6)
+    requires (n_total >= 1.0)
+    requires (n_total <= 1.0e6)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    pow(target_decay, n_samples / n_total)
+}
+
+// Wet / dry mix at percentage `wet` in [0, 1]. Pure linear
+// (equal-gain) crossfade; the host can swap to constant-power
+// (sin/cos curve) for a perceptual mix.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn wet_dry_mix(dry: Real, wet: Real, mix: Real) -> Real
+    where chain_order <= 0
+    requires (abs(dry) <= 8.0)
+    requires (abs(wet) <= 8.0)
+    requires (mix >= 0.0)
+    requires (mix <= 1.0)
+{
+    (1.0 - mix) * dry + mix * wet
+}

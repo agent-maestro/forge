@@ -1,0 +1,100 @@
+// autothrottle.eml -- speed-hold autothrottle.
+//
+// Autothrottle holds a target airspeed by modulating engine
+// throttle:
+//
+//   delta_throttle = K_p * (V_target - V_meas) + K_i * integral
+//
+// with anti-windup on the integral and saturation on the
+// output (limited by engine-acceleration / TGT margins). The
+// gain pair (K_p, K_i) is scheduled with altitude / Mach
+// similar to the SAS in sas_pitch_damper.eml.
+//
+// Chain order 0. DO-178C Tool Qualification Level B.
+
+module autothrottle;
+
+const V_MAX:       Real = 300.0
+const KP_MAX:      Real = 5.0
+const KI_MAX:      Real = 5.0
+const I_LIMIT_MAX: Real = 100.0
+const THROTTLE_MAX: Real = 1.0
+const DT_MAX:      Real = 1.0
+
+type ThrottleCommand = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "autothrottle_within_unit_interval")
+fn autothrottle_step(
+    speed_target: Real,
+    speed_meas: Real,
+    integral: Real,
+    kp: Real,
+    ki: Real,
+) -> ThrottleCommand
+    where chain_order <= 0
+    requires (abs(speed_target) <= V_MAX)
+    requires (abs(speed_meas) <= V_MAX)
+    requires (abs(integral) <= I_LIMIT_MAX)
+    requires (kp >= 0.0)
+    requires (kp <= KP_MAX)
+    requires (ki >= 0.0)
+    requires (ki <= KI_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= THROTTLE_MAX)
+{
+    let error = speed_target - speed_meas;
+    let raw = kp * error + ki * integral;
+    clamp(raw, 0.0, THROTTLE_MAX)
+}
+
+// Trapezoidal integrator with anti-windup hold under throttle
+// saturation. When `saturation_active` is 1.0, the integrator
+// freezes (returns its previous value).
+@target(fpga, clock_mhz = 400, precision = float32)
+@verify(lean, theorem = "speed_integral_held_under_saturation")
+fn speed_integral_step(
+    integral_prev: Real,
+    error: Real,
+    error_prev: Real,
+    dt: Real,
+    saturation_active: Real,
+) -> Real
+    where chain_order <= 0
+    requires (abs(integral_prev) <= I_LIMIT_MAX)
+    requires (abs(error) <= V_MAX)
+    requires (abs(error_prev) <= V_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+    requires (saturation_active >= 0.0)
+    requires (saturation_active <= 1.0)
+{
+    let trapezoid = 0.5 * (error + error_prev) * dt;
+    let updated = integral_prev + (1.0 - saturation_active) * trapezoid;
+    clamp(updated, -I_LIMIT_MAX, I_LIMIT_MAX)
+}
+
+// Throttle-rate limiter: the engine-acceleration constraint
+// means the commanded throttle cannot change faster than
+// `rate_limit` per second. This gate clamps the per-step delta.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "throttle_rate_within_limit")
+fn rate_limited_throttle(
+    cmd_new: Real,
+    cmd_prev: Real,
+    rate_limit: Real,
+    dt: Real,
+) -> ThrottleCommand
+    where chain_order <= 0
+    requires (cmd_new >= 0.0)
+    requires (cmd_new <= THROTTLE_MAX)
+    requires (cmd_prev >= 0.0)
+    requires (cmd_prev <= THROTTLE_MAX)
+    requires (rate_limit >= 0.0)
+    requires (rate_limit <= 10.0)
+    requires (dt > 0.0)
+    requires (dt <= DT_MAX)
+{
+    let max_step = rate_limit * dt;
+    cmd_prev + clamp(cmd_new - cmd_prev, -max_step, max_step)
+}

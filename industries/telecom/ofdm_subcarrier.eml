@@ -1,0 +1,90 @@
+// ofdm_subcarrier.eml -- per-subcarrier OFDM helpers.
+//
+// OFDM spreads a high-rate stream across N orthogonal narrowband
+// subcarriers, each independently modulated (QAM/PSK). The
+// scalar gates here support the per-subcarrier path:
+//
+//   subcarrier_phase    twiddle-factor phase for the IFFT
+//   pilot_correction    channel-estimate correction at a pilot
+//   cyclic_prefix_taps  length of the CP from delay-spread bound
+//
+// The full IFFT/FFT lives on the host (Forge can emit a
+// dedicated FFT pipeline; that's a separate vertical task).
+//
+// Chain order 0 throughout (the trig is applied by the host on
+// the IFFT side). Companion of pulse_compression.eml +
+// qam_demod.eml.
+
+module ofdm_subcarrier;
+
+const N_MAX:      Real = 16384.0
+const FS_MAX:     Real = 1.0e9
+const SPREAD_MAX: Real = 1.0e-3       // 1 ms delay spread
+
+type Phase = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "subcarrier_phase_proportional_to_bin")
+fn subcarrier_phase(bin_index: Real, n_total: Real) -> Phase
+    where chain_order <= 0
+    requires (bin_index >= 0.0)
+    requires (bin_index <= N_MAX)
+    requires (n_total >= 1.0)
+    requires (n_total <= N_MAX)
+{
+    -6.283185307179586 * bin_index / n_total
+}
+
+// Channel-estimate correction at a pilot subcarrier:
+// h_est = y_pilot / x_pilot, where x_pilot is the known
+// transmitted pilot. The receiver divides each data
+// subcarrier's sample by the interpolated h_est to equalise.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "pilot_correction_unity_at_known_pilot")
+fn pilot_channel_estimate(
+    received: Real,
+    transmitted: Real,
+) -> Real
+    where chain_order <= 0
+    requires (abs(received) <= 1.0e6)
+    requires (abs(transmitted) >= 1.0e-3)
+    requires (abs(transmitted) <= 1.0e6)
+{
+    received / transmitted
+}
+
+// Cyclic prefix length: the CP must be longer than the channel
+// delay spread to avoid inter-symbol interference. Returns the
+// minimum CP sample count given (delay_spread_s, sample_rate_hz).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "cp_length_proportional_to_delay_spread")
+fn cyclic_prefix_min_samples(
+    delay_spread_s: Real,
+    sample_rate_hz: Real,
+) -> Real
+    where chain_order <= 0
+    requires (delay_spread_s >= 0.0)
+    requires (delay_spread_s <= SPREAD_MAX)
+    requires (sample_rate_hz >= 1.0)
+    requires (sample_rate_hz <= FS_MAX)
+    ensures  (result >= 0.0)
+{
+    delay_spread_s * sample_rate_hz
+}
+
+// Carrier-frequency offset (CFO) -- estimated from the phase
+// rotation between identical preamble repetitions. The CFO in
+// Hz: f_offset = phase_diff / (2*pi*T_preamble).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "cfo_zero_at_zero_phase_diff")
+fn carrier_freq_offset(
+    phase_diff: Real,
+    preamble_duration_s: Real,
+) -> Real
+    where chain_order <= 0
+    requires (abs(phase_diff) <= 6.2832)
+    requires (preamble_duration_s >= 1.0e-9)
+    requires (preamble_duration_s <= 1.0e-1)
+{
+    phase_diff / (6.283185307179586 * preamble_duration_s)
+}

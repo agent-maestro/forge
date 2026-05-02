@@ -1,0 +1,112 @@
+// feed_rate.eml -- CNC milling feed-rate optimisation.
+//
+// The classical machinist formula for the spindle feed rate
+// (mm/min) given the cutter and material:
+//
+//   F = N * f_z * RPM
+//
+// where:
+//   N      number of teeth on the cutter
+//   f_z    feed per tooth (mm/tooth)
+//   RPM    spindle speed (rev/min)
+//
+// Chain order 0. The cutting-speed constraint (S_cut = pi * D *
+// RPM, mm/min) couples RPM to cutter diameter D and target
+// surface speed S_cut, allowing back-solving for RPM:
+//
+//   RPM = S_cut / (pi * D)
+//
+// This file ships the gates a CAM post-processor uses to
+// translate a "cut at S_cut, f_z" recipe into the spindle and
+// feed words a G-code program issues.
+
+module feed_rate;
+
+const PI:         Real = 3.141592653589793
+const D_MIN:      Real = 0.1
+const D_MAX:      Real = 200.0
+const RPM_MIN:    Real = 10.0
+const RPM_MAX:    Real = 60000.0
+const N_MIN:      Real = 1.0
+const N_MAX:      Real = 32.0
+const FZ_MIN:     Real = 0.001
+const FZ_MAX:     Real = 1.0
+const SCUT_MIN:   Real = 1.0
+const SCUT_MAX:   Real = 5.0e4
+
+type SpindleSpeed = Real where chain_order <= 0
+type FeedRate     = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "cnc_feed_proportional_to_rpm")
+fn linear_feed(num_teeth: Real, feed_per_tooth: Real, rpm: Real) -> FeedRate
+    where chain_order <= 0
+    requires (num_teeth >= N_MIN)
+    requires (num_teeth <= N_MAX)
+    requires (feed_per_tooth >= FZ_MIN)
+    requires (feed_per_tooth <= FZ_MAX)
+    requires (rpm >= RPM_MIN)
+    requires (rpm <= RPM_MAX)
+    ensures  (result >= 0.0)
+{
+    num_teeth * feed_per_tooth * rpm
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "rpm_inversely_proportional_to_diameter")
+fn rpm_from_cutting_speed(cutting_speed: Real, diameter: Real) -> SpindleSpeed
+    where chain_order <= 0
+    requires (cutting_speed >= SCUT_MIN)
+    requires (cutting_speed <= SCUT_MAX)
+    requires (diameter >= D_MIN)
+    requires (diameter <= D_MAX)
+    ensures  (result >= 0.0)
+{
+    cutting_speed / (PI * diameter)
+}
+
+// Material removal rate (cm^3/min) -- F * a_e * a_p / 1000,
+// where a_e is the radial engagement and a_p is the axial
+// depth of cut. The CAM solver uses MRR as the objective in
+// the optimisation that picks (RPM, F) given a power
+// constraint on the spindle.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "mrr_nonneg")
+fn material_removal_rate(
+    feed_mm_per_min: Real,
+    radial_engagement: Real,
+    axial_depth: Real,
+) -> Real
+    where chain_order <= 0
+    requires (feed_mm_per_min >= 0.0)
+    requires (feed_mm_per_min <= 1.0e5)
+    requires (radial_engagement >= 0.0)
+    requires (radial_engagement <= D_MAX)
+    requires (axial_depth >= 0.0)
+    requires (axial_depth <= D_MAX)
+    ensures  (result >= 0.0)
+{
+    feed_mm_per_min * radial_engagement * axial_depth / 1000.0
+}
+
+// Chip-load adjustment -- compensates the per-tooth feed for
+// the radial engagement (radial chip-thinning correction):
+//   f_z_eff = f_z * D / (2 * a_e)        when a_e <= D/2
+// We use clamp to avoid the zero-engagement singularity.
+@target(fpga, clock_mhz = 400, precision = float32)
+fn chip_thinning_compensation(
+    feed_per_tooth: Real,
+    diameter: Real,
+    radial_engagement: Real,
+) -> Real
+    where chain_order <= 0
+    requires (feed_per_tooth >= FZ_MIN)
+    requires (feed_per_tooth <= FZ_MAX)
+    requires (diameter >= D_MIN)
+    requires (diameter <= D_MAX)
+    requires (radial_engagement > 0.0)
+    requires (radial_engagement <= D_MAX)
+{
+    let ae = clamp(radial_engagement, 0.001, diameter * 0.5);
+    feed_per_tooth * diameter / (2.0 * ae)
+}

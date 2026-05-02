@@ -1,0 +1,78 @@
+// mti_filter.eml -- moving-target-indicator (MTI) filter
+// per-pulse stage.
+//
+// A 3-pulse MTI canceller is the canonical clutter-rejection
+// stage in a search radar's processing chain:
+//
+//   y[n] = x[n] - 2*x[n-1] + x[n-2]
+//
+// The transfer function H(z) = (1 - z^-1)^2 has zeros at z=1
+// (DC), so a stationary clutter return cancels exactly. Chain
+// order 0; the host owns the per-pulse buffer. Companion of
+// cfar_threshold.eml + range_doppler.eml.
+
+module mti_filter;
+
+const SAMPLE_MAX: Real = 1.0e6
+
+type MtiOutput = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "mti_2pulse_canceller_zeros_dc")
+fn mti_2pulse(sample_now: Real, sample_prev: Real) -> MtiOutput
+    where chain_order <= 0
+    requires (abs(sample_now) <= SAMPLE_MAX)
+    requires (abs(sample_prev) <= SAMPLE_MAX)
+{
+    sample_now - sample_prev
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "mti_3pulse_canceller_zeros_dc_and_first_doppler")
+fn mti_3pulse(
+    sample_now: Real,
+    sample_prev1: Real,
+    sample_prev2: Real,
+) -> MtiOutput
+    where chain_order <= 0
+    requires (abs(sample_now) <= SAMPLE_MAX)
+    requires (abs(sample_prev1) <= SAMPLE_MAX)
+    requires (abs(sample_prev2) <= SAMPLE_MAX)
+{
+    sample_now - 2.0 * sample_prev1 + sample_prev2
+}
+
+// 4-pulse Hamming-weighted MTI: less notch sharpness but more
+// sidelobe attenuation. Coefficients (1, -3, 3, -1).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "mti_4pulse_weighted_canceller")
+fn mti_4pulse_weighted(
+    s0: Real, s1: Real, s2: Real, s3: Real,
+) -> MtiOutput
+    where chain_order <= 0
+    requires (abs(s0) <= SAMPLE_MAX)
+    requires (abs(s1) <= SAMPLE_MAX)
+    requires (abs(s2) <= SAMPLE_MAX)
+    requires (abs(s3) <= SAMPLE_MAX)
+{
+    s0 - 3.0 * s1 + 3.0 * s2 - s3
+}
+
+// Improvement factor (linear): the ratio of clutter-to-noise
+// at the input over clutter-to-noise at the output. Used to
+// quantify per-stage MTI effectiveness. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "improvement_factor_nonneg")
+fn improvement_factor(
+    clutter_in_power: Real,
+    clutter_out_power: Real,
+) -> Real
+    where chain_order <= 0
+    requires (clutter_in_power >= 0.0)
+    requires (clutter_in_power <= 1.0e12)
+    requires (clutter_out_power >= 1.0e-12)
+    requires (clutter_out_power <= 1.0e12)
+    ensures  (result >= 0.0)
+{
+    clutter_in_power / clutter_out_power
+}

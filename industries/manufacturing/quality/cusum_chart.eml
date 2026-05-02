@@ -1,0 +1,113 @@
+// cusum_chart.eml -- CUSUM (cumulative sum) control chart.
+//
+// CUSUM detects small but persistent process shifts that the
+// 3-sigma Shewhart chart misses. The two-sided CUSUM tracks
+// running upward and downward sums:
+//
+//   S_high[k] = max(0, S_high[k-1] + (x_k - mu_target) - K)
+//   S_low[k]  = max(0, S_low[k-1]  - (x_k - mu_target) - K)
+//
+// where K is the reference value (typ. half the shift to
+// detect, in sigma units) and an alarm fires when either
+// S_high or S_low exceeds the decision interval H (typ. 4-5
+// sigma).
+//
+// Chain order 0 (clamp-based max). Companion of
+// shewhart_chart.eml in the quality subfolder.
+
+module cusum_chart;
+
+const SIGMA_MIN:  Real = 1.0e-9
+const SIGMA_MAX:  Real = 1.0e6
+const VALUE_MAX:  Real = 1.0e6
+const K_MAX:      Real = 5.0
+const H_MAX:      Real = 20.0
+
+type CusumState = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "cusum_high_step_nonneg")
+fn cusum_high_step(
+    s_high_prev: Real,
+    sample: Real,
+    target: Real,
+    sigma: Real,
+    reference_k: Real,
+) -> CusumState
+    where chain_order <= 0
+    requires (s_high_prev >= 0.0)
+    requires (s_high_prev <= VALUE_MAX)
+    requires (abs(sample) <= VALUE_MAX)
+    requires (abs(target) <= VALUE_MAX)
+    requires (sigma >= SIGMA_MIN)
+    requires (sigma <= SIGMA_MAX)
+    requires (reference_k >= 0.0)
+    requires (reference_k <= K_MAX)
+    ensures  (result >= 0.0)
+{
+    let z = (sample - target) / sigma;
+    clamp(s_high_prev + z - reference_k, 0.0, VALUE_MAX)
+}
+
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "cusum_low_step_nonneg")
+fn cusum_low_step(
+    s_low_prev: Real,
+    sample: Real,
+    target: Real,
+    sigma: Real,
+    reference_k: Real,
+) -> CusumState
+    where chain_order <= 0
+    requires (s_low_prev >= 0.0)
+    requires (s_low_prev <= VALUE_MAX)
+    requires (abs(sample) <= VALUE_MAX)
+    requires (abs(target) <= VALUE_MAX)
+    requires (sigma >= SIGMA_MIN)
+    requires (sigma <= SIGMA_MAX)
+    requires (reference_k >= 0.0)
+    requires (reference_k <= K_MAX)
+    ensures  (result >= 0.0)
+{
+    let z = (sample - target) / sigma;
+    clamp(s_low_prev - z - reference_k, 0.0, VALUE_MAX)
+}
+
+// Alarm flag: 1.0 if either CUSUM exceeds the decision interval,
+// else 0.0. Used by the host's process-control SCADA.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "cusum_alarm_zero_when_in_control")
+fn cusum_alarm(s_high: Real, s_low: Real, decision_h: Real) -> Real
+    where chain_order <= 0
+    requires (s_high >= 0.0)
+    requires (s_high <= VALUE_MAX)
+    requires (s_low >= 0.0)
+    requires (s_low <= VALUE_MAX)
+    requires (decision_h >= 0.001)
+    requires (decision_h <= H_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    let exceed_high = clamp(s_high - decision_h, 0.0, VALUE_MAX);
+    let exceed_low  = clamp(s_low  - decision_h, 0.0, VALUE_MAX);
+    let either = exceed_high + exceed_low;
+    clamp(either / 0.001, 0.0, 1.0)
+}
+
+// Average run length (ARL) in-control approximation. The
+// expected number of samples between false alarms; should be
+// large (e.g. 370 for a 3-sigma equivalent). Chain order 0
+// (the closed-form ARL involves a Markov-chain solve done on
+// the host; this gate is the linearised approximation).
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "arl_increases_with_decision_interval")
+fn arl_approx(decision_h: Real, reference_k: Real) -> Real
+    where chain_order <= 0
+    requires (decision_h >= 0.001)
+    requires (decision_h <= H_MAX)
+    requires (reference_k >= 0.001)
+    requires (reference_k <= K_MAX)
+    ensures  (result >= 0.0)
+{
+    decision_h * decision_h / (2.0 * reference_k * reference_k)
+}

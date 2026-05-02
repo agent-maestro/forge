@@ -1,0 +1,75 @@
+// stefan_boltzmann.eml -- blackbody radiative flux.
+//
+// The Stefan-Boltzmann law:
+//
+//   j = epsilon * sigma * T^4
+//
+// where:
+//   sigma   = 5.670374419e-8 W m^-2 K^-4 (Stefan-Boltzmann constant)
+//   epsilon = surface emissivity (0..1)
+//   T       = absolute temperature (K)
+//
+// Chain order 1 (single pow). Used in radiative-balance climate
+// models, spacecraft thermal control, IR-camera calibration,
+// and as the upper-bound term in atmospheric energy budgets.
+
+module stefan_boltzmann;
+
+const SIGMA_SB:    Real = 5.670374419e-8
+const T_MIN:       Real = 1.0
+const T_MAX:       Real = 6000.0
+const EPS_MIN:     Real = 0.0
+const EPS_MAX:     Real = 1.0
+
+type RadiativeFlux = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "stefan_boltzmann_monotone_in_T")
+fn radiative_flux(emissivity: Real, temperature_k: Real) -> RadiativeFlux
+    where chain_order <= 1
+    requires (emissivity >= EPS_MIN)
+    requires (emissivity <= EPS_MAX)
+    requires (temperature_k >= T_MIN)
+    requires (temperature_k <= T_MAX)
+    ensures  (result >= 0.0)
+{
+    emissivity * SIGMA_SB * pow(temperature_k, 4.0)
+}
+
+// Net radiative exchange between a surface at T_s and an
+// environment at T_env, both treated as graybodies. Chain
+// order 1 (two pow calls but the same exponent -- SuperBEST
+// can fuse into a single pow on the difference of fourth
+// powers if it sees the pattern).
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "net_exchange_zero_at_equilibrium")
+fn net_exchange(
+    emissivity: Real,
+    surface_t: Real,
+    ambient_t: Real,
+) -> RadiativeFlux
+    where chain_order <= 1
+    requires (emissivity >= EPS_MIN)
+    requires (emissivity <= EPS_MAX)
+    requires (surface_t >= T_MIN)
+    requires (surface_t <= T_MAX)
+    requires (ambient_t >= T_MIN)
+    requires (ambient_t <= T_MAX)
+{
+    emissivity * SIGMA_SB * (pow(surface_t, 4.0) - pow(ambient_t, 4.0))
+}
+
+// Wien's displacement law -- peak wavelength of a blackbody
+// at temperature T. lambda_max = b / T with b ≈ 2.898e-3 m·K.
+// Chain order 0 (pure division). Companion to Stefan-Boltzmann
+// for diagnosing the spectral peak from surface temperature.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "wien_inversely_proportional_to_T")
+fn wien_peak_wavelength(temperature_k: Real) -> Real
+    where chain_order <= 0
+    requires (temperature_k >= T_MIN)
+    requires (temperature_k <= T_MAX)
+    ensures  (result > 0.0)
+{
+    0.002897771955 / temperature_k
+}

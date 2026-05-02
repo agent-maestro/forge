@@ -1,0 +1,125 @@
+// radar_equation.eml -- monostatic and bistatic radar equations.
+//
+// Monostatic radar received-power:
+//
+//   P_r = (P_t * G^2 * lambda^2 * sigma) / ((4*pi)^3 * R^4)
+//
+// where:
+//   P_t      transmit power (W)
+//   G        antenna gain (linear, same Tx and Rx)
+//   lambda   wavelength (m)
+//   sigma    target radar cross-section (m^2)
+//   R        target range (m)
+//
+// Bistatic differs by separating Tx (R_t) and Rx (R_r) ranges
+// and gains:
+//
+//   P_r = (P_t * G_t * G_r * lambda^2 * sigma_b) / ((4*pi)^3 * R_t^2 * R_r^2)
+//
+// EML ships both plus the dB form. Chain order 0 for linear,
+// chain 1 for dB. Companion of cfar_threshold.eml +
+// pulse_compression.eml.
+
+module radar_equation;
+
+const PI_4_CUBED: Real = 1984.4017075391882    // (4*pi)^3
+const R_MIN:      Real = 1.0
+const R_MAX:      Real = 1.0e7
+const SIGMA_MIN:  Real = 1.0e-6
+const SIGMA_MAX:  Real = 1.0e6
+const G_MAX:      Real = 1.0e8
+const P_MAX:      Real = 1.0e9
+const LAMBDA_MIN: Real = 1.0e-6
+const LAMBDA_MAX: Real = 1.0e3
+const LN10_INV:   Real = 0.4342944819032518
+
+type ReceivedPower = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "monostatic_falls_with_r4")
+fn monostatic_received_power(
+    p_tx: Real,
+    gain: Real,
+    wavelength: Real,
+    rcs: Real,
+    range_m: Real,
+) -> ReceivedPower
+    where chain_order <= 0
+    requires (p_tx >= 0.0)
+    requires (p_tx <= P_MAX)
+    requires (gain >= 0.0)
+    requires (gain <= G_MAX)
+    requires (wavelength >= LAMBDA_MIN)
+    requires (wavelength <= LAMBDA_MAX)
+    requires (rcs >= SIGMA_MIN)
+    requires (rcs <= SIGMA_MAX)
+    requires (range_m >= R_MIN)
+    requires (range_m <= R_MAX)
+    ensures  (result >= 0.0)
+{
+    let r2 = range_m * range_m;
+    let r4 = r2 * r2;
+    p_tx * gain * gain * wavelength * wavelength * rcs / (PI_4_CUBED * r4)
+}
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "bistatic_falls_with_rt2_rr2")
+fn bistatic_received_power(
+    p_tx: Real,
+    g_tx: Real,
+    g_rx: Real,
+    wavelength: Real,
+    rcs_bistatic: Real,
+    range_tx: Real,
+    range_rx: Real,
+) -> ReceivedPower
+    where chain_order <= 0
+    requires (p_tx >= 0.0)
+    requires (p_tx <= P_MAX)
+    requires (g_tx >= 0.0)
+    requires (g_tx <= G_MAX)
+    requires (g_rx >= 0.0)
+    requires (g_rx <= G_MAX)
+    requires (wavelength >= LAMBDA_MIN)
+    requires (wavelength <= LAMBDA_MAX)
+    requires (rcs_bistatic >= SIGMA_MIN)
+    requires (rcs_bistatic <= SIGMA_MAX)
+    requires (range_tx >= R_MIN)
+    requires (range_tx <= R_MAX)
+    requires (range_rx >= R_MIN)
+    requires (range_rx <= R_MAX)
+    ensures  (result >= 0.0)
+{
+    let denom = PI_4_CUBED * range_tx * range_tx * range_rx * range_rx;
+    p_tx * g_tx * g_rx * wavelength * wavelength * rcs_bistatic / denom
+}
+
+// Maximum detection range from minimum-detectable-power.
+//   R_max = ((P_t * G^2 * lambda^2 * sigma) / ((4*pi)^3 * P_min))^(1/4)
+// Chain order 1 (pow). Used in every radar coverage diagram.
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "max_range_increases_with_pt_pow_quarter")
+fn max_detection_range(
+    p_tx: Real,
+    gain: Real,
+    wavelength: Real,
+    rcs: Real,
+    p_min_detectable: Real,
+) -> Real
+    where chain_order <= 1
+    requires (p_tx >= 0.0)
+    requires (p_tx <= P_MAX)
+    requires (gain >= 0.0)
+    requires (gain <= G_MAX)
+    requires (wavelength >= LAMBDA_MIN)
+    requires (wavelength <= LAMBDA_MAX)
+    requires (rcs >= SIGMA_MIN)
+    requires (rcs <= SIGMA_MAX)
+    requires (p_min_detectable >= 1.0e-30)
+    requires (p_min_detectable <= 1.0)
+    ensures  (result >= 0.0)
+{
+    let inner = p_tx * gain * gain * wavelength * wavelength * rcs
+              / (PI_4_CUBED * p_min_detectable);
+    pow(inner, 0.25)
+}

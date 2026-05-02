@@ -1,0 +1,84 @@
+// load_flow.eml -- single-bus power-flow gate.
+//
+// The complex-power balance at a bus:
+//
+//   P + j*Q = V * conj(Y * V_bus)
+//
+// expanded into rectangular form gives the active and reactive
+// injections at a PQ bus. EML's scalar surface ships the
+// per-branch contribution that the host's Newton-Raphson
+// network solver consumes:
+//
+//   P_inj = V * V_bus * (G * cos(delta) + B * sin(delta))
+//   Q_inj = V * V_bus * (G * sin(delta) - B * cos(delta))
+//
+// where (G, B) is the per-branch admittance, V is the local
+// voltage, V_bus is the neighbour, and delta = theta - theta_bus
+// is the angle difference.
+//
+// Chain order 1 (single sin/cos). IEC 61508 SIL-2.
+
+module load_flow;
+
+const V_MIN:    Real = 0.5
+const V_MAX:    Real = 1.5
+const Y_MAX:    Real = 1.0e3
+const ANGLE_MAX: Real = 6.2832
+
+type PowerInjection = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "active_injection_zero_at_zero_voltage")
+fn active_injection(
+    v_local: Real,
+    v_remote: Real,
+    g: Real,
+    b: Real,
+    angle_diff: Real,
+) -> PowerInjection
+    where chain_order <= 1
+    requires (v_local >= V_MIN)
+    requires (v_local <= V_MAX)
+    requires (v_remote >= V_MIN)
+    requires (v_remote <= V_MAX)
+    requires (abs(g) <= Y_MAX)
+    requires (abs(b) <= Y_MAX)
+    requires (abs(angle_diff) <= ANGLE_MAX)
+{
+    v_local * v_remote * (g * cos(angle_diff) + b * sin(angle_diff))
+}
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "reactive_injection_zero_at_zero_voltage")
+fn reactive_injection(
+    v_local: Real,
+    v_remote: Real,
+    g: Real,
+    b: Real,
+    angle_diff: Real,
+) -> PowerInjection
+    where chain_order <= 1
+    requires (v_local >= V_MIN)
+    requires (v_local <= V_MAX)
+    requires (v_remote >= V_MIN)
+    requires (v_remote <= V_MAX)
+    requires (abs(g) <= Y_MAX)
+    requires (abs(b) <= Y_MAX)
+    requires (abs(angle_diff) <= ANGLE_MAX)
+{
+    v_local * v_remote * (g * sin(angle_diff) - b * cos(angle_diff))
+}
+
+// DC-load-flow (linearised) approximation: assumes |V| ~ 1 pu,
+// flat voltage, lossless lines. Power flows linearly with the
+// angle differences. Chain order 0. Used in the operator-level
+// security-constrained dispatch screen.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "dc_load_flow_linear_in_angle_diff")
+fn dc_load_flow(b: Real, angle_diff: Real) -> Real
+    where chain_order <= 0
+    requires (abs(b) <= Y_MAX)
+    requires (abs(angle_diff) <= 1.0)
+{
+    b * angle_diff
+}

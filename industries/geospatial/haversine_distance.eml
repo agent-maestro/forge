@@ -1,0 +1,97 @@
+// haversine_distance.eml -- great-circle distance between two
+// geodetic points.
+//
+// The classical Haversine formula:
+//
+//   a = sin^2(dphi/2) + cos(phi1) * cos(phi2) * sin^2(dlambda/2)
+//   c = 2 * atan2(sqrt(a), sqrt(1 - a))
+//   d = R * c
+//
+// where (phi, lambda) are latitude / longitude in radians and
+// R is the Earth's mean radius (6371 km). Chain order 2:
+// the trig stack composes through atan2 lifting the result
+// into chain 2 territory.
+//
+// Sibling of mercator_projection.eml in the geospatial vertical;
+// together they cover the two scalar gates almost every
+// receiver / map-tile pipeline relies on.
+
+module haversine_distance;
+
+const R_EARTH:  Real = 6371.0           // km, mean Earth radius
+const PI_HALF:  Real = 1.5707963267948966
+const HALF:     Real = 0.5
+
+type GreatCircleDistance = Real where chain_order <= 2
+
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "haversine_zero_at_same_point")
+fn haversine_distance(
+    lat1: Real,
+    lon1: Real,
+    lat2: Real,
+    lon2: Real,
+) -> GreatCircleDistance
+    where chain_order <= 2
+    requires (abs(lat1) <= PI_HALF)
+    requires (abs(lat2) <= PI_HALF)
+    requires (abs(lon1) <= 6.2832)
+    requires (abs(lon2) <= 6.2832)
+    ensures  (result >= 0.0)
+{
+    let dphi    = (lat2 - lat1) * HALF;
+    let dlambda = (lon2 - lon1) * HALF;
+    let s_phi    = sin(dphi);
+    let s_lambda = sin(dlambda);
+    let a = s_phi * s_phi + cos(lat1) * cos(lat2) * s_lambda * s_lambda;
+    let a_clamped = clamp(a, 0.0, 1.0);
+    R_EARTH * 2.0 * atan2(sqrt(a_clamped), sqrt(1.0 - a_clamped))
+}
+
+// Equirectangular approximation -- valid for short distances
+// (~ < 100 km) where the Earth-curvature error stays below
+// 0.5%. Cheaper (chain 1, single cos for the latitude scale).
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "equirectangular_zero_at_same_point")
+fn equirectangular_distance(
+    lat1: Real,
+    lon1: Real,
+    lat2: Real,
+    lon2: Real,
+) -> GreatCircleDistance
+    where chain_order <= 1
+    requires (abs(lat1) <= PI_HALF)
+    requires (abs(lat2) <= PI_HALF)
+    requires (abs(lon1) <= 6.2832)
+    requires (abs(lon2) <= 6.2832)
+    ensures  (result >= 0.0)
+{
+    let dphi    = lat2 - lat1;
+    let dlambda = lon2 - lon1;
+    let lat_avg = (lat1 + lat2) * HALF;
+    let x = dlambda * cos(lat_avg);
+    R_EARTH * sqrt(x * x + dphi * dphi)
+}
+
+// Initial bearing (forward azimuth) from point 1 to point 2.
+// Chain order 2 (atan2 of trig combination). Used in
+// dead-reckoning navigation and bird-flight bearing scopes.
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "bearing_zero_due_north")
+fn initial_bearing(
+    lat1: Real,
+    lon1: Real,
+    lat2: Real,
+    lon2: Real,
+) -> Real
+    where chain_order <= 2
+    requires (abs(lat1) <= PI_HALF)
+    requires (abs(lat2) <= PI_HALF)
+    requires (abs(lon1) <= 6.2832)
+    requires (abs(lon2) <= 6.2832)
+{
+    let dlambda = lon2 - lon1;
+    let y = sin(dlambda) * cos(lat2);
+    let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dlambda);
+    atan2(y, x)
+}

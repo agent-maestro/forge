@@ -1,0 +1,82 @@
+// aeb_ttc.eml -- automatic emergency braking time-to-collision.
+//
+// AEB intervention is triggered when the time-to-collision (TTC)
+// drops below a threshold. The classical scalar formulation:
+//
+//   TTC = -range / range_rate          (range_rate < 0 == closing)
+//
+// where range is the longitudinal distance to the lead object
+// (m) and range_rate is its time derivative (m/s). The host
+// supplies these from a sensor-fusion track (radar + camera).
+//
+// Companion gates:
+//   constant_acceleration_ttc -- second-order TTC accounting
+//                                for relative deceleration
+//   stopping_distance         -- v^2 / (2*a) reference for the
+//                                AEB threshold tuning
+//
+// Chain order 0 (sqrt in the constant-accel form is chain 1).
+// ISO 26262 ASIL-D in modern OEM specs (AEB intervention is
+// safety-critical).
+
+module aeb_ttc;
+
+const RANGE_MAX:    Real = 250.0       // 250 m ahead
+const VEL_MAX:      Real = 80.0        // 288 km/h
+const ACCEL_MAX:    Real = 12.0        // 1.2 g, panic brake
+const TTC_MAX:      Real = 30.0
+const EPS:          Real = 0.01
+
+type TimeToCollision = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "ttc_positive_when_closing")
+fn ttc_constant_velocity(range_m: Real, range_rate: Real) -> TimeToCollision
+    where chain_order <= 0
+    requires (range_m >= 0.0)
+    requires (range_m <= RANGE_MAX)
+    requires (range_rate >= -VEL_MAX)
+    requires (range_rate <= VEL_MAX)
+    requires (range_rate < -EPS)        // must be closing
+    ensures  (result >= 0.0)
+{
+    -range_m / range_rate
+}
+
+// Constant-acceleration TTC. Solves the quadratic
+//   range + range_rate * t + 0.5 * a * t^2 = 0
+// for the smaller positive root. Chain order 1 (sqrt).
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "ttc_constant_accel_real_when_discriminant_nonneg")
+fn ttc_constant_acceleration(
+    range_m: Real,
+    range_rate: Real,
+    rel_accel: Real,
+) -> TimeToCollision
+    where chain_order <= 1
+    requires (range_m >= 0.0)
+    requires (range_m <= RANGE_MAX)
+    requires (range_rate >= -VEL_MAX)
+    requires (range_rate <= VEL_MAX)
+    requires (abs(rel_accel) <= ACCEL_MAX)
+{
+    let disc = range_rate * range_rate - 2.0 * rel_accel * range_m;
+    let disc_clamped = clamp(disc, 0.0, 1.0e9);
+    (-range_rate - sqrt(disc_clamped)) / clamp(rel_accel, EPS, ACCEL_MAX)
+}
+
+// Reference stopping distance from current speed and a target
+// deceleration. Used to set the AEB activation threshold:
+// the warning fires when range / brake_distance < 1.5.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "stopping_distance_quadratic_in_speed")
+fn stopping_distance(speed: Real, deceleration: Real) -> Real
+    where chain_order <= 0
+    requires (speed >= 0.0)
+    requires (speed <= VEL_MAX)
+    requires (deceleration >= EPS)
+    requires (deceleration <= ACCEL_MAX)
+    ensures  (result >= 0.0)
+{
+    speed * speed / (2.0 * deceleration)
+}

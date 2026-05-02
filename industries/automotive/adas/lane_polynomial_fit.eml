@@ -1,0 +1,89 @@
+// lane_polynomial_fit.eml -- ADAS lane-line polynomial evaluation.
+//
+// Production lane-keeping assist (LKA) and lane-departure
+// warning (LDW) fit a quadratic to the detected lane edge:
+//
+//   y(x) = c2 * x^2 + c1 * x + c0
+//
+// where x is longitudinal distance ahead of the vehicle
+// (m, vehicle-frame) and y is lateral offset (m). The
+// coefficients are output by an upstream perception block
+// (Hough transform + RANSAC, or a CNN regression head).
+//
+// Chain order 0 -- pure polynomial. The kernel ships the
+// evaluation, the lateral-error gate (offset between vehicle
+// centerline and the fitted lane), and the curvature signal
+// (kappa = 2*c2 / (1 + c1^2)^(3/2)) used by the LKA torque
+// command.
+//
+// ISO 26262 ASIL-B candidate (lane-departure warning is
+// classified ASIL-B in most OEM hazard analyses).
+
+module lane_polynomial_fit;
+
+const X_MAX:  Real = 200.0       // 200 m ahead -- camera horizon
+const C0_MAX: Real = 5.0         // |lateral offset| <= 5 m
+const C1_MAX: Real = 1.0         // |slope| <= 1.0 (45 deg)
+const C2_MAX: Real = 0.05        // sharpest highway curve, 1/m
+
+type LateralOffset = Real where chain_order <= 0
+type Curvature     = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "lane_polynomial_eval_bounded_in_corridor")
+fn lane_lateral_offset(
+    x_longitudinal: Real,
+    c0: Real,
+    c1: Real,
+    c2: Real,
+) -> LateralOffset
+    where chain_order <= 0
+    requires (x_longitudinal >= 0.0)
+    requires (x_longitudinal <= X_MAX)
+    requires (abs(c0) <= C0_MAX)
+    requires (abs(c1) <= C1_MAX)
+    requires (abs(c2) <= C2_MAX)
+{
+    c2 * x_longitudinal * x_longitudinal + c1 * x_longitudinal + c0
+}
+
+// Lane-departure error: difference between the lane center at
+// the vehicle's lookahead distance and the vehicle's lateral
+// position (which is zero in the vehicle frame). The host loop
+// thresholds the absolute value to trigger warning / haptic.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "lane_error_bounded_by_corridor")
+fn lane_departure_error(
+    lookahead: Real,
+    c0_left: Real,  c1_left: Real,  c2_left: Real,
+    c0_right: Real, c1_right: Real, c2_right: Real,
+) -> LateralOffset
+    where chain_order <= 0
+    requires (lookahead >= 0.0)
+    requires (lookahead <= X_MAX)
+    requires (abs(c0_left)  <= C0_MAX)
+    requires (abs(c1_left)  <= C1_MAX)
+    requires (abs(c2_left)  <= C2_MAX)
+    requires (abs(c0_right) <= C0_MAX)
+    requires (abs(c1_right) <= C1_MAX)
+    requires (abs(c2_right) <= C2_MAX)
+{
+    let y_left  = c2_left  * lookahead * lookahead + c1_left  * lookahead + c0_left;
+    let y_right = c2_right * lookahead * lookahead + c1_right * lookahead + c0_right;
+    0.5 * (y_left + y_right)
+}
+
+// Lane curvature (kappa) from polynomial coefficients at the
+// vehicle position. The denominator is replaced by a
+// chain-1 sqrt; the host can choose to skip it for the
+// approximate curvature 2*c2 if c1 is small.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "curvature_zero_when_quadratic_zero")
+fn lane_curvature(c1: Real, c2: Real) -> Curvature
+    where chain_order <= 1
+    requires (abs(c1) <= C1_MAX)
+    requires (abs(c2) <= C2_MAX)
+{
+    let denom = pow(1.0 + c1 * c1, 1.5);
+    2.0 * c2 / denom
+}

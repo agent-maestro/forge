@@ -1,0 +1,109 @@
+// acc_step.eml -- adaptive cruise control time-headway gate.
+//
+// ACC follows a lead vehicle at a target time-headway:
+//
+//   t_h_target = 1.5 .. 2.5 s
+//   d_target   = v_ego * t_h_target + d_min
+//
+// The longitudinal control law is a cascaded outer (distance)
+// + inner (speed) PI loop. EML ships the scalar gates the
+// host wires up:
+//
+//   target_distance              t_h * v + d_min
+//   distance_error               d_target - d_meas
+//   speed_command                outer-loop output
+//
+// Chain order 0. ISO 26262 ASIL-B/C (per OEM hazard analysis;
+// ASIL-D for higher SAE-Level systems with stop-and-go).
+// Companion of aeb_ttc.eml.
+
+module acc_step;
+
+const V_MAX:        Real = 70.0
+const TH_MIN:       Real = 0.8
+const TH_MAX:       Real = 4.0
+const D_MIN_SAFE:   Real = 1.5
+const D_MAX:        Real = 250.0
+const KP_MAX:       Real = 5.0
+const ACC_MAX:      Real = 4.0          // m/s^2 polite ACC limit
+
+type LongitudinalCmd = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "target_distance_increases_with_speed")
+fn target_distance(
+    ego_speed: Real,
+    time_headway: Real,
+    d_min_safe: Real,
+) -> LongitudinalCmd
+    where chain_order <= 0
+    requires (ego_speed >= 0.0)
+    requires (ego_speed <= V_MAX)
+    requires (time_headway >= TH_MIN)
+    requires (time_headway <= TH_MAX)
+    requires (d_min_safe >= 0.5)
+    requires (d_min_safe <= 10.0)
+{
+    ego_speed * time_headway + d_min_safe
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "distance_error_zero_at_target")
+fn distance_error(
+    distance_meas: Real,
+    distance_target: Real,
+) -> LongitudinalCmd
+    where chain_order <= 0
+    requires (distance_meas >= 0.0)
+    requires (distance_meas <= D_MAX)
+    requires (distance_target >= 0.0)
+    requires (distance_target <= D_MAX)
+{
+    distance_meas - distance_target
+}
+
+// Outer-loop speed command: target speed = ego_speed + Kp * error.
+// Saturated to the ACC speed-set max; the inner-loop
+// speed-PI consumes this as its setpoint.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "speed_command_within_set_max")
+fn outer_speed_command(
+    ego_speed: Real,
+    distance_error: Real,
+    kp: Real,
+    set_speed_max: Real,
+) -> LongitudinalCmd
+    where chain_order <= 0
+    requires (ego_speed >= 0.0)
+    requires (ego_speed <= V_MAX)
+    requires (abs(distance_error) <= D_MAX)
+    requires (kp >= 0.0)
+    requires (kp <= KP_MAX)
+    requires (set_speed_max >= 0.0)
+    requires (set_speed_max <= V_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= set_speed_max)
+{
+    clamp(ego_speed + kp * distance_error, 0.0, set_speed_max)
+}
+
+// Acceleration limiter: the polite-ACC longitudinal-jerk
+// constraint clips the commanded acceleration into a comfort
+// band. Used as the final stage before the powertrain torque /
+// brake-pressure dispatcher.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "acc_command_within_comfort_band")
+fn comfort_accel_limiter(
+    accel_cmd: Real,
+    accel_max: Real,
+    decel_max: Real,
+) -> LongitudinalCmd
+    where chain_order <= 0
+    requires (abs(accel_cmd) <= ACC_MAX * 4.0)
+    requires (accel_max >= 0.0)
+    requires (accel_max <= ACC_MAX)
+    requires (decel_max >= 0.0)
+    requires (decel_max <= ACC_MAX * 2.0)
+{
+    clamp(accel_cmd, -decel_max, accel_max)
+}

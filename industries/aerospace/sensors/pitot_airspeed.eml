@@ -1,0 +1,66 @@
+// pitot_airspeed.eml -- IAS / TAS conversion from pitot pressure.
+//
+// Indicated airspeed (IAS) from a pitot-static system reads the
+// dynamic pressure q = P_total - P_static and converts via
+// Bernoulli at sea-level density rho_0:
+//
+//   IAS = sqrt(2 * q / rho_0)
+//
+// where rho_0 = 1.225 kg/m^3 is ISA sea-level air density.
+// True airspeed (TAS) corrects for the local density ratio:
+//
+//   TAS = IAS * sqrt(rho_0 / rho_local)
+//
+// EML ships both gates plus the calibrated airspeed (CAS)
+// correction (PEC -- position-error correction -- as a
+// scalar bias the host supplies).
+//
+// Chain order 1 (sqrt). DO-178C Tool Qualification Level B.
+
+module pitot_airspeed;
+
+const RHO_0:    Real = 1.225
+const RHO_MIN:  Real = 0.05         // very-high-altitude rho
+const RHO_MAX:  Real = 1.5
+const Q_MIN:    Real = 1.0
+const Q_MAX:    Real = 1.0e5        // ~hypersonic q
+
+type Airspeed = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "ias_monotone_in_dynamic_pressure")
+fn indicated_airspeed(dynamic_pressure: Real) -> Airspeed
+    where chain_order <= 1
+    requires (dynamic_pressure >= Q_MIN)
+    requires (dynamic_pressure <= Q_MAX)
+    ensures  (result >= 0.0)
+{
+    sqrt(2.0 * dynamic_pressure / RHO_0)
+}
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "tas_equals_ias_at_sea_level")
+fn true_airspeed(ias: Real, local_density: Real) -> Airspeed
+    where chain_order <= 1
+    requires (ias >= 0.0)
+    requires (ias <= 1.0e3)
+    requires (local_density >= RHO_MIN)
+    requires (local_density <= RHO_MAX)
+    ensures  (result >= 0.0)
+{
+    ias * sqrt(RHO_0 / local_density)
+}
+
+// Calibrated airspeed -- IAS plus the PEC bias. Chain order 0
+// (pure addition). The PEC value is calibrated per airframe
+// at certification and stored as a config constant.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "cas_equals_ias_when_pec_zero")
+fn calibrated_airspeed(ias: Real, position_error: Real) -> Airspeed
+    where chain_order <= 0
+    requires (ias >= 0.0)
+    requires (ias <= 1.0e3)
+    requires (abs(position_error) <= 50.0)
+{
+    ias + position_error
+}

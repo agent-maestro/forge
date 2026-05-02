@@ -1,0 +1,92 @@
+// ballistic_trajectory.eml -- 2-D point-mass ballistic step.
+//
+// The simplest fire-control predictor: an unguided round
+// under gravity with optional linear (Stokes) drag:
+//
+//   x[k+1]  = x[k]  + vx[k] * dt
+//   y[k+1]  = y[k]  + vy[k] * dt
+//   vx[k+1] = vx[k] - k_d * vx[k] * dt
+//   vy[k+1] = vy[k] - g * dt - k_d * vy[k] * dt
+//
+// where k_d is the drag coefficient (1/s). The host loop
+// integrates over time; this gate is the per-step kernel.
+//
+// Chain order 0 (pure polynomial). MIL-STD-882 Class B
+// (predictor failure can produce friendly-fire risk).
+
+module ballistic_trajectory;
+
+const G_GRAVITY: Real = 9.80665
+const POS_MAX:   Real = 1.0e5
+const VEL_MAX:   Real = 2.0e3
+const KD_MAX:    Real = 1.0
+const DT_MAX:    Real = 1.0
+
+type BallisticState = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "x_step_linear_in_dt")
+fn x_step(x_prev: Real, vx: Real, dt: Real) -> BallisticState
+    where chain_order <= 0
+    requires (abs(x_prev) <= POS_MAX)
+    requires (abs(vx) <= VEL_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+{
+    x_prev + vx * dt
+}
+
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "y_step_linear_in_dt")
+fn y_step(y_prev: Real, vy: Real, dt: Real) -> BallisticState
+    where chain_order <= 0
+    requires (abs(y_prev) <= POS_MAX)
+    requires (abs(vy) <= VEL_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+{
+    y_prev + vy * dt
+}
+
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "vx_step_decays_with_drag")
+fn vx_step(vx_prev: Real, drag_k: Real, dt: Real) -> BallisticState
+    where chain_order <= 0
+    requires (abs(vx_prev) <= VEL_MAX)
+    requires (drag_k >= 0.0)
+    requires (drag_k <= KD_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+{
+    vx_prev - drag_k * vx_prev * dt
+}
+
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "vy_step_includes_gravity_and_drag")
+fn vy_step(vy_prev: Real, drag_k: Real, dt: Real) -> BallisticState
+    where chain_order <= 0
+    requires (abs(vy_prev) <= VEL_MAX)
+    requires (drag_k >= 0.0)
+    requires (drag_k <= KD_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+{
+    vy_prev - G_GRAVITY * dt - drag_k * vy_prev * dt
+}
+
+// Vacuum range -- closed-form max range under no drag for an
+// unguided shot at angle theta and muzzle velocity v0:
+//   R = v0^2 * sin(2*theta) / g
+// Used as the upper-bound sanity check on the integrated
+// trajectory. Chain order 1 (single sin).
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "vacuum_range_max_at_45deg")
+fn vacuum_range(muzzle_velocity: Real, elevation_angle: Real) -> Real
+    where chain_order <= 1
+    requires (muzzle_velocity >= 0.0)
+    requires (muzzle_velocity <= VEL_MAX)
+    requires (abs(elevation_angle) <= 1.5708)
+    ensures  (result >= 0.0)
+{
+    muzzle_velocity * muzzle_velocity * sin(2.0 * elevation_angle) / G_GRAVITY
+}

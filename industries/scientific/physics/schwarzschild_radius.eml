@@ -1,0 +1,95 @@
+// schwarzschild_radius.eml -- general-relativity scalar gates.
+//
+// The Schwarzschild radius defines the event horizon of a
+// non-rotating, uncharged black hole:
+//
+//   r_s = 2 * G * M / c^2
+//
+// where G is the gravitational constant, M is the mass, c is
+// the speed of light.
+//
+// EML ships:
+//   schwarzschild_radius        the event-horizon radius
+//   gravitational_redshift      photon-frequency shift at radius r
+//   newtonian_orbital_velocity  comparison Newtonian baseline
+//
+// Chain order 1 (sqrt for the redshift). Used in textbook
+// GR exercises, gravitational-wave templates, and astrophysics
+// LCDM simulations as a sanity-check kernel.
+
+module schwarzschild_radius;
+
+const G_GRAV:    Real = 6.6743e-11
+const C_LIGHT:   Real = 299792458.0
+const C_SQ:      Real = 8.987551787368176e16     // c^2
+const M_MIN:     Real = 1.0
+const M_MAX:     Real = 1.0e40
+const R_MIN:     Real = 1.0
+const R_MAX:     Real = 1.0e25
+
+type Radius             = Real where chain_order <= 0
+type RedshiftFactor     = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "schwarzschild_radius_proportional_to_mass")
+fn schwarzschild_radius(mass_kg: Real) -> Radius
+    where chain_order <= 0
+    requires (mass_kg >= M_MIN)
+    requires (mass_kg <= M_MAX)
+    ensures  (result >= 0.0)
+{
+    2.0 * G_GRAV * mass_kg / C_SQ
+}
+
+// Gravitational redshift factor: z + 1 = 1 / sqrt(1 - r_s/r).
+// Photons climbing out of a gravity well lose energy by this
+// factor. Diverges at the horizon (clamped here for numerical
+// safety).
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "redshift_unity_at_infinity")
+fn gravitational_redshift_factor(
+    schwarzschild_r: Real,
+    radius: Real,
+) -> RedshiftFactor
+    where chain_order <= 1
+    requires (schwarzschild_r >= 0.0)
+    requires (schwarzschild_r <= R_MAX)
+    requires (radius >= R_MIN)
+    requires (radius <= R_MAX)
+    requires (radius > schwarzschild_r)
+    ensures  (result >= 1.0)
+{
+    let metric = clamp(1.0 - schwarzschild_r / radius, 1.0e-9, 1.0);
+    1.0 / sqrt(metric)
+}
+
+// Newtonian orbital velocity at radius r:
+//   v = sqrt(G*M/r)
+// Companion to the Schwarzschild radius for ratio
+// comparisons (a stable circular orbit needs r > 3*r_s in
+// Schwarzschild geometry; v_newton ~ c at r = r_s).
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "orbital_velocity_decreases_with_radius")
+fn newtonian_orbital_velocity(mass_kg: Real, radius: Real) -> Real
+    where chain_order <= 1
+    requires (mass_kg >= M_MIN)
+    requires (mass_kg <= M_MAX)
+    requires (radius >= R_MIN)
+    requires (radius <= R_MAX)
+    ensures  (result >= 0.0)
+{
+    sqrt(G_GRAV * mass_kg / radius)
+}
+
+// Photon sphere -- the radius at which photons orbit a
+// non-rotating black hole. Located at r = 1.5 * r_s.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "photon_sphere_above_horizon")
+fn photon_sphere_radius(schwarzschild_r: Real) -> Radius
+    where chain_order <= 0
+    requires (schwarzschild_r >= 0.0)
+    requires (schwarzschild_r <= R_MAX)
+    ensures  (result >= 0.0)
+{
+    1.5 * schwarzschild_r
+}

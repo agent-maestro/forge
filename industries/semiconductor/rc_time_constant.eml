@@ -1,0 +1,100 @@
+// rc_time_constant.eml -- RC charging and discharging kernels.
+//
+// First-order RC dynamics:
+//
+//   v_capacitor_charging(t) = V_supply * (1 - exp(-t / tau))
+//   v_capacitor_discharging(t) = V_init * exp(-t / tau)
+//
+// where tau = R * C. Chain order 1 (single exp). Used in every
+// power-on reset, debounce circuit, and analogue filter.
+//
+// Companion of mosfet_drain_current.eml + shockley_diode.eml +
+// bjt_collector_current.eml in the semiconductor vertical.
+
+module rc_time_constant;
+
+const R_MIN:      Real = 1.0
+const R_MAX:      Real = 1.0e9
+const C_MIN:      Real = 1.0e-15      // 1 fF
+const C_MAX:      Real = 1.0e-1       // 100 mF
+const V_MAX:      Real = 1000.0
+const T_MAX:      Real = 100.0
+
+type CapacitorVoltage = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "rc_charging_voltage_in_unit_interval")
+fn capacitor_charging(
+    v_supply: Real,
+    resistance: Real,
+    capacitance: Real,
+    time_s: Real,
+) -> CapacitorVoltage
+    where chain_order <= 1
+    requires (abs(v_supply) <= V_MAX)
+    requires (resistance >= R_MIN)
+    requires (resistance <= R_MAX)
+    requires (capacitance >= C_MIN)
+    requires (capacitance <= C_MAX)
+    requires (time_s >= 0.0)
+    requires (time_s <= T_MAX)
+{
+    v_supply * (1.0 - exp(-time_s / (resistance * capacitance)))
+}
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "rc_discharging_voltage_decays_to_zero")
+fn capacitor_discharging(
+    v_initial: Real,
+    resistance: Real,
+    capacitance: Real,
+    time_s: Real,
+) -> CapacitorVoltage
+    where chain_order <= 1
+    requires (abs(v_initial) <= V_MAX)
+    requires (resistance >= R_MIN)
+    requires (resistance <= R_MAX)
+    requires (capacitance >= C_MIN)
+    requires (capacitance <= C_MAX)
+    requires (time_s >= 0.0)
+    requires (time_s <= T_MAX)
+{
+    v_initial * exp(-time_s / (resistance * capacitance))
+}
+
+// Cutoff frequency: f_c = 1 / (2*pi*R*C). The -3 dB point of
+// an RC low-pass filter. Chain order 0 (pure division).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "cutoff_freq_inverse_to_rc")
+fn cutoff_frequency(resistance: Real, capacitance: Real) -> Real
+    where chain_order <= 0
+    requires (resistance >= R_MIN)
+    requires (resistance <= R_MAX)
+    requires (capacitance >= C_MIN)
+    requires (capacitance <= C_MAX)
+    ensures  (result >= 0.0)
+{
+    1.0 / (6.283185307179586 * resistance * capacitance)
+}
+
+// Time-to-threshold: time at which a charging RC reaches a
+// fraction `target_fraction` of V_supply. Inverse log of the
+// charging law. Chain order 1 (single ln).
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "time_to_threshold_increases_with_target")
+fn time_to_threshold(
+    target_fraction: Real,
+    resistance: Real,
+    capacitance: Real,
+) -> Real
+    where chain_order <= 1
+    requires (target_fraction >= 0.001)
+    requires (target_fraction <= 0.999)
+    requires (resistance >= R_MIN)
+    requires (resistance <= R_MAX)
+    requires (capacitance >= C_MIN)
+    requires (capacitance <= C_MAX)
+    ensures  (result >= 0.0)
+{
+    -resistance * capacitance * ln(1.0 - target_fraction)
+}

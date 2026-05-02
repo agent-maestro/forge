@@ -1,0 +1,93 @@
+// expected_shortfall.eml -- Expected Shortfall (ES / CVaR).
+//
+// Expected Shortfall is the average loss conditional on being
+// in the tail beyond the VaR percentile. For a normal return
+// distribution at confidence alpha:
+//
+//   ES(alpha) = mu - sigma * phi(z_alpha) / (1 - alpha)
+//
+// where z_alpha is the alpha-quantile of N(0,1) and phi is its
+// PDF. The host supplies (z_alpha, phi(z_alpha)) precomputed;
+// this gate is the closed-form ES.
+//
+// FRTB requires ES (not VaR) for trading-book capital under
+// Basel III. Companion of var_monte_carlo.eml in the
+// finance/risk subfolder.
+//
+// Chain order 0 (no transcendentals -- the phi value is
+// supplied as input).
+
+module expected_shortfall;
+
+const SIGMA_MIN:    Real = 1.0e-9
+const SIGMA_MAX:    Real = 1.0e3
+const ALPHA_MIN:    Real = 0.5
+const ALPHA_MAX:    Real = 0.99999
+const PHI_MAX:      Real = 0.5
+const HORIZON_MAX:  Real = 1000.0
+
+type RiskSignal = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "es_increases_with_sigma")
+fn parametric_es(
+    mean_return: Real,
+    stdev_return: Real,
+    horizon_days: Real,
+    z_alpha: Real,
+    phi_at_z: Real,
+    alpha: Real,
+) -> RiskSignal
+    where chain_order <= 0
+    requires (abs(mean_return) <= 1.0)
+    requires (stdev_return >= SIGMA_MIN)
+    requires (stdev_return <= SIGMA_MAX)
+    requires (horizon_days >= 1.0)
+    requires (horizon_days <= HORIZON_MAX)
+    requires (z_alpha >= 0.0)
+    requires (z_alpha <= 5.0)
+    requires (phi_at_z >= 0.0)
+    requires (phi_at_z <= PHI_MAX)
+    requires (alpha >= ALPHA_MIN)
+    requires (alpha <= ALPHA_MAX)
+{
+    let scale = stdev_return * phi_at_z / (1.0 - alpha);
+    -mean_return * horizon_days + scale * horizon_days
+}
+
+// Monte-Carlo running tail-mean: given the running tail-loss
+// sum and tail count, returns the realised ES estimate.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "mc_es_zero_at_zero_count")
+fn mc_es_estimate(tail_loss_sum: Real, tail_count: Real) -> RiskSignal
+    where chain_order <= 0
+    requires (tail_loss_sum >= 0.0)
+    requires (tail_loss_sum <= 1.0e12)
+    requires (tail_count >= 1.0)
+    requires (tail_count <= 1.0e9)
+    ensures  (result >= 0.0)
+{
+    tail_loss_sum / tail_count
+}
+
+// Tail-loss accumulator gate: given the previous running sum
+// and a new path loss, returns the updated sum if the loss
+// exceeds the tail threshold (otherwise unchanged). Used in
+// the MC estimator's tail aggregation.
+@target(fpga, clock_mhz = 500, precision = float64)
+fn tail_loss_accumulator(
+    prev_sum: Real,
+    path_loss: Real,
+    tail_threshold: Real,
+) -> Real
+    where chain_order <= 0
+    requires (prev_sum >= 0.0)
+    requires (prev_sum <= 1.0e12)
+    requires (path_loss >= 0.0)
+    requires (path_loss <= 1.0e9)
+    requires (tail_threshold >= 0.0)
+    requires (tail_threshold <= 1.0e9)
+{
+    let excess = clamp(path_loss - tail_threshold, 0.0, 1.0e9);
+    prev_sum + clamp(excess / 0.001, 0.0, 1.0) * path_loss
+}

@@ -1,0 +1,104 @@
+// pk_two_compartment.eml -- two-compartment pharmacokinetic
+// model with IV bolus dosing.
+//
+// The two-compartment open IV-bolus model: drug administered
+// into a central compartment c1 distributes into a peripheral
+// compartment c2 and clears from c1. The plasma concentration
+// follows the bi-exponential
+//
+//   c1(t) = A * exp(-alpha * t) + B * exp(-beta * t)
+//
+// where alpha is the fast distribution rate and beta is the
+// slow elimination rate. EML ships per-time-step evaluation
+// gates for the host's TCI loop -- the host computes (A, B,
+// alpha, beta) once at dose-load time and feeds them into the
+// per-second concentration query.
+//
+// Chain order 2 (two independent exp's that the optimizer
+// keeps separate). IEC 62304 Class C, FDA 510(k).
+
+module pk_two_compartment;
+
+const T_MAX:    Real = 1440.0           // minutes (24 h)
+const RATE_MIN: Real = 1.0e-6
+const RATE_MAX: Real = 1.0
+const COEF_MAX: Real = 1.0e3
+
+type PlasmaConcentration = Real where chain_order <= 2
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "plasma_concentration_nonneg")
+fn plasma_concentration(
+    coef_a: Real,
+    rate_alpha: Real,
+    coef_b: Real,
+    rate_beta: Real,
+    time_min: Real,
+) -> PlasmaConcentration
+    where chain_order <= 2
+    requires (coef_a >= 0.0)
+    requires (coef_a <= COEF_MAX)
+    requires (rate_alpha >= RATE_MIN)
+    requires (rate_alpha <= RATE_MAX)
+    requires (coef_b >= 0.0)
+    requires (coef_b <= COEF_MAX)
+    requires (rate_beta >= RATE_MIN)
+    requires (rate_beta <= RATE_MAX)
+    requires (time_min >= 0.0)
+    requires (time_min <= T_MAX)
+    ensures  (result >= 0.0)
+{
+    coef_a * exp(-rate_alpha * time_min)
+    + coef_b * exp(-rate_beta * time_min)
+}
+
+// Area under the curve (AUC0_inf) -- the canonical bioavailability
+// figure. For bi-exponential bolus: AUC = A/alpha + B/beta.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "auc_inf_finite_for_positive_rates")
+fn auc_inf(
+    coef_a: Real,
+    rate_alpha: Real,
+    coef_b: Real,
+    rate_beta: Real,
+) -> Real
+    where chain_order <= 0
+    requires (coef_a >= 0.0)
+    requires (coef_a <= COEF_MAX)
+    requires (rate_alpha >= RATE_MIN)
+    requires (rate_alpha <= RATE_MAX)
+    requires (coef_b >= 0.0)
+    requires (coef_b <= COEF_MAX)
+    requires (rate_beta >= RATE_MIN)
+    requires (rate_beta <= RATE_MAX)
+    ensures  (result >= 0.0)
+{
+    coef_a / rate_alpha + coef_b / rate_beta
+}
+
+// Effect-site concentration -- a third "Ce" compartment used in
+// TCI anaesthesia. Modelled as a low-pass-filtered version of
+// the central compartment with rate_keo:
+//   Ce[k+1] = Ce[k] + dt * rate_keo * (c1 - Ce[k])
+@target(fpga, clock_mhz = 400, precision = float64)
+@verify(lean, theorem = "effect_site_tracks_central_compartment")
+fn effect_site_step(
+    ce_prev: Real,
+    central_c: Real,
+    rate_keo: Real,
+    dt: Real,
+) -> PlasmaConcentration
+    where chain_order <= 0
+    requires (ce_prev >= 0.0)
+    requires (ce_prev <= COEF_MAX)
+    requires (central_c >= 0.0)
+    requires (central_c <= COEF_MAX)
+    requires (rate_keo >= RATE_MIN)
+    requires (rate_keo <= RATE_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= 1.0)
+    ensures  (result >= 0.0)
+{
+    let updated = ce_prev + dt * rate_keo * (central_c - ce_prev);
+    clamp(updated, 0.0, COEF_MAX)
+}

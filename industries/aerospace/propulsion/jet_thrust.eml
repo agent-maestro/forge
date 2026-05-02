@@ -1,0 +1,84 @@
+// jet_thrust.eml -- gross + net jet thrust kernels.
+//
+// The jet engine thrust equation:
+//
+//   F_gross = m_dot * v_e + (P_e - P_a) * A_e
+//   F_net   = F_gross - m_dot * v_0
+//
+// where:
+//   m_dot   mass flow rate (kg/s)
+//   v_e     exhaust velocity (m/s)
+//   v_0     freestream velocity (m/s)
+//   P_e     nozzle exit pressure (Pa)
+//   P_a     ambient (atmospheric) pressure (Pa)
+//   A_e     nozzle exit area (m^2)
+//
+// Chain order 0 (pure polynomial). Specific impulse is shipped
+// as a companion gate. DO-178C Tool Qualification Level A
+// (engine thrust signal is safety-critical).
+
+module jet_thrust;
+
+const G_GRAVITY: Real = 9.80665
+const MDOT_MIN:  Real = 0.0
+const MDOT_MAX:  Real = 1.0e3
+const VEL_MAX:   Real = 3.0e3
+const P_MIN:     Real = 0.0
+const P_MAX:     Real = 1.0e7
+const AREA_MIN:  Real = 1.0e-3
+const AREA_MAX:  Real = 100.0
+
+type Thrust = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "gross_thrust_nonneg_for_positive_mass_flow")
+fn gross_thrust(
+    mass_flow: Real,
+    exhaust_velocity: Real,
+    exit_pressure: Real,
+    ambient_pressure: Real,
+    exit_area: Real,
+) -> Thrust
+    where chain_order <= 0
+    requires (mass_flow >= MDOT_MIN)
+    requires (mass_flow <= MDOT_MAX)
+    requires (exhaust_velocity >= 0.0)
+    requires (exhaust_velocity <= VEL_MAX)
+    requires (exit_pressure >= P_MIN)
+    requires (exit_pressure <= P_MAX)
+    requires (ambient_pressure >= P_MIN)
+    requires (ambient_pressure <= P_MAX)
+    requires (exit_area >= AREA_MIN)
+    requires (exit_area <= AREA_MAX)
+{
+    mass_flow * exhaust_velocity + (exit_pressure - ambient_pressure) * exit_area
+}
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "net_thrust_zero_when_velocity_match")
+fn net_thrust(gross: Real, mass_flow: Real, freestream_velocity: Real) -> Thrust
+    where chain_order <= 0
+    requires (abs(gross) <= MDOT_MAX * VEL_MAX + P_MAX * AREA_MAX)
+    requires (mass_flow >= MDOT_MIN)
+    requires (mass_flow <= MDOT_MAX)
+    requires (freestream_velocity >= 0.0)
+    requires (freestream_velocity <= VEL_MAX)
+{
+    gross - mass_flow * freestream_velocity
+}
+
+// Specific impulse Isp = F / (m_dot * g_0). Engine performance
+// figure of merit; turbofan ~ 6000 s, rocket ~ 250-450 s.
+// Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "isp_inverse_proportional_to_mass_flow")
+fn specific_impulse(thrust: Real, mass_flow: Real) -> Real
+    where chain_order <= 0
+    requires (thrust >= 0.0)
+    requires (thrust <= 1.0e7)
+    requires (mass_flow >= 0.001)
+    requires (mass_flow <= MDOT_MAX)
+    ensures  (result >= 0.0)
+{
+    thrust / (mass_flow * G_GRAVITY)
+}

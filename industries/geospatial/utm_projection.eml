@@ -1,0 +1,75 @@
+// utm_projection.eml -- Universal Transverse Mercator
+// forward projection.
+//
+// UTM divides the earth into 60 6-degree-wide longitudinal
+// zones; within each zone, lat/lon maps to (easting, northing)
+// in metres via a transverse-Mercator projection on the WGS-84
+// ellipsoid.
+//
+// The full-precision UTM forward (Krueger 1912 series) is
+// extensive; EML ships the closed-form gates for the
+// commonly-used scalar pieces:
+//
+//   meridian_arc        the meridional distance from the
+//                       equator to a given latitude
+//   easting_central     scaling at the central meridian
+//
+// Companion of mercator_projection.eml + haversine_distance.eml
+// in the geospatial vertical. Used at the boundary between
+// land-survey datums and the body-frame state estimator.
+
+module utm_projection;
+
+const A_WGS84:    Real = 6378137.0
+const F_WGS84:    Real = 0.00335281066474748
+const K0:         Real = 0.9996                // UTM scale factor
+const E2:         Real = 0.006694379990141316  // first eccentricity^2
+const PI_HALF:    Real = 1.5707963267948966
+
+type Meters = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "meridian_arc_zero_at_equator")
+fn meridian_arc(latitude_rad: Real) -> Meters
+    where chain_order <= 1
+    requires (abs(latitude_rad) <= PI_HALF)
+{
+    let phi = latitude_rad;
+    let s2 = sin(2.0 * phi);
+    let s4 = sin(4.0 * phi);
+    let s6 = sin(6.0 * phi);
+    A_WGS84
+    * ((1.0 - 0.25 * E2 - 0.046875 * E2 * E2 - 0.01953125 * E2 * E2 * E2) * phi
+       - (0.375 * E2 + 0.09375 * E2 * E2 + 0.0439453125 * E2 * E2 * E2) * s2
+       + (0.05859375 * E2 * E2 + 0.029296875 * E2 * E2 * E2) * s4
+       - 0.011393229166666666 * E2 * E2 * E2 * s6)
+}
+
+// Prime-vertical radius of curvature -- N(phi) in the standard
+// ellipsoid formulas. Chain order 1 (sqrt of cos^2 in the
+// denominator).
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "n_radius_finite_in_domain")
+fn prime_vertical_radius(latitude_rad: Real) -> Meters
+    where chain_order <= 1
+    requires (abs(latitude_rad) <= PI_HALF)
+{
+    let s = sin(latitude_rad);
+    A_WGS84 / sqrt(1.0 - E2 * s * s)
+}
+
+// UTM easting at central meridian -- the linear false-easting
+// offset of 500_000 m plus the projected x-coordinate.
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "easting_at_central_equals_false_easting")
+fn easting_central(
+    latitude_rad: Real,
+    longitude_offset_rad: Real,
+) -> Meters
+    where chain_order <= 1
+    requires (abs(latitude_rad) <= PI_HALF)
+    requires (abs(longitude_offset_rad) <= 0.06)
+{
+    let n = A_WGS84 / sqrt(1.0 - E2 * sin(latitude_rad) * sin(latitude_rad));
+    500000.0 + K0 * n * cos(latitude_rad) * longitude_offset_rad
+}

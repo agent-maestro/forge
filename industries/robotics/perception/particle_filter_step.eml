@@ -1,0 +1,85 @@
+// particle_filter_step.eml -- per-particle weight update.
+//
+// The Bayesian filtering step for one particle in a sequential
+// Monte-Carlo (SIR) localiser. The host loop iterates this gate
+// over N particles each timestep; the resampling is a separate
+// pass (sort + binary search on the host).
+//
+//   weight' = weight * gaussian_likelihood(observation, predicted)
+//
+// where the likelihood is
+//
+//   p(z | x) = exp(-(z - h(x))^2 / (2 * sigma^2))
+//
+// (the leading 1/sqrt(2 pi sigma^2) factor cancels in the
+// re-normalisation step on the host).
+//
+// Chain order = 1 (single exp). Production code on UAV / AGV
+// stacks runs ~1k particles at 100 Hz; the FPGA allocator
+// (Patent #14) maps each gate to a SIMD lane with the exp
+// served by a CORDIC unit.
+
+module particle_filter_step;
+
+const SIGMA_MIN: Real = 1.0e-6
+const SIGMA_MAX: Real = 1.0e3
+const Z_MAX:     Real = 1.0e6
+const HALF:      Real = 0.5
+
+type ParticleWeight = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "particle_weight_nonnegative")
+fn particle_weight_update(
+    prior_weight: Real,
+    observation: Real,
+    predicted: Real,
+    sigma: Real,
+) -> ParticleWeight
+    where chain_order <= 1
+    requires (prior_weight >= 0.0)
+    requires (prior_weight <= 1.0)
+    requires (abs(observation) <= Z_MAX)
+    requires (abs(predicted) <= Z_MAX)
+    requires (sigma >= SIGMA_MIN)
+    requires (sigma <= SIGMA_MAX)
+    ensures  (result >= 0.0)
+{
+    let r = observation - predicted;
+    prior_weight * exp(-HALF * r * r / (sigma * sigma))
+}
+
+// Effective sample size contribution: each particle contributes
+// w_i^2 to the running sum; ESS = 1 / sum_w2. The host triggers
+// resampling when ESS < N/2.
+@target(fpga, clock_mhz = 400, precision = float32)
+fn ess_contribution(weight: Real) -> Real
+    where chain_order <= 0
+    requires (weight >= 0.0)
+    requires (weight <= 1.0)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    weight * weight
+}
+
+// Motion-model propagation step (constant-velocity model with
+// Gaussian noise injection). `noise` is supplied by the host
+// from a precomputed Gaussian sample (Forge does not generate
+// randomness inside .eml; the host owns the RNG).
+@target(fpga, clock_mhz = 400, precision = float32)
+fn propagate_constant_velocity(
+    x_prev: Real,
+    velocity: Real,
+    dt: Real,
+    noise: Real,
+) -> Real
+    where chain_order <= 0
+    requires (abs(x_prev) <= Z_MAX)
+    requires (abs(velocity) <= 1.0e3)
+    requires (dt >= 0.0)
+    requires (dt <= 1.0)
+    requires (abs(noise) <= 1.0e3)
+{
+    x_prev + velocity * dt + noise
+}

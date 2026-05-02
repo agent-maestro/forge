@@ -1,0 +1,91 @@
+// doppler_velocity.eml -- target radial velocity from Doppler
+// shift.
+//
+// The radar Doppler shift relation:
+//
+//   f_d = 2 * v_r / lambda      (monostatic, target approaching)
+//
+// where v_r is the radial closing velocity (m/s) and lambda is
+// the carrier wavelength. Doppler ambiguity wraps at the PRF;
+// the unambiguous velocity is bounded by:
+//
+//   v_unamb = lambda * PRF / 4
+//
+// EML ships both forward and inverse gates plus the
+// unambiguous-velocity boundary. Chain order 0 (the trig stays
+// out). Companion of mti_filter.eml + range_doppler.eml.
+
+module doppler_velocity;
+
+const LAMBDA_MIN: Real = 1.0e-6
+const LAMBDA_MAX: Real = 1.0e3
+const VEL_MAX:    Real = 1.0e4
+const FREQ_MAX:   Real = 1.0e9
+const PRF_MIN:    Real = 100.0
+const PRF_MAX:    Real = 1.0e6
+
+type RadialVelocity = Real where chain_order <= 0
+type DopplerShift   = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "doppler_shift_proportional_to_velocity")
+fn doppler_shift_hz(radial_velocity: Real, wavelength: Real) -> DopplerShift
+    where chain_order <= 0
+    requires (abs(radial_velocity) <= VEL_MAX)
+    requires (wavelength >= LAMBDA_MIN)
+    requires (wavelength <= LAMBDA_MAX)
+{
+    2.0 * radial_velocity / wavelength
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "velocity_from_shift_signed")
+fn velocity_from_shift(
+    doppler_hz: Real,
+    wavelength: Real,
+) -> RadialVelocity
+    where chain_order <= 0
+    requires (abs(doppler_hz) <= FREQ_MAX)
+    requires (wavelength >= LAMBDA_MIN)
+    requires (wavelength <= LAMBDA_MAX)
+{
+    0.5 * doppler_hz * wavelength
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "unambiguous_velocity_proportional_to_prf")
+fn unambiguous_velocity(
+    pulse_repetition_freq: Real,
+    wavelength: Real,
+) -> RadialVelocity
+    where chain_order <= 0
+    requires (pulse_repetition_freq >= PRF_MIN)
+    requires (pulse_repetition_freq <= PRF_MAX)
+    requires (wavelength >= LAMBDA_MIN)
+    requires (wavelength <= LAMBDA_MAX)
+    ensures  (result > 0.0)
+{
+    0.25 * wavelength * pulse_repetition_freq
+}
+
+// Doppler-bin spacing: f_d resolution is 1/T_dwell = PRF/N_pulses.
+// Used to compute the velocity-resolution cell of a Doppler-FFT
+// processor.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "velocity_resolution_inverse_to_dwell")
+fn velocity_resolution(
+    n_pulses: Real,
+    pulse_repetition_freq: Real,
+    wavelength: Real,
+) -> Real
+    where chain_order <= 0
+    requires (n_pulses >= 1.0)
+    requires (n_pulses <= 1.0e6)
+    requires (pulse_repetition_freq >= PRF_MIN)
+    requires (pulse_repetition_freq <= PRF_MAX)
+    requires (wavelength >= LAMBDA_MIN)
+    requires (wavelength <= LAMBDA_MAX)
+    ensures  (result >= 0.0)
+{
+    0.5 * wavelength * pulse_repetition_freq / n_pulses
+}

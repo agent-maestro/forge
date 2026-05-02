@@ -1,0 +1,109 @@
+// tool_wear_taylor.eml -- Taylor's tool-life equation.
+//
+// The classical 1907 Taylor equation relating cutting speed to
+// tool-life:
+//
+//   v * T^n = C
+//
+// where v is cutting speed (m/min), T is tool life (min),
+// and n, C are material-pair constants (n typically 0.1 -- 0.5
+// for HSS; 0.3 -- 0.7 for carbide; ~0.7 -- 1.0 for ceramic;
+// C in the same units as v).
+//
+// Inverted forms ship for the two directions:
+//   tool_life_minutes(v, n, C)  -- minutes the tool lasts at v
+//   max_cutting_speed(target_T, n, C)  -- v at a target T
+//
+// Chain order 1 (pow). Companion of feed_rate.eml in the cnc
+// subfolder.
+
+module tool_wear_taylor;
+
+const V_MIN:     Real = 1.0
+const V_MAX:     Real = 5.0e3
+const T_MIN:     Real = 0.01
+const T_MAX:     Real = 1.0e4
+const N_MIN:     Real = 0.05
+const N_MAX:     Real = 1.0
+const C_MIN:     Real = 1.0
+const C_MAX:     Real = 1.0e5
+
+type ToolLife = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "tool_life_decreases_with_speed")
+fn tool_life_minutes(
+    cutting_speed: Real,
+    taylor_n: Real,
+    taylor_c: Real,
+) -> ToolLife
+    where chain_order <= 1
+    requires (cutting_speed >= V_MIN)
+    requires (cutting_speed <= V_MAX)
+    requires (taylor_n >= N_MIN)
+    requires (taylor_n <= N_MAX)
+    requires (taylor_c >= C_MIN)
+    requires (taylor_c <= C_MAX)
+    ensures  (result >= 0.0)
+{
+    pow(taylor_c / cutting_speed, 1.0 / taylor_n)
+}
+
+// Solve for the maximum cutting speed that yields a given
+// target tool life.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "max_speed_decreases_with_target_life")
+fn max_cutting_speed(
+    target_life_minutes: Real,
+    taylor_n: Real,
+    taylor_c: Real,
+) -> Real
+    where chain_order <= 1
+    requires (target_life_minutes >= T_MIN)
+    requires (target_life_minutes <= T_MAX)
+    requires (taylor_n >= N_MIN)
+    requires (taylor_n <= N_MAX)
+    requires (taylor_c >= C_MIN)
+    requires (taylor_c <= C_MAX)
+    ensures  (result >= 0.0)
+{
+    taylor_c / pow(target_life_minutes, taylor_n)
+}
+
+// Extended Taylor equation: v * T^n * f^a * d^b = C, including
+// feed rate (f) and depth of cut (d) in the wear law. Chain
+// order 1 (pow on the dominant term; the others fold to log
+// in the exponent solve).
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "extended_taylor_consistent_with_classical")
+fn extended_tool_life(
+    cutting_speed: Real,
+    feed_rate: Real,
+    depth_of_cut: Real,
+    taylor_n: Real,
+    feed_exponent: Real,
+    depth_exponent: Real,
+    taylor_c: Real,
+) -> ToolLife
+    where chain_order <= 1
+    requires (cutting_speed >= V_MIN)
+    requires (cutting_speed <= V_MAX)
+    requires (feed_rate >= 0.001)
+    requires (feed_rate <= 1.0)
+    requires (depth_of_cut >= 0.001)
+    requires (depth_of_cut <= 100.0)
+    requires (taylor_n >= N_MIN)
+    requires (taylor_n <= N_MAX)
+    requires (feed_exponent >= 0.0)
+    requires (feed_exponent <= 1.0)
+    requires (depth_exponent >= 0.0)
+    requires (depth_exponent <= 1.0)
+    requires (taylor_c >= C_MIN)
+    requires (taylor_c <= C_MAX)
+    ensures  (result >= 0.0)
+{
+    let denom = cutting_speed
+                * pow(feed_rate, feed_exponent)
+                * pow(depth_of_cut, depth_exponent);
+    pow(taylor_c / denom, 1.0 / taylor_n)
+}

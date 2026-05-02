@@ -1,0 +1,81 @@
+// bilateral_filter.eml -- per-tap bilateral-filter weight gate.
+//
+// Bilateral filtering combines a spatial Gaussian with a range
+// (intensity) Gaussian to produce edge-preserving smoothing:
+//
+//   w(p, q) = exp(-||p-q||^2 / (2*sigma_s^2))
+//           * exp(-(I(p) - I(q))^2 / (2*sigma_r^2))
+//
+// where p is the centre pixel and q is a neighbour. The host
+// loop iterates over a kernel window and accumulates
+// w(p,q) * I(q) and w(p,q) -- this gate produces the per-tap
+// weight.
+//
+// Chain order 1 (single exp). Companion to gamma_correct.eml
+// in the imaging vertical; both run on every camera ISP.
+
+module bilateral_filter;
+
+const COORD_MAX:     Real = 1.0e4
+const INTENSITY_MAX: Real = 65535.0
+const SIGMA_MIN:     Real = 1.0e-3
+const SIGMA_MAX:     Real = 1.0e6
+const HALF:          Real = 0.5
+
+type FilterWeight = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "bilateral_weight_in_unit_interval")
+fn bilateral_weight(
+    dx: Real,
+    dy: Real,
+    di: Real,
+    sigma_spatial: Real,
+    sigma_range: Real,
+) -> FilterWeight
+    where chain_order <= 1
+    requires (abs(dx) <= COORD_MAX)
+    requires (abs(dy) <= COORD_MAX)
+    requires (abs(di) <= INTENSITY_MAX)
+    requires (sigma_spatial >= SIGMA_MIN)
+    requires (sigma_spatial <= SIGMA_MAX)
+    requires (sigma_range >= SIGMA_MIN)
+    requires (sigma_range <= SIGMA_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    let r2_spatial = (dx * dx + dy * dy) / (sigma_spatial * sigma_spatial);
+    let r2_range   = di * di / (sigma_range * sigma_range);
+    exp(-HALF * (r2_spatial + r2_range))
+}
+
+// Pure spatial Gaussian -- the box-filter analogue for
+// edge-aware-off mode. Useful as the no-range-term baseline
+// the bilateral falls back to under uniform regions.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "spatial_gaussian_weight_in_unit_interval")
+fn spatial_gaussian_weight(dx: Real, dy: Real, sigma: Real) -> FilterWeight
+    where chain_order <= 1
+    requires (abs(dx) <= COORD_MAX)
+    requires (abs(dy) <= COORD_MAX)
+    requires (sigma >= SIGMA_MIN)
+    requires (sigma <= SIGMA_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    exp(-HALF * (dx * dx + dy * dy) / (sigma * sigma))
+}
+
+// Per-tap weighted contribution -- the host's accumulation
+// pattern is sum(w * I) / sum(w). This gate produces w * I
+// with a clamp on I to keep the accumulator in range.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn weighted_contribution(weight: Real, intensity: Real) -> Real
+    where chain_order <= 0
+    requires (weight >= 0.0)
+    requires (weight <= 1.0)
+    requires (intensity >= 0.0)
+    requires (intensity <= INTENSITY_MAX)
+{
+    weight * intensity
+}

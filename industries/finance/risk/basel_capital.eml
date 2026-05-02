@@ -1,0 +1,95 @@
+// basel_capital.eml -- Basel III capital-charge kernels.
+//
+// The standard regulatory-capital formulas under Basel III FRTB:
+//
+//   Capital = max(VaR_avg, VaR_max) * mc_factor
+//   Capital_market_risk = sqrt(K_unstressed^2 + K_stressed^2)
+//   K_diversified = sqrt(sum_i sum_j rho_ij * K_i * K_j)
+//
+// These are the scalar gates the host's regulatory-capital
+// solver chains. Chain order 1 (sqrt). Companion of
+// expected_shortfall.eml + var_monte_carlo.eml.
+//
+// Used inside the daily capital-charge pipeline at every
+// G-SIB; the sqrt-of-quadratic structure is the same as the
+// risk-decomposition step in the trading-book IMA.
+
+module basel_capital;
+
+const CAP_MAX:      Real = 1.0e12
+const RHO_MIN:      Real = -1.0
+const RHO_MAX:      Real = 1.0
+const MC_MIN:       Real = 1.0
+const MC_MAX:       Real = 5.0
+
+type CapitalCharge = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "capital_max_dominates_average")
+fn frtb_capital_charge(
+    var_average: Real,
+    var_max: Real,
+    multiplier: Real,
+) -> CapitalCharge
+    where chain_order <= 0
+    requires (var_average >= 0.0)
+    requires (var_average <= CAP_MAX)
+    requires (var_max >= 0.0)
+    requires (var_max <= CAP_MAX)
+    requires (multiplier >= MC_MIN)
+    requires (multiplier <= MC_MAX)
+{
+    let dominating = clamp(var_max, var_average, CAP_MAX);
+    multiplier * dominating
+}
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "stressed_unstressed_pythagorean")
+fn ima_total_capital(
+    capital_unstressed: Real,
+    capital_stressed: Real,
+) -> CapitalCharge
+    where chain_order <= 1
+    requires (capital_unstressed >= 0.0)
+    requires (capital_unstressed <= CAP_MAX)
+    requires (capital_stressed >= 0.0)
+    requires (capital_stressed <= CAP_MAX)
+    ensures  (result >= 0.0)
+{
+    sqrt(capital_unstressed * capital_unstressed + capital_stressed * capital_stressed)
+}
+
+// Per-pair capital aggregation under correlation rho. The
+// host's risk-decomposition pass walks all (i, j) pairs and
+// accumulates this contribution -- the final
+// sqrt is in `risk_aggregate_finalize` so the loop body is
+// chain-0.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "diversification_pair_signed_by_rho")
+fn diversification_pair(
+    cap_i: Real,
+    cap_j: Real,
+    rho: Real,
+) -> CapitalCharge
+    where chain_order <= 0
+    requires (cap_i >= 0.0)
+    requires (cap_i <= CAP_MAX)
+    requires (cap_j >= 0.0)
+    requires (cap_j <= CAP_MAX)
+    requires (rho >= RHO_MIN)
+    requires (rho <= RHO_MAX)
+{
+    rho * cap_i * cap_j
+}
+
+// Final sqrt of the accumulated risk-correlated sum.
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "risk_finalize_nonneg")
+fn risk_aggregate_finalize(accumulated_sum: Real) -> CapitalCharge
+    where chain_order <= 1
+    requires (accumulated_sum >= 0.0)
+    requires (accumulated_sum <= CAP_MAX * CAP_MAX)
+    ensures  (result >= 0.0)
+{
+    sqrt(accumulated_sum)
+}

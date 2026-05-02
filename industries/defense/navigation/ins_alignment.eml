@@ -1,0 +1,88 @@
+// ins_alignment.eml -- INS coarse-alignment kernels.
+//
+// Coarse alignment of an inertial navigation system uses the
+// stationary-platform measurements of gravity (accel) and
+// Earth rotation (gyro) to recover initial roll, pitch, and
+// heading. Companion of the pre-existing ins.eml in the same
+// vertical (which handles the steady-state navigation update).
+//
+// Coarse alignment formulas:
+//
+//   pitch_init = atan2(-a_x, sqrt(a_y^2 + a_z^2))
+//   roll_init  = atan2(a_y, a_z)
+//   heading_init = atan2(-omega_y_h, omega_x_h)
+//   (after tilt-compensating the gyro horizontals)
+//
+// Chain order 1 (atan2). MIL-STD-882 Class B.
+
+module ins_alignment;
+
+const G_REF:        Real = 9.80665
+const A_MAX:        Real = 16.0 * G_REF
+const OMEGA_MAX:    Real = 7.292e-5 * 5.0    // 5x Earth rate
+const PITCH_MAX:    Real = 1.5708
+
+type Angle = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "pitch_initial_zero_at_level")
+fn coarse_pitch(
+    accel_x: Real,
+    accel_y: Real,
+    accel_z: Real,
+) -> Angle
+    where chain_order <= 1
+    requires (abs(accel_x) <= A_MAX)
+    requires (abs(accel_y) <= A_MAX)
+    requires (abs(accel_z) <= A_MAX)
+{
+    let mag = sqrt(accel_y * accel_y + accel_z * accel_z);
+    atan2(-accel_x, mag)
+}
+
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "roll_initial_zero_at_level")
+fn coarse_roll(
+    accel_y: Real,
+    accel_z: Real,
+) -> Angle
+    where chain_order <= 1
+    requires (abs(accel_y) <= A_MAX)
+    requires (abs(accel_z) <= A_MAX)
+{
+    atan2(accel_y, accel_z)
+}
+
+// Coarse heading from horizontal gyro components. The host
+// computes (omega_x_h, omega_y_h) by tilt-compensating the
+// raw gyro readings using the pitch / roll above.
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "heading_initial_zero_due_north")
+fn coarse_heading(
+    gyro_y_horizontal: Real,
+    gyro_x_horizontal: Real,
+) -> Angle
+    where chain_order <= 1
+    requires (abs(gyro_y_horizontal) <= OMEGA_MAX)
+    requires (abs(gyro_x_horizontal) <= OMEGA_MAX)
+{
+    atan2(-gyro_y_horizontal, gyro_x_horizontal)
+}
+
+// Gravity-magnitude residual: |a| - g. Used as a stationary-
+// platform check; coarse alignment is only valid when |a| ~ g
+// to within sensor noise. Chain order 1 (sqrt).
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "gravity_residual_zero_at_level_stationary")
+fn gravity_residual(
+    accel_x: Real,
+    accel_y: Real,
+    accel_z: Real,
+) -> Real
+    where chain_order <= 1
+    requires (abs(accel_x) <= A_MAX)
+    requires (abs(accel_y) <= A_MAX)
+    requires (abs(accel_z) <= A_MAX)
+{
+    sqrt(accel_x * accel_x + accel_y * accel_y + accel_z * accel_z) - G_REF
+}

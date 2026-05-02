@@ -1,0 +1,90 @@
+// swing_equation.eml -- synchronous-generator swing equation.
+//
+// The fundamental dynamic of a power system: each synchronous
+// generator's rotor angle delta evolves under the imbalance
+// between mechanical input power Pm and electrical output Pe:
+//
+//   M * d2delta/dt2 + D * ddelta/dt = Pm - Pe(delta)
+//
+// where M is the generator inertia constant (s^2) and D is the
+// damping coefficient (s). Pe(delta) = (E*V/X) * sin(delta - delta_bus)
+// for a 2-machine system; in practice the host supplies Pe from
+// the network solve.
+//
+// EML ships the per-machine integrator step. The host loop
+// runs the network solve to update Pe each step.
+// Chain order 0 (sin lives outside this gate).
+// IEC 61508 SIL-2 in the energy vertical certification.
+
+module swing_equation;
+
+const M_MIN:     Real = 0.1
+const M_MAX:     Real = 100.0
+const D_MIN:     Real = 0.0
+const D_MAX:     Real = 50.0
+const POWER_MAX: Real = 100.0
+const OMEGA_MAX: Real = 50.0
+const DELTA_MAX: Real = 6.2832
+const DT_MAX:    Real = 0.1
+
+type RotorAngle  = Real where chain_order <= 0
+type RotorSpeed  = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "rotor_angle_step_linear_in_dt")
+fn rotor_angle_step(delta_prev: Real, omega: Real, dt: Real) -> RotorAngle
+    where chain_order <= 0
+    requires (abs(delta_prev) <= DELTA_MAX)
+    requires (abs(omega) <= OMEGA_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+{
+    delta_prev + omega * dt
+}
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "rotor_speed_step_balances_power")
+fn rotor_speed_step(
+    omega_prev: Real,
+    p_mechanical: Real,
+    p_electrical: Real,
+    inertia: Real,
+    damping: Real,
+    dt: Real,
+) -> RotorSpeed
+    where chain_order <= 0
+    requires (abs(omega_prev) <= OMEGA_MAX)
+    requires (abs(p_mechanical) <= POWER_MAX)
+    requires (abs(p_electrical) <= POWER_MAX)
+    requires (inertia >= M_MIN)
+    requires (inertia <= M_MAX)
+    requires (damping >= D_MIN)
+    requires (damping <= D_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+{
+    omega_prev + dt * (p_mechanical - p_electrical - damping * omega_prev) / inertia
+}
+
+// Power-angle curve: P = (E*V/X) * sin(delta). Chain order 1
+// (single sin). The host couples this to the rotor dynamics
+// to close the swing-equation loop.
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "power_angle_zero_at_zero_delta")
+fn power_angle_curve(
+    internal_emf: Real,
+    bus_voltage: Real,
+    reactance: Real,
+    rotor_angle: Real,
+) -> Real
+    where chain_order <= 1
+    requires (internal_emf >= 0.0)
+    requires (internal_emf <= 5.0)
+    requires (bus_voltage >= 0.0)
+    requires (bus_voltage <= 5.0)
+    requires (reactance >= 0.01)
+    requires (reactance <= 10.0)
+    requires (abs(rotor_angle) <= DELTA_MAX)
+{
+    internal_emf * bus_voltage * sin(rotor_angle) / reactance
+}

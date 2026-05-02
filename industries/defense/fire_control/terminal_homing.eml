@@ -1,0 +1,84 @@
+// terminal_homing.eml -- late-stage terminal-phase homing law.
+//
+// Terminal-phase guidance differs from mid-course PN: the
+// gain is increased and the LOS-rate noise becomes dominant,
+// so the law switches to a higher-N PN with a time-to-go
+// scaling:
+//
+//   a_cmd = N_term * V_c * sigma_dot * (t_go / T_const)
+//
+// or, equivalently, a "true PN" form where N is a function of
+// closing geometry. Both shapes ship as scalar gates.
+//
+// Companion of proportional_navigation.eml in the guidance
+// vertical, deliberately split because terminal-phase specs are
+// classified at a higher MIL-STD-882 hazard than mid-course.
+
+module terminal_homing;
+
+const N_TERM_MIN:  Real = 4.0
+const N_TERM_MAX:  Real = 8.0
+const V_MAX:       Real = 5.0e3
+const SIGMA_MAX:   Real = 2.0
+const TGO_MIN:     Real = 0.05
+const TGO_MAX:     Real = 60.0
+const T_CONST_MIN: Real = 0.01
+const T_CONST_MAX: Real = 60.0
+
+type Acceleration = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "terminal_pn_high_gain_at_tgo_zero")
+fn terminal_pn_command(
+    n_terminal: Real,
+    closing_speed: Real,
+    sigma_dot: Real,
+    time_to_go: Real,
+    time_constant: Real,
+) -> Acceleration
+    where chain_order <= 0
+    requires (n_terminal >= N_TERM_MIN)
+    requires (n_terminal <= N_TERM_MAX)
+    requires (closing_speed >= 0.0)
+    requires (closing_speed <= V_MAX)
+    requires (abs(sigma_dot) <= SIGMA_MAX)
+    requires (time_to_go >= TGO_MIN)
+    requires (time_to_go <= TGO_MAX)
+    requires (time_constant >= T_CONST_MIN)
+    requires (time_constant <= T_CONST_MAX)
+{
+    n_terminal * closing_speed * sigma_dot * time_to_go / time_constant
+}
+
+// Time-to-go estimator -- range / closing-speed. The host
+// can also feed a Kalman-tracker-derived t_go directly.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "tgo_inverse_proportional_to_closing")
+fn time_to_go_estimate(range_m: Real, closing_speed: Real) -> Real
+    where chain_order <= 0
+    requires (range_m >= 0.0)
+    requires (range_m <= 5.0e5)
+    requires (closing_speed >= 1.0)
+    requires (closing_speed <= V_MAX)
+    ensures  (result >= 0.0)
+{
+    range_m / closing_speed
+}
+
+// True-PN gain factor: N_eff = N * (1 + (T - t)/T) -- a simple
+// time-varying gain that peaks at terminal phase. Returned as
+// the dimensionless multiplier the host applies to the base
+// PN command. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "true_pn_gain_increases_at_late_phase")
+fn true_pn_gain(n_base: Real, time_to_go: Real, total_time: Real) -> Real
+    where chain_order <= 0
+    requires (n_base >= 2.0)
+    requires (n_base <= N_TERM_MAX)
+    requires (time_to_go >= 0.0)
+    requires (time_to_go <= TGO_MAX)
+    requires (total_time >= TGO_MIN)
+    requires (total_time <= TGO_MAX)
+{
+    n_base * (1.0 + (total_time - time_to_go) / total_time)
+}

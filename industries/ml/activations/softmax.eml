@@ -1,0 +1,87 @@
+// softmax.eml -- numerically-stable softmax kernels.
+//
+// Softmax over an N-vector requires (a) subtracting the max for
+// numerical stability and (b) reducing across the vector. EML's
+// scalar-kernel surface naturally splits this into three pure
+// gates that the host loop composes:
+//
+//   softmax_shift_exp(logit, max_logit)   per-element exp(x - m)
+//   softmax_normalize(numer, denom_sum)   per-element / sum
+//   softmax_two_logit(a, b)               closed form for N=2
+//
+// The FPGA allocator (Patent #14) maps the per-element gates to
+// SIMD lanes and the reduction to a tree adder; cross-target
+// equivalence (Patent #22) then guarantees the C / Rust / Lean
+// reference matches the Verilog bit-for-bit at IEEE-754
+// rounding.
+
+module softmax;
+
+const SOFTMAX_X_MAX: Real = 30.0
+
+type SoftmaxNumerator = Real where chain_order <= 1
+type SoftmaxValue     = Real where chain_order <= 1
+
+// Per-element exp(x - max) -- the numerically-stable softmax
+// numerator. `max_logit` is the running maximum of the logit
+// vector, supplied by the host (computed in a separate reduce).
+// Subtracting it before exp() guarantees the largest numerator
+// equals 1.0 and the smallest doesn't underflow.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "softmax_numerator_bounded_by_one")
+fn softmax_shift_exp(logit: Real, max_logit: Real) -> SoftmaxNumerator
+    where chain_order <= 1
+    requires (abs(logit) < SOFTMAX_X_MAX)
+    requires (abs(max_logit) < SOFTMAX_X_MAX)
+    requires (logit <= max_logit)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    exp(logit - max_logit)
+}
+
+// Per-element normaliser. `denom_sum` is the sum of the shifted
+// numerators; supplied by the host's reduction tree.
+@target(fpga, clock_mhz = 400, precision = float32)
+@verify(lean, theorem = "softmax_value_in_unit_interval")
+fn softmax_normalize(numer: Real, denom_sum: Real) -> SoftmaxValue
+    where chain_order <= 0
+    requires (numer >= 0.0)
+    requires (denom_sum > 0.0)
+    requires (numer <= denom_sum)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    numer / denom_sum
+}
+
+// Closed-form softmax for N=2 -- the binary-classifier head.
+// Equivalent to sigmoid(a - b); useful as a sanity-check
+// for the sigmoid-vs-softmax-for-binary debate. Chain order 1.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "softmax_two_equals_sigmoid_diff")
+fn softmax_two_logit(a: Real, b: Real) -> SoftmaxValue
+    where chain_order <= 1
+    requires (abs(a) < SOFTMAX_X_MAX)
+    requires (abs(b) < SOFTMAX_X_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    1.0 / (1.0 + exp(b - a))
+}
+
+// Log-sum-exp (LSE) -- stable computation of log(sum exp(x_i)).
+// The host loop accumulates `running_lse` and `next_logit`
+// pair-wise via this gate. Chain order 2 (ln composes through
+// exp). Used as the cross-entropy denominator in transformer
+// language-model heads.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "log_sum_exp_pair_associative")
+fn log_sum_exp_pair(a: Real, b: Real) -> Real
+    where chain_order <= 2
+    requires (abs(a) < SOFTMAX_X_MAX)
+    requires (abs(b) < SOFTMAX_X_MAX)
+{
+    let m = clamp(a, b, SOFTMAX_X_MAX);
+    m + ln(exp(a - m) + exp(b - m))
+}

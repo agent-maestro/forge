@@ -1,0 +1,89 @@
+// gnss_pseudorange.eml -- GNSS pseudorange residual + linearisation.
+//
+// A GNSS receiver observes a "pseudorange" to each satellite:
+//
+//   rho_obs = ||r_sat - r_user|| + c * dt_user
+//
+// where r_sat is the satellite ECEF position, r_user is the
+// (unknown) user ECEF position, and dt_user is the receiver
+// clock bias. The least-squares position solve linearises this
+// around an a-priori user position; this kernel ships the
+// per-satellite gates the iterative solver needs:
+//
+//   range            geometric ||r_sat - r_user||
+//   pseudorange_residual  measured - predicted
+//   line_of_sight_x  the x-component of the unit LOS vector
+//
+// Chain order 1 (sqrt for the range). DO-178C Tool
+// Qualification Level B.
+
+module gnss_pseudorange;
+
+const POS_MAX:   Real = 5.0e7         // beyond GEO, safe upper
+const C_LIGHT:   Real = 299792458.0
+const CLOCK_MAX: Real = 0.1           // 100 ms clock offset
+const RANGE_MIN: Real = 1.0e6         // never below ~1000 km
+
+type Range          = Real where chain_order <= 1
+type LosComponent   = Real where chain_order <= 1
+type Residual       = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "range_nonneg")
+fn geometric_range(
+    sat_x: Real, sat_y: Real, sat_z: Real,
+    user_x: Real, user_y: Real, user_z: Real,
+) -> Range
+    where chain_order <= 1
+    requires (abs(sat_x) <= POS_MAX)
+    requires (abs(sat_y) <= POS_MAX)
+    requires (abs(sat_z) <= POS_MAX)
+    requires (abs(user_x) <= POS_MAX)
+    requires (abs(user_y) <= POS_MAX)
+    requires (abs(user_z) <= POS_MAX)
+    ensures  (result >= 0.0)
+{
+    let dx = sat_x - user_x;
+    let dy = sat_y - user_y;
+    let dz = sat_z - user_z;
+    sqrt(dx * dx + dy * dy + dz * dz)
+}
+
+// Residual: observed pseudorange minus predicted (geometric +
+// receiver clock bias times c). The least-squares solver
+// minimises sum(residuals^2).
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "pseudorange_residual_zero_at_truth")
+fn pseudorange_residual(
+    pseudorange_obs: Real,
+    geometric_range: Real,
+    clock_bias: Real,
+) -> Residual
+    where chain_order <= 0
+    requires (pseudorange_obs >= 0.0)
+    requires (pseudorange_obs <= POS_MAX)
+    requires (geometric_range >= RANGE_MIN)
+    requires (geometric_range <= POS_MAX)
+    requires (abs(clock_bias) <= CLOCK_MAX)
+{
+    pseudorange_obs - (geometric_range + C_LIGHT * clock_bias)
+}
+
+// Line-of-sight unit-vector x-component, populated into the
+// observation matrix during the linearised position solve.
+// LOS_x = (user_x - sat_x) / range.
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "los_component_in_unit_interval")
+fn line_of_sight_x(
+    sat_x: Real, user_x: Real, geometric_range: Real,
+) -> LosComponent
+    where chain_order <= 0
+    requires (abs(sat_x) <= POS_MAX)
+    requires (abs(user_x) <= POS_MAX)
+    requires (geometric_range >= RANGE_MIN)
+    requires (geometric_range <= POS_MAX)
+    ensures  (result >= -1.0)
+    ensures  (result <= 1.0)
+{
+    clamp((user_x - sat_x) / geometric_range, -1.0, 1.0)
+}

@@ -1,0 +1,98 @@
+// bayer_demosaic.eml -- Bayer-pattern demosaic per-pixel gates.
+//
+// Camera sensors record a single colour channel per pixel in a
+// Bayer mosaic (typ. RGGB). Demosaicing reconstructs the
+// missing two channels per pixel from neighbour interpolation.
+//
+// EML's scalar surface ships the per-pixel reconstruction
+// kernels for each missing channel: the host loop walks the
+// sensor mosaic and dispatches the matching gate per
+// (row mod 2, col mod 2) lattice site.
+//
+// The bilinear baseline (chain 0) ships here; the
+// Malvar-He-Cutler (gradient-corrected, chain 0 with extra
+// arithmetic) is left to a host-side dispatch since it
+// requires more neighbour samples than the EML scalar gate
+// signature comfortably exposes.
+//
+// Companion of gamma_correct.eml + bilateral_filter.eml.
+
+module bayer_demosaic;
+
+const PIX_MIN: Real = 0.0
+const PIX_MAX: Real = 65535.0
+
+type PixelChannel = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "demosaic_g_at_r_in_pixel_range")
+fn demosaic_green_at_red(
+    g_north: Real, g_south: Real, g_east: Real, g_west: Real,
+) -> PixelChannel
+    where chain_order <= 0
+    requires (g_north >= PIX_MIN)
+    requires (g_north <= PIX_MAX)
+    requires (g_south >= PIX_MIN)
+    requires (g_south <= PIX_MAX)
+    requires (g_east >= PIX_MIN)
+    requires (g_east <= PIX_MAX)
+    requires (g_west >= PIX_MIN)
+    requires (g_west <= PIX_MAX)
+    ensures  (result >= PIX_MIN)
+    ensures  (result <= PIX_MAX)
+{
+    0.25 * (g_north + g_south + g_east + g_west)
+}
+
+// Red at green (same-row) -- average of the two horizontal red
+// neighbours.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "demosaic_r_at_g_in_pixel_range")
+fn demosaic_red_at_green_horiz(r_left: Real, r_right: Real) -> PixelChannel
+    where chain_order <= 0
+    requires (r_left >= PIX_MIN)
+    requires (r_left <= PIX_MAX)
+    requires (r_right >= PIX_MIN)
+    requires (r_right <= PIX_MAX)
+    ensures  (result >= PIX_MIN)
+    ensures  (result <= PIX_MAX)
+{
+    0.5 * (r_left + r_right)
+}
+
+// Blue at red site -- average of four diagonal blue neighbours.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "demosaic_b_at_r_in_pixel_range")
+fn demosaic_blue_at_red(
+    b_nw: Real, b_ne: Real, b_sw: Real, b_se: Real,
+) -> PixelChannel
+    where chain_order <= 0
+    requires (b_nw >= PIX_MIN)
+    requires (b_nw <= PIX_MAX)
+    requires (b_ne >= PIX_MIN)
+    requires (b_ne <= PIX_MAX)
+    requires (b_sw >= PIX_MIN)
+    requires (b_sw <= PIX_MAX)
+    requires (b_se >= PIX_MIN)
+    requires (b_se <= PIX_MAX)
+    ensures  (result >= PIX_MIN)
+    ensures  (result <= PIX_MAX)
+{
+    0.25 * (b_nw + b_ne + b_sw + b_se)
+}
+
+// White-balance scaling: per-channel multiplicative correction
+// driven by an upstream auto-white-balance estimate. Used
+// after demosaic, before gamma encoding.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "white_balance_scales_channel")
+fn white_balance_channel(pixel: Real, gain: Real) -> PixelChannel
+    where chain_order <= 0
+    requires (pixel >= PIX_MIN)
+    requires (pixel <= PIX_MAX)
+    requires (gain >= 0.1)
+    requires (gain <= 8.0)
+    ensures  (result >= PIX_MIN)
+{
+    clamp(pixel * gain, PIX_MIN, PIX_MAX)
+}

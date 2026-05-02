@@ -1,0 +1,94 @@
+// ins_velocity_step.eml -- inertial-navigation strapdown step.
+//
+// The strapdown navigation update integrates the
+// body-frame specific-force vector (accelerometer reading) into
+// the navigation-frame velocity:
+//
+//   v_n[k+1] = v_n[k] + dt * (R_b_n * a_b - g_n - 2 * Omega_e_n x v_n)
+//
+// EML's scalar surface ships the per-axis gates; the host loop
+// composes them under the rotation matrix R_b_n.
+//
+// This file ships the simplified flat-Earth, non-rotating-frame
+// gates (the cross-product Coriolis term is zeroed). The full
+// strapdown adds Coriolis + transport-rate corrections in
+// companion gates the host wires up.
+//
+// Chain order 0. DO-178C Tool Qualification Level A (INS
+// failure is a primary hazard in airliner certification).
+
+module ins_velocity_step;
+
+const G_GRAVITY: Real = 9.80665
+const VEL_MAX:   Real = 1.0e3
+const ACCEL_MAX: Real = 16.0 * G_GRAVITY
+const DT_MAX:    Real = 0.1
+
+type NavVelocity = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "ins_vx_step_linear_in_dt")
+fn velocity_north_step(
+    v_north_prev: Real,
+    accel_north: Real,
+    dt: Real,
+) -> NavVelocity
+    where chain_order <= 0
+    requires (abs(v_north_prev) <= VEL_MAX)
+    requires (abs(accel_north) <= ACCEL_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+{
+    v_north_prev + accel_north * dt
+}
+
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "ins_vy_step_linear_in_dt")
+fn velocity_east_step(
+    v_east_prev: Real,
+    accel_east: Real,
+    dt: Real,
+) -> NavVelocity
+    where chain_order <= 0
+    requires (abs(v_east_prev) <= VEL_MAX)
+    requires (abs(accel_east) <= ACCEL_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+{
+    v_east_prev + accel_east * dt
+}
+
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "ins_vz_step_includes_gravity")
+fn velocity_down_step(
+    v_down_prev: Real,
+    accel_down: Real,
+    dt: Real,
+) -> NavVelocity
+    where chain_order <= 0
+    requires (abs(v_down_prev) <= VEL_MAX)
+    requires (abs(accel_down) <= ACCEL_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+{
+    v_down_prev + (accel_down + G_GRAVITY) * dt
+}
+
+// Position step from velocity. Pure trapezoidal integration.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "position_step_trapezoidal")
+fn position_step(
+    pos_prev: Real,
+    v_prev: Real,
+    v_curr: Real,
+    dt: Real,
+) -> Real
+    where chain_order <= 0
+    requires (abs(pos_prev) <= 1.0e7)
+    requires (abs(v_prev) <= VEL_MAX)
+    requires (abs(v_curr) <= VEL_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+{
+    pos_prev + 0.5 * (v_prev + v_curr) * dt
+}

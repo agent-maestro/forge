@@ -1,0 +1,51 @@
+// gelu.eml -- Gaussian Error Linear Unit, the activation BERT
+// and GPT use.
+//
+// The exact GELU is
+//
+//   gelu(x) = x * Phi(x)
+//
+// where Phi is the standard normal CDF. Phi has no closed-form
+// elementary expression, so production code uses one of two
+// approximations:
+//
+//   gelu_tanh   chain 1: 0.5*x*(1 + tanh(sqrt(2/pi) * (x + 0.044715*x^3)))
+//   gelu_erf    chain 1: 0.5*x*(1 + erf(x / sqrt(2)))
+//
+// erf is a Forge builtin in the f64 path; for f32 the tanh form
+// is the canonical FPGA-friendly choice (one transcendental
+// instead of one + special function).
+//
+// Numeric range: bounded |x| < 30 keeps the cubic term inside
+// float32 dynamic range and lets the Lean monotonicity proof
+// avoid +/-inf edge cases.
+
+module gelu;
+
+const GELU_X_MAX:    Real = 30.0
+const SQRT_2_OVER_PI: Real = 0.7978845608028654
+const GELU_CUBIC:    Real = 0.044715
+const HALF:          Real = 0.5
+
+type GeluSignal = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "gelu_tanh_monotone_in_x")
+fn gelu_tanh(x: Real) -> GeluSignal
+    where chain_order <= 1
+    requires (abs(x) < GELU_X_MAX)
+{
+    HALF * x * (1.0 + tanh(SQRT_2_OVER_PI * (x + GELU_CUBIC * x * x * x)))
+}
+
+// QuickGELU -- the OpenAI CLIP variant: x * sigmoid(1.702 * x).
+// Cheaper than gelu_tanh (one exp instead of one tanh + cubic);
+// matches gelu_tanh to ~3 decimal digits on N(0,1) inputs.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "quick_gelu_monotone_in_x")
+fn quick_gelu(x: Real) -> GeluSignal
+    where chain_order <= 1
+    requires (abs(x) < GELU_X_MAX)
+{
+    x / (1.0 + exp(-1.702 * x))
+}

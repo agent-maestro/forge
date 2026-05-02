@@ -1,0 +1,85 @@
+// cross_entropy.eml -- cross-entropy loss kernels.
+//
+// The standard classifier loss. For binary targets:
+//
+//   bce(p, y) = -(y * ln(p) + (1-y) * ln(1-p))
+//
+// The numerically-stable form is to compute the loss in
+// logit-space (the input to the final sigmoid) instead of
+// probability-space, since ln(sigmoid(z)) collapses to
+// -softplus(-z) which avoids the catastrophic-cancellation
+// region around p ≈ 0 or p ≈ 1.
+//
+// Both forms ship here; SuperBEST's cross_entropy rewrite rule
+// (E-193 calibration) detects the prob-space form and rewrites
+// it to the logit-space form, saving ~2.4 decimal digits at the
+// saturated tails.
+
+module cross_entropy;
+
+const MAX_LOGIT: Real = 30.0
+const EPS: Real = 1.0e-7
+
+type LossSignal = Real where chain_order <= 2
+
+// Probability-space binary cross-entropy. Hand-written form;
+// SuperBEST rewrites to the logit-space form below before any
+// backend emits.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "bce_loss_nonnegative")
+fn bce_loss(prediction: Real, target: Real) -> LossSignal
+    where chain_order <= 2,
+          domain: 0.0 < prediction && prediction < 1.0
+    requires (target >= 0.0)
+    requires (target <= 1.0)
+    ensures  (result >= 0.0)
+{
+    -(target * ln(prediction) + (1.0 - target) * ln(1.0 - prediction))
+}
+
+// Logit-space (numerically stable) form. Equivalent to
+//   max(z, 0) - z * y + ln(1 + exp(-|z|))
+// the form torch.nn.BCEWithLogitsLoss compiles to. Chain order 2
+// (ln composes through exp).
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "bce_with_logits_equals_bce")
+fn bce_with_logits(logit: Real, target: Real) -> LossSignal
+    where chain_order <= 2
+    requires (abs(logit) < MAX_LOGIT)
+    requires (target >= 0.0)
+    requires (target <= 1.0)
+    ensures  (result >= 0.0)
+{
+    let pos = clamp(logit, 0.0, MAX_LOGIT);
+    pos - logit * target + ln(1.0 + exp(-abs(logit)))
+}
+
+// Categorical cross-entropy contribution from one (logit, target)
+// pair, given the host has already supplied log_sum_exp(logits)
+// from the LSE reduction. Chain order 1 (single ln baked into
+// log_sum_exp; this gate is just subtract-and-multiply).
+@target(fpga, clock_mhz = 400, precision = float32)
+@verify(lean, theorem = "categorical_ce_pair_nonnegative")
+fn categorical_ce_pair(logit: Real, log_sum_exp_val: Real, target_one_hot: Real) -> LossSignal
+    where chain_order <= 0
+    requires (abs(logit) < MAX_LOGIT)
+    requires (target_one_hot >= 0.0)
+    requires (target_one_hot <= 1.0)
+{
+    target_one_hot * (log_sum_exp_val - logit)
+}
+
+// Gradient of BCE-with-logits w.r.t. the logit. Equals
+//   sigmoid(z) - y
+// SuperBEST recognises -ln(sigmoid(-z))-shaped patterns in the
+// surrounding code and hoists this gradient when the forward
+// pass and backward pass share the same logit.
+@target(fpga, clock_mhz = 250, precision = float32)
+fn bce_with_logits_grad(logit: Real, target: Real) -> LossSignal
+    where chain_order <= 1
+    requires (abs(logit) < MAX_LOGIT)
+    requires (target >= 0.0)
+    requires (target <= 1.0)
+{
+    1.0 / (1.0 + exp(-logit)) - target
+}

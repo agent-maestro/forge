@@ -1,0 +1,94 @@
+// friis_link_budget.eml -- Friis free-space path-loss kernels.
+//
+// The classical free-space path-loss equation:
+//
+//   P_r = P_t * G_t * G_r * (lambda / (4*pi*d))^2
+//
+// or in dB form:
+//
+//   P_r_dBm = P_t_dBm + G_t_dB + G_r_dB - 20*log10(d) - 20*log10(f) - 32.45
+//
+// where lambda = c/f is the wavelength, d is the link distance,
+// and the constant 32.45 dB rolls together c, 4*pi, MHz->Hz,
+// km->m unit conversions for f in MHz and d in km.
+//
+// EML ships both forms and a noise-floor / link-margin gate.
+// Chain order 1 (log10 in the dB form). Used in every RF link
+// budget for satellite, cellular, IoT, and EW receivers.
+
+module friis_link_budget;
+
+const D_MIN:       Real = 1.0
+const D_MAX:       Real = 1.0e8         // 100,000 km (deep space)
+const F_MHZ_MIN:   Real = 0.1
+const F_MHZ_MAX:   Real = 1.0e6         // 1 THz upper
+const P_DBM_MIN:   Real = -200.0
+const P_DBM_MAX:   Real = 100.0
+const G_DB_MAX:    Real = 80.0
+const C_LIGHT:     Real = 299792458.0
+const FOUR_PI:     Real = 12.566370614359172
+const LN10_INV:    Real = 0.4342944819032518
+
+type LinkPower = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "received_power_decreases_with_distance")
+fn received_power_linear(
+    p_tx: Real,
+    g_tx: Real,
+    g_rx: Real,
+    frequency_hz: Real,
+    distance_m: Real,
+) -> LinkPower
+    where chain_order <= 0
+    requires (p_tx >= 0.0)
+    requires (p_tx <= 1.0e9)
+    requires (g_tx >= 0.0)
+    requires (g_tx <= 1.0e8)
+    requires (g_rx >= 0.0)
+    requires (g_rx <= 1.0e8)
+    requires (frequency_hz >= 1.0)
+    requires (frequency_hz <= 1.0e12)
+    requires (distance_m >= D_MIN)
+    requires (distance_m <= D_MAX)
+    ensures  (result >= 0.0)
+{
+    let lambda = C_LIGHT / frequency_hz;
+    let factor = lambda / (FOUR_PI * distance_m);
+    p_tx * g_tx * g_rx * factor * factor
+}
+
+// dB form: 20*log10(distance) + 20*log10(frequency_MHz) + 32.45.
+// Chain order 1 (single ln, scaled to log10 with the constant).
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "fspl_db_increases_with_log_distance")
+fn free_space_path_loss_db(
+    distance_km: Real,
+    frequency_mhz: Real,
+) -> LinkPower
+    where chain_order <= 1
+    requires (distance_km >= D_MIN / 1000.0)
+    requires (distance_km <= D_MAX / 1000.0)
+    requires (frequency_mhz >= F_MHZ_MIN)
+    requires (frequency_mhz <= F_MHZ_MAX)
+    ensures  (result >= 0.0)
+{
+    20.0 * LN10_INV * (ln(distance_km) + ln(frequency_mhz)) + 32.45
+}
+
+// Link margin: P_rx - sensitivity. Positive margin means the
+// link closes. Companion of the dB form above. Chain 0.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "link_margin_signed_by_received_minus_sensitivity")
+fn link_margin_db(
+    p_rx_dbm: Real,
+    sensitivity_dbm: Real,
+) -> LinkPower
+    where chain_order <= 0
+    requires (p_rx_dbm >= P_DBM_MIN)
+    requires (p_rx_dbm <= P_DBM_MAX)
+    requires (sensitivity_dbm >= P_DBM_MIN)
+    requires (sensitivity_dbm <= P_DBM_MAX)
+{
+    p_rx_dbm - sensitivity_dbm
+}

@@ -1,0 +1,88 @@
+// torque_vectoring.eml -- per-wheel torque-vectoring split.
+//
+// Active torque vectoring on dual-motor EVs / AWD ICE platforms
+// modulates the left/right torque split to produce a yaw
+// moment without commanding any steering input:
+//
+//   M_z = (T_right - T_left) * track_width / (2 * r)
+//
+// where T_l/T_r are wheel torques (Nm), r is the rolling
+// radius, and M_z is the body-frame yaw moment (Nm).
+//
+// EML ships the inverse: given a desired M_z and total drive
+// torque, split into per-wheel torques.
+//
+// Chain order 0. ISO 26262 ASIL-D (uncommanded yaw moment is
+// a classified hazard).
+
+module torque_vectoring;
+
+const TORQUE_MAX:    Real = 1.0e4
+const TRACK_MIN:     Real = 1.0
+const TRACK_MAX:     Real = 3.0
+const RADIUS_MIN:    Real = 0.2
+const RADIUS_MAX:    Real = 0.5
+const YAW_MOMENT_MAX: Real = 5.0e3
+
+type WheelTorque = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "left_torque_within_limit")
+fn left_wheel_torque(
+    total_drive_torque: Real,
+    desired_yaw_moment: Real,
+    track_width: Real,
+    rolling_radius: Real,
+) -> WheelTorque
+    where chain_order <= 0
+    requires (abs(total_drive_torque) <= TORQUE_MAX)
+    requires (abs(desired_yaw_moment) <= YAW_MOMENT_MAX)
+    requires (track_width >= TRACK_MIN)
+    requires (track_width <= TRACK_MAX)
+    requires (rolling_radius >= RADIUS_MIN)
+    requires (rolling_radius <= RADIUS_MAX)
+{
+    let split = desired_yaw_moment * rolling_radius / track_width;
+    clamp(0.5 * total_drive_torque - split, -TORQUE_MAX, TORQUE_MAX)
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "right_torque_complements_left")
+fn right_wheel_torque(
+    total_drive_torque: Real,
+    desired_yaw_moment: Real,
+    track_width: Real,
+    rolling_radius: Real,
+) -> WheelTorque
+    where chain_order <= 0
+    requires (abs(total_drive_torque) <= TORQUE_MAX)
+    requires (abs(desired_yaw_moment) <= YAW_MOMENT_MAX)
+    requires (track_width >= TRACK_MIN)
+    requires (track_width <= TRACK_MAX)
+    requires (rolling_radius >= RADIUS_MIN)
+    requires (rolling_radius <= RADIUS_MAX)
+{
+    let split = desired_yaw_moment * rolling_radius / track_width;
+    clamp(0.5 * total_drive_torque + split, -TORQUE_MAX, TORQUE_MAX)
+}
+
+// Resulting yaw moment from a hypothetical (T_l, T_r) split
+// for verification. Forward direction of the formula above.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "yaw_moment_zero_at_balanced_split")
+fn yaw_moment_from_split(
+    left_torque: Real,
+    right_torque: Real,
+    track_width: Real,
+    rolling_radius: Real,
+) -> Real
+    where chain_order <= 0
+    requires (abs(left_torque) <= TORQUE_MAX)
+    requires (abs(right_torque) <= TORQUE_MAX)
+    requires (track_width >= TRACK_MIN)
+    requires (track_width <= TRACK_MAX)
+    requires (rolling_radius >= RADIUS_MIN)
+    requires (rolling_radius <= RADIUS_MAX)
+{
+    (right_torque - left_torque) * track_width / (2.0 * rolling_radius)
+}

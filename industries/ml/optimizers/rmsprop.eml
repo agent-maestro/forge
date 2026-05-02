@@ -1,0 +1,89 @@
+// rmsprop.eml -- RMSprop per-parameter step (Hinton 2012).
+//
+// The Adam ancestor that drops the first-moment EMA and only
+// keeps the second-moment one:
+//
+//   v[k] = rho*v[k-1] + (1-rho)*g*g
+//   theta[k] = theta[k-1] - lr*g / (sqrt(v[k]) + eps)
+//
+// Variants in this module:
+//   rmsprop_v_update      -- the second-moment EMA gate
+//   rmsprop_param_step    -- the parameter update
+//   adagrad_param_step    -- the Adagrad sibling (cumulative
+//                            instead of EMA second moment)
+//
+// Chain order 1 (sqrt). Same shape as the Adam parameter step
+// but with raw gradient instead of bias-corrected first moment.
+
+module rmsprop_optimizer;
+
+const LR_MIN:   Real = 1.0e-9
+const LR_MAX:   Real = 1.0
+const RHO_MAX:  Real = 0.9999999
+const VAL_MAX:  Real = 1.0e6
+const EPS_MIN:  Real = 1.0e-12
+const EPS_MAX:  Real = 1.0e-3
+
+type ParameterValue = Real where chain_order <= 1
+type MomentValue    = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "rmsprop_v_nonneg")
+fn rmsprop_v_update(prev_v: Real, gradient: Real, rho: Real) -> MomentValue
+    where chain_order <= 0
+    requires (prev_v >= 0.0)
+    requires (prev_v <= VAL_MAX)
+    requires (abs(gradient) <= VAL_MAX)
+    requires (rho >= 0.0)
+    requires (rho <= RHO_MAX)
+    ensures  (result >= 0.0)
+{
+    rho * prev_v + (1.0 - rho) * gradient * gradient
+}
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "rmsprop_step_descent_when_grad_signed")
+fn rmsprop_param_step(
+    theta: Real,
+    gradient: Real,
+    v: Real,
+    lr: Real,
+    eps: Real,
+) -> ParameterValue
+    where chain_order <= 1
+    requires (abs(theta) <= VAL_MAX)
+    requires (abs(gradient) <= VAL_MAX)
+    requires (v >= 0.0)
+    requires (v <= VAL_MAX)
+    requires (lr >= LR_MIN)
+    requires (lr <= LR_MAX)
+    requires (eps >= EPS_MIN)
+    requires (eps <= EPS_MAX)
+{
+    theta - lr * gradient / (sqrt(v) + eps)
+}
+
+// Adagrad parameter step -- cumulative squared-gradient
+// denominator instead of EMA. The host accumulates G_t in a
+// separate buffer; this gate consumes the running sum.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "adagrad_step_decreasing_lr_effective")
+fn adagrad_param_step(
+    theta: Real,
+    gradient: Real,
+    g_squared_sum: Real,
+    lr: Real,
+    eps: Real,
+) -> ParameterValue
+    where chain_order <= 1
+    requires (abs(theta) <= VAL_MAX)
+    requires (abs(gradient) <= VAL_MAX)
+    requires (g_squared_sum >= 0.0)
+    requires (g_squared_sum <= VAL_MAX)
+    requires (lr >= LR_MIN)
+    requires (lr <= LR_MAX)
+    requires (eps >= EPS_MIN)
+    requires (eps <= EPS_MAX)
+{
+    theta - lr * gradient / (sqrt(g_squared_sum) + eps)
+}

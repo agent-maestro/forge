@@ -1,0 +1,69 @@
+// q8_quantize.eml -- symmetric int8 quantisation.
+//
+// Maps a float32 tensor into the int8 range [-127, 127] using
+// a per-tensor (or per-channel) scale factor:
+//
+//   q  = round(x / scale)
+//   q' = clamp(q, -127, 127)
+//
+// The companion file q8_dequantize.eml inverts this:
+//
+//   x' = q * scale
+//
+// EML doesn't ship a `round` builtin (banker's-vs-truncate is a
+// compile-time policy decision); the kernel here returns the
+// pre-round float, and the host call site handles the integer
+// cast. Chain order 0 -- just multiply, clamp, and pass through.
+
+module q8_quantize;
+
+const Q8_MAX:    Real = 127.0
+const Q8_MIN:    Real = -127.0
+const SCALE_MIN: Real = 1.0e-9
+const SCALE_MAX: Real = 1.0e9
+
+type QuantizedSignal = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "q8_quantize_in_range")
+fn q8_quantize(x: Real, scale: Real) -> QuantizedSignal
+    where chain_order <= 0
+    requires (scale >= SCALE_MIN)
+    requires (scale <= SCALE_MAX)
+    ensures  (result >= Q8_MIN)
+    ensures  (result <= Q8_MAX)
+{
+    clamp(x / scale, Q8_MIN, Q8_MAX)
+}
+
+// Asymmetric quantisation -- the int8 representation TFLite
+// uses for activation tensors. Stores both scale and zero_point.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "q8_quantize_asym_in_range")
+fn q8_quantize_asym(x: Real, scale: Real, zero_point: Real) -> QuantizedSignal
+    where chain_order <= 0
+    requires (scale >= SCALE_MIN)
+    requires (scale <= SCALE_MAX)
+    requires (zero_point >= -128.0)
+    requires (zero_point <= 127.0)
+    ensures  (result >= -128.0)
+    ensures  (result <= 127.0)
+{
+    clamp(x / scale + zero_point, -128.0, 127.0)
+}
+
+// Per-channel scale derivation -- max(|min|, |max|) / 127,
+// the symmetric calibrator used in PTQ pipelines.
+// This is a calibration-time gate, not a hot-loop one;
+// runs once per tensor before deployment.
+@target(fpga, clock_mhz = 100, precision = float32)
+fn symmetric_scale(min_val: Real, max_val: Real) -> Real
+    where chain_order <= 0
+    requires (min_val <= max_val)
+    requires (abs(min_val) <= 1.0e6)
+    requires (abs(max_val) <= 1.0e6)
+    ensures  (result >= 0.0)
+{
+    let amax = clamp(abs(min_val), abs(max_val), 1.0e6);
+    amax / Q8_MAX
+}

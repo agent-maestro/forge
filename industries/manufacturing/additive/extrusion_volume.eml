@@ -1,0 +1,91 @@
+// extrusion_volume.eml -- FDM 3D-printer extrusion-volume kernel.
+//
+// Slicer math for filament-based additive manufacturing. Given
+// a layer height h, an extrusion width w, and a deposit length
+// L (the path-segment distance), the volume of plastic needed is
+//
+//   V_segment = h * w * L
+//
+// Mapping that volume to filament feed rate (the
+// extruder-stepper command) divides by the filament cross-section:
+//
+//   E = V_segment / (pi * (d_f/2)^2)
+//
+// where d_f is the filament diameter (typically 1.75 mm or
+// 2.85 mm). Chain order 0.
+//
+// The numerically-tricky part is that a typical print issues
+// 1e6+ G-code segments; small accumulated rounding in E
+// produces visible Z-banding artefacts. Forge's f64 lowering
+// + SuperBEST CSE on the d_f^2 term keeps the rounding within
+// 1 ULP per segment.
+
+module extrusion_volume;
+
+const PI:        Real = 3.141592653589793
+const QUARTER:   Real = 0.25
+const H_MIN:     Real = 0.05
+const H_MAX:     Real = 1.0
+const W_MIN:     Real = 0.2
+const W_MAX:     Real = 2.0
+const L_MAX:     Real = 1.0e3
+const DF_MIN:    Real = 1.0
+const DF_MAX:    Real = 4.0
+
+type ExtrusionVolume = Real where chain_order <= 0
+type FilamentFeed   = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "extrusion_volume_nonneg")
+fn segment_volume(layer_height: Real, line_width: Real, length_mm: Real) -> ExtrusionVolume
+    where chain_order <= 0
+    requires (layer_height >= H_MIN)
+    requires (layer_height <= H_MAX)
+    requires (line_width >= W_MIN)
+    requires (line_width <= W_MAX)
+    requires (length_mm >= 0.0)
+    requires (length_mm <= L_MAX)
+    ensures  (result >= 0.0)
+{
+    layer_height * line_width * length_mm
+}
+
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "filament_feed_proportional_to_volume")
+fn filament_feed_length(
+    layer_height: Real,
+    line_width: Real,
+    length_mm: Real,
+    filament_diameter: Real,
+) -> FilamentFeed
+    where chain_order <= 0
+    requires (layer_height >= H_MIN)
+    requires (layer_height <= H_MAX)
+    requires (line_width >= W_MIN)
+    requires (line_width <= W_MAX)
+    requires (length_mm >= 0.0)
+    requires (length_mm <= L_MAX)
+    requires (filament_diameter >= DF_MIN)
+    requires (filament_diameter <= DF_MAX)
+    ensures  (result >= 0.0)
+{
+    let volume = layer_height * line_width * length_mm;
+    let cross_section = PI * QUARTER * filament_diameter * filament_diameter;
+    volume / cross_section
+}
+
+// Layer-time estimate from segment length and feed rate (mm/s).
+// Used by the slicer for cooling-time computation -- prints
+// fail above the layer time for parts with small footprints
+// because each layer doesn't have time to solidify.
+@target(fpga, clock_mhz = 500, precision = float64)
+fn layer_time(length_mm: Real, feed_mm_per_s: Real) -> Real
+    where chain_order <= 0
+    requires (length_mm >= 0.0)
+    requires (length_mm <= 1.0e6)
+    requires (feed_mm_per_s > 0.0)
+    requires (feed_mm_per_s <= 1.0e3)
+    ensures  (result >= 0.0)
+{
+    length_mm / feed_mm_per_s
+}

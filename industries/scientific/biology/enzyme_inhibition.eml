@@ -1,0 +1,127 @@
+// enzyme_inhibition.eml -- competitive / non-competitive
+// enzyme-inhibition rates.
+//
+// Companion to chemistry/kinetics/michaelis_menten.eml; the
+// same enzymology equations show up in pharmacology and
+// systems biology under the rubric of enzyme inhibition.
+//
+// Three classical inhibition modes:
+//
+//   Competitive (alpha = 1 + [I]/Ki):
+//     v = Vmax * S / (alpha * Km + S)
+//
+//   Non-competitive (alpha' = 1 + [I]/Ki, Vmax_eff = Vmax / alpha'):
+//     v = (Vmax / alpha') * S / (Km + S)
+//
+//   Uncompetitive (alpha = 1 + [I]/Ki on both Km and Vmax):
+//     v = (Vmax / alpha) * S / (Km / alpha + S)
+//
+// Chain order 0 -- pure rational. Used in IC50 fitting, pharma
+// dose-response modelling, and toxicology.
+
+module enzyme_inhibition;
+
+const VMAX_MAX:     Real = 1.0e6
+const KM_MIN:       Real = 1.0e-9
+const KM_MAX:       Real = 1.0e3
+const S_MAX:        Real = 1.0e3
+const I_MAX:        Real = 1.0e3
+const KI_MIN:       Real = 1.0e-9
+const KI_MAX:       Real = 1.0e3
+
+type ReactionRate = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "competitive_decreases_with_inhibitor")
+fn competitive_rate(
+    vmax: Real,
+    substrate: Real,
+    km: Real,
+    inhibitor: Real,
+    ki: Real,
+) -> ReactionRate
+    where chain_order <= 0
+    requires (vmax > 0.0)
+    requires (vmax <= VMAX_MAX)
+    requires (substrate >= 0.0)
+    requires (substrate <= S_MAX)
+    requires (km >= KM_MIN)
+    requires (km <= KM_MAX)
+    requires (inhibitor >= 0.0)
+    requires (inhibitor <= I_MAX)
+    requires (ki >= KI_MIN)
+    requires (ki <= KI_MAX)
+    ensures  (result >= 0.0)
+{
+    let alpha = 1.0 + inhibitor / ki;
+    vmax * substrate / (alpha * km + substrate)
+}
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "noncompetitive_lowers_vmax_only")
+fn noncompetitive_rate(
+    vmax: Real,
+    substrate: Real,
+    km: Real,
+    inhibitor: Real,
+    ki: Real,
+) -> ReactionRate
+    where chain_order <= 0
+    requires (vmax > 0.0)
+    requires (vmax <= VMAX_MAX)
+    requires (substrate >= 0.0)
+    requires (substrate <= S_MAX)
+    requires (km >= KM_MIN)
+    requires (km <= KM_MAX)
+    requires (inhibitor >= 0.0)
+    requires (inhibitor <= I_MAX)
+    requires (ki >= KI_MIN)
+    requires (ki <= KI_MAX)
+    ensures  (result >= 0.0)
+{
+    let alpha = 1.0 + inhibitor / ki;
+    (vmax / alpha) * substrate / (km + substrate)
+}
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "uncompetitive_scales_both")
+fn uncompetitive_rate(
+    vmax: Real,
+    substrate: Real,
+    km: Real,
+    inhibitor: Real,
+    ki: Real,
+) -> ReactionRate
+    where chain_order <= 0
+    requires (vmax > 0.0)
+    requires (vmax <= VMAX_MAX)
+    requires (substrate >= 0.0)
+    requires (substrate <= S_MAX)
+    requires (km >= KM_MIN)
+    requires (km <= KM_MAX)
+    requires (inhibitor >= 0.0)
+    requires (inhibitor <= I_MAX)
+    requires (ki >= KI_MIN)
+    requires (ki <= KI_MAX)
+    ensures  (result >= 0.0)
+{
+    let alpha = 1.0 + inhibitor / ki;
+    (vmax / alpha) * substrate / (km / alpha + substrate)
+}
+
+// IC50 reduction factor: the inhibitor concentration at which
+// the rate drops to half. For competitive, IC50 = Ki * (1 + S/Km).
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "ic50_grows_with_substrate")
+fn ic50_competitive(ki: Real, substrate: Real, km: Real) -> Real
+    where chain_order <= 0
+    requires (ki >= KI_MIN)
+    requires (ki <= KI_MAX)
+    requires (substrate >= 0.0)
+    requires (substrate <= S_MAX)
+    requires (km >= KM_MIN)
+    requires (km <= KM_MAX)
+    ensures  (result >= 0.0)
+{
+    ki * (1.0 + substrate / km)
+}

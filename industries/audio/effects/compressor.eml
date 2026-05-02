@@ -1,0 +1,96 @@
+// compressor.eml -- soft-knee dynamic range compressor.
+//
+// Classical feed-forward compressor: reduce the gain of any
+// signal above a threshold by ratio R:
+//
+//   gain_dB = if level_dB <= threshold:    0
+//             else:                         -(level_dB - threshold) * (1 - 1/R)
+//
+// EML ships a branch-free form using clamp, plus a soft-knee
+// variant where the transition between unity-gain and
+// compression spans `knee_dB` either side of the threshold.
+//
+// Chain order 1 (log10 conversion). Companion of biquad_lowpass
+// + reverb_decay in the audio/effects subfolder.
+
+module compressor;
+
+const THRESHOLD_MIN: Real = -60.0
+const THRESHOLD_MAX: Real = 0.0
+const RATIO_MIN:     Real = 1.0
+const RATIO_MAX:     Real = 100.0
+const KNEE_MIN:      Real = 0.0
+const KNEE_MAX:      Real = 24.0
+const LEVEL_MIN:     Real = -120.0
+const LEVEL_MAX:     Real = 24.0
+const LN10_INV:      Real = 0.4342944819032518
+
+type GainDb = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "hard_knee_unity_below_threshold")
+fn hard_knee_gain(level_db: Real, threshold_db: Real, ratio: Real) -> GainDb
+    where chain_order <= 0
+    requires (level_db >= LEVEL_MIN)
+    requires (level_db <= LEVEL_MAX)
+    requires (threshold_db >= THRESHOLD_MIN)
+    requires (threshold_db <= THRESHOLD_MAX)
+    requires (ratio >= RATIO_MIN)
+    requires (ratio <= RATIO_MAX)
+    ensures  (result <= 0.0)
+{
+    let excess = clamp(level_db - threshold_db, 0.0, LEVEL_MAX);
+    -excess * (1.0 - 1.0 / ratio)
+}
+
+// Soft-knee gain reduction. The transition from 1:1 to R:1
+// is quadratic over the [threshold - knee/2, threshold + knee/2]
+// window. The result is continuous in level_db and its first
+// derivative.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "soft_knee_continuous_at_boundary")
+fn soft_knee_gain(
+    level_db: Real,
+    threshold_db: Real,
+    ratio: Real,
+    knee_db: Real,
+) -> GainDb
+    where chain_order <= 0
+    requires (level_db >= LEVEL_MIN)
+    requires (level_db <= LEVEL_MAX)
+    requires (threshold_db >= THRESHOLD_MIN)
+    requires (threshold_db <= THRESHOLD_MAX)
+    requires (ratio >= RATIO_MIN)
+    requires (ratio <= RATIO_MAX)
+    requires (knee_db >= KNEE_MIN + 0.001)
+    requires (knee_db <= KNEE_MAX)
+{
+    let half_knee = 0.5 * knee_db;
+    let inside = clamp(level_db - threshold_db, -half_knee, half_knee) + half_knee;
+    let excess = clamp(level_db - threshold_db - half_knee, 0.0, LEVEL_MAX);
+    let inv_ratio = 1.0 - 1.0 / ratio;
+    -inv_ratio * (inside * inside / (2.0 * knee_db) + excess)
+}
+
+// dB <-> linear conversion gates. The level detector usually
+// runs in linear amplitude; the compressor curve runs in dB.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "linear_to_db_monotone")
+fn linear_to_db(linear: Real) -> GainDb
+    where chain_order <= 1
+    requires (linear >= 1.0e-9)
+    requires (linear <= 8.0)
+{
+    20.0 * LN10_INV * ln(linear)
+}
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "db_to_linear_monotone")
+fn db_to_linear(db: Real) -> Real
+    where chain_order <= 1
+    requires (db >= LEVEL_MIN)
+    requires (db <= LEVEL_MAX)
+    ensures  (result >= 0.0)
+{
+    exp(db / (20.0 * LN10_INV))
+}

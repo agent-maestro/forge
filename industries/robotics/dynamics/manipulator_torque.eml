@@ -1,0 +1,87 @@
+// manipulator_torque.eml -- single-joint inverse dynamics torque.
+//
+// The classical second-order rigid-body torque equation for one
+// revolute joint (Featherstone Spatial Algebra, scalar form):
+//
+//   tau = I * q_ddot + b * q_dot + m * g * l * sin(q) + tau_friction
+//
+// where:
+//   I            joint inertia (kg m^2)
+//   b            viscous damping coefficient (N m s/rad)
+//   m, l         link mass + COM offset (kg, m)
+//   q            joint angle (rad)
+//   q_dot, q_ddot velocity, acceleration (rad/s, rad/s^2)
+//   tau_friction lumped Coulomb / stiction term (N m)
+//
+// Chain order = 1 (single sin). The full multibody dynamics
+// in 6-DOF arms reuses this scalar gate per joint with the
+// recursive Newton-Euler outer loop on the host.
+
+module manipulator_torque;
+
+const G_GRAVITY: Real = 9.80665
+const I_MIN:     Real = 1.0e-6
+const I_MAX:     Real = 1.0e3
+const Q_MAX:     Real = 6.2832
+const QDOT_MAX:  Real = 50.0
+const QDDOT_MAX: Real = 500.0
+
+type JointTorque = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "joint_torque_inertia_dominant_at_high_accel")
+fn joint_torque(
+    inertia: Real,
+    damping: Real,
+    mass: Real,
+    com_offset: Real,
+    q: Real,
+    q_dot: Real,
+    q_ddot: Real,
+) -> JointTorque
+    where chain_order <= 1
+    requires (inertia >= I_MIN)
+    requires (inertia <= I_MAX)
+    requires (damping >= 0.0)
+    requires (damping <= 1.0e3)
+    requires (mass >= 0.0)
+    requires (mass <= 1.0e3)
+    requires (com_offset >= 0.0)
+    requires (com_offset <= 5.0)
+    requires (abs(q) <= Q_MAX)
+    requires (abs(q_dot) <= QDOT_MAX)
+    requires (abs(q_ddot) <= QDDOT_MAX)
+{
+    inertia * q_ddot
+    + damping * q_dot
+    + mass * G_GRAVITY * com_offset * sin(q)
+}
+
+// Coriolis-coupling term between two joints: c_ij = h_ij * q_dot_j
+// where h_ij is the Christoffel-symbol coefficient. The host
+// computes h_ij from the manipulator Jacobian; this gate is the
+// per-pair contribution. Chain order 0.
+@target(fpga, clock_mhz = 400, precision = float64)
+fn coriolis_pair(h_ij: Real, q_dot_j: Real) -> Real
+    where chain_order <= 0
+    requires (abs(h_ij) <= 1.0e3)
+    requires (abs(q_dot_j) <= QDOT_MAX)
+{
+    h_ij * q_dot_j
+}
+
+// Joint friction model -- viscous + Coulomb. Coulomb component
+// is a `clamp` of the velocity into +/- mu_static; smooth
+// transition through zero handled by the linear damping.
+@target(fpga, clock_mhz = 400, precision = float64)
+@verify(lean, theorem = "friction_opposes_motion")
+fn joint_friction(q_dot: Real, viscous: Real, coulomb: Real) -> JointTorque
+    where chain_order <= 0
+    requires (abs(q_dot) <= QDOT_MAX)
+    requires (viscous >= 0.0)
+    requires (viscous <= 1.0e3)
+    requires (coulomb >= 0.0)
+    requires (coulomb <= 1.0e3)
+{
+    viscous * q_dot + coulomb * clamp(q_dot, -1.0, 1.0)
+}

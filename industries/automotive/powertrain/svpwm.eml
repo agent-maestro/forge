@@ -1,0 +1,94 @@
+// svpwm.eml -- space-vector PWM duty-cycle gate.
+//
+// Space-Vector PWM is the canonical inverter modulation for
+// PMSM / induction-motor drives. Given the per-phase reference
+// voltages (v_a, v_b, v_c) in the stationary three-phase frame,
+// SVPWM picks the optimal switching sequence by translating
+// to a sector index and a pair of duty cycles. EML's scalar
+// surface ships:
+//
+//   common_mode_offset   the v_min + v_max midpoint hoist that
+//                        produces the 1.155x DC-bus utilisation
+//   phase_duty           the per-phase duty cycle output
+//   modulation_index     the linear/over-modulation indicator
+//
+// Chain order 0 throughout. Closes the FOC chain that starts
+// with motor_foc.eml + three_phase.eml; together they emit a
+// complete EV inverter-control kernel.
+//
+// ISO 26262 ASIL-D candidate (an SVPWM glitch produces
+// uncommanded torque).
+
+module svpwm;
+
+const VOLTAGE_MAX: Real = 1500.0
+const HALF:        Real = 0.5
+const M_LIN_MAX:   Real = 1.155            // sqrt(4/3)
+
+type DutyCycle  = Real where chain_order <= 0
+type Modulation = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "common_mode_centers_vector")
+fn common_mode_offset(va_ref: Real, vb_ref: Real, vc_ref: Real) -> Real
+    where chain_order <= 0
+    requires (abs(va_ref) <= VOLTAGE_MAX)
+    requires (abs(vb_ref) <= VOLTAGE_MAX)
+    requires (abs(vc_ref) <= VOLTAGE_MAX)
+{
+    let vmax = clamp(va_ref, vb_ref, VOLTAGE_MAX);
+    let vmin_b = clamp(vb_ref, -VOLTAGE_MAX, va_ref);
+    let vmin = clamp(vc_ref, -VOLTAGE_MAX, vmin_b);
+    let vmax2 = clamp(vc_ref, vmax, VOLTAGE_MAX);
+    -HALF * (vmax2 + vmin)
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "phase_duty_in_unit_interval")
+fn phase_duty(
+    v_phase_ref: Real,
+    v_common_mode: Real,
+    v_dc: Real,
+) -> DutyCycle
+    where chain_order <= 0
+    requires (abs(v_phase_ref) <= VOLTAGE_MAX)
+    requires (abs(v_common_mode) <= VOLTAGE_MAX)
+    requires (v_dc >= 1.0)
+    requires (v_dc <= VOLTAGE_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    clamp(HALF + (v_phase_ref + v_common_mode) / v_dc, 0.0, 1.0)
+}
+
+// Modulation index: the ratio of the reference fundamental
+// magnitude to the inverter linear-modulation ceiling. Values
+// above 1.0 (linear range) but below 1.155 enter the
+// linear-overmodulation extension; above that, square-wave.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "modulation_index_nonneg")
+fn modulation_index(v_ref_magnitude: Real, v_dc: Real) -> Modulation
+    where chain_order <= 0
+    requires (v_ref_magnitude >= 0.0)
+    requires (v_ref_magnitude <= VOLTAGE_MAX)
+    requires (v_dc >= 1.0)
+    requires (v_dc <= VOLTAGE_MAX)
+    ensures  (result >= 0.0)
+{
+    2.0 * v_ref_magnitude / v_dc
+}
+
+// Saturation flag: 1.0 if the modulation index exceeds the
+// linear-range ceiling (M_LIN_MAX), else 0.0. The host kicks
+// the field-weakening loop on saturation.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn linear_range_flag(modulation_index: Real) -> Real
+    where chain_order <= 0
+    requires (modulation_index >= 0.0)
+    requires (modulation_index <= 4.0)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    let excess = clamp(modulation_index - M_LIN_MAX, 0.0, 4.0);
+    clamp(excess / 0.001, 0.0, 1.0)
+}

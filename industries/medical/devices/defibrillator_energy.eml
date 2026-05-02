@@ -1,0 +1,123 @@
+// defibrillator_energy.eml -- biphasic-truncated-exponential
+// (BTE) defibrillator energy.
+//
+// Modern AEDs deliver a biphasic waveform: phase 1 has positive
+// polarity for duration t1, phase 2 has negative polarity for
+// duration t2. The truncated-exponential discharge from an RC
+// of capacitance C through patient impedance R is:
+//
+//   v(t) = V_0 * exp(-t / (R*C))
+//
+// Energy delivered in phase 1:
+//   E_1 = 0.5 * C * (V_0^2 - V_1^2)        with V_1 = V_0 * exp(-t1/(R*C))
+//
+// EML ships the per-phase energy gates plus the impedance-
+// compensation factor (the AED measures patient impedance via
+// a probe and adjusts duration / V_0 to deliver the prescribed
+// joule level).
+//
+// Chain order 1 (single exp). IEC 62304 Class C.
+
+module defibrillator_energy;
+
+const C_MIN:    Real = 50.0e-6        // 50 uF
+const C_MAX:    Real = 500.0e-6       // 500 uF
+const R_MIN:    Real = 25.0           // ohms (patient)
+const R_MAX:    Real = 200.0
+const V_MAX:    Real = 5000.0
+const T_MIN:    Real = 1.0e-3
+const T_MAX:    Real = 50.0e-3
+const HALF:     Real = 0.5
+
+type Energy = Real where chain_order <= 1
+type Voltage = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "discharge_voltage_decays_exponentially")
+fn discharge_voltage(
+    initial_voltage: Real,
+    duration: Real,
+    capacitance: Real,
+    impedance: Real,
+) -> Voltage
+    where chain_order <= 1
+    requires (abs(initial_voltage) <= V_MAX)
+    requires (duration >= 0.0)
+    requires (duration <= T_MAX)
+    requires (capacitance >= C_MIN)
+    requires (capacitance <= C_MAX)
+    requires (impedance >= R_MIN)
+    requires (impedance <= R_MAX)
+{
+    initial_voltage * exp(-duration / (impedance * capacitance))
+}
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "phase1_energy_nonneg")
+fn phase1_energy(
+    initial_voltage: Real,
+    final_voltage: Real,
+    capacitance: Real,
+) -> Energy
+    where chain_order <= 0
+    requires (abs(initial_voltage) <= V_MAX)
+    requires (abs(final_voltage) <= V_MAX)
+    requires (abs(final_voltage) <= abs(initial_voltage))
+    requires (capacitance >= C_MIN)
+    requires (capacitance <= C_MAX)
+    ensures  (result >= 0.0)
+{
+    let v0_sq = initial_voltage * initial_voltage;
+    let v1_sq = final_voltage * final_voltage;
+    HALF * capacitance * (v0_sq - v1_sq)
+}
+
+// Total biphasic delivered energy: E = 0.5 * C * (V_0^2 - V_2^2)
+// where V_2 is the voltage at the end of phase 2 (after the
+// polarity reversal). Chain order 0.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "biphasic_total_energy_nonneg")
+fn biphasic_total_energy(
+    initial_voltage: Real,
+    end_voltage: Real,
+    capacitance: Real,
+) -> Energy
+    where chain_order <= 0
+    requires (abs(initial_voltage) <= V_MAX)
+    requires (abs(end_voltage) <= V_MAX)
+    requires (capacitance >= C_MIN)
+    requires (capacitance <= C_MAX)
+    ensures  (result >= 0.0)
+{
+    let v0_sq = initial_voltage * initial_voltage;
+    let v2_sq = end_voltage * end_voltage;
+    HALF * capacitance * clamp(v0_sq - v2_sq, 0.0, V_MAX * V_MAX)
+}
+
+// Impedance compensation: AEDs measure R via a probing pulse
+// and choose V_0 to deliver target_J joules. Returns the
+// required V_0 from the prescribed energy and patient
+// impedance. Chain order 1 (sqrt).
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "compensation_v0_increases_with_target_energy")
+fn impedance_compensation_v0(
+    target_joules: Real,
+    capacitance: Real,
+    duration: Real,
+    impedance: Real,
+) -> Voltage
+    where chain_order <= 1
+    requires (target_joules >= 0.0)
+    requires (target_joules <= 360.0)
+    requires (capacitance >= C_MIN)
+    requires (capacitance <= C_MAX)
+    requires (duration >= T_MIN)
+    requires (duration <= T_MAX)
+    requires (impedance >= R_MIN)
+    requires (impedance <= R_MAX)
+    ensures  (result >= 0.0)
+{
+    let decay = exp(-2.0 * duration / (impedance * capacitance));
+    let denom = capacitance * (1.0 - decay);
+    sqrt(2.0 * target_joules / clamp(denom, 1.0e-9, 1.0))
+}
