@@ -172,6 +172,20 @@ def main(argv: list[str] | None = None) -> int:
                              "(requires/ensures, Lean theorem refs, "
                              "Pfaffian profile, gas estimate). "
                              "Auditors diff this against the .sol.")
+    parser.add_argument("--audit-bundle", action="store_true",
+                        help="When used with --target solidity, write "
+                             "an audit-ready directory `<stem>_audit/` "
+                             "containing the .sol, .spec.json, the "
+                             "EML source, copies of every referenced "
+                             "Lean theorem, an AUDITOR.md guide, and "
+                             "a manifest.json with sha256 of every "
+                             "artifact. Implies --spec-bundle.")
+    parser.add_argument("--machlib-root", type=Path, default=None,
+                        help="Override the MachLib search root used "
+                             "by --audit-bundle to locate Lean proof "
+                             "files. Defaults to the MACHLIB_ROOT env "
+                             "var, then to the sibling-repo "
+                             "`../machlib/foundations/MachLib/Discovered`.")
     parser.add_argument("--explain", action="store_true",
                         help="Print a per-function diff showing which "
                              "optimizer passes fired, before/after "
@@ -442,7 +456,7 @@ def main(argv: list[str] | None = None) -> int:
             sol_src = sol_backend.compile(mod)
             sol_path.write_text(sol_src, encoding="utf-8")
             results.append(("solidity", sol_path, len(sol_src)))
-            if args.spec_bundle:
+            if args.spec_bundle and not args.audit_bundle:
                 from software.backends.solidity_spec import build_spec
                 spec_path = out_dir / f"{stem}.spec.json"
                 import json as _json
@@ -457,6 +471,21 @@ def main(argv: list[str] | None = None) -> int:
                     ("solidity-spec", spec_path,
                      spec_path.stat().st_size),
                 )
+            if args.audit_bundle:
+                from software.backends.solidity_audit import (
+                    write_audit_bundle,
+                )
+                bundle = write_audit_bundle(
+                    mod,
+                    eml_source_path=args.source.resolve(),
+                    out_root=out_dir / f"{stem}_audit",
+                    backend=sol_backend,
+                    machlib_root=args.machlib_root,
+                )
+                results.append((
+                    "solidity-audit", bundle.root,
+                    sum(p.stat().st_size for p in bundle.files),
+                ))
         except _ProTierRequired:
             pass
         except Exception as e:  # noqa: BLE001
@@ -717,6 +746,28 @@ def main(argv: list[str] | None = None) -> int:
         except SolErr as e:
             print(f"compile error (solidity backend): {e}", file=sys.stderr)
             return 1
+        if args.audit_bundle:
+            from software.backends.solidity_audit import write_audit_bundle
+            stem = (
+                args.output.with_suffix("").name if args.output
+                else (mod.name or args.source.stem)
+            )
+            audit_root = (
+                args.output.parent if args.output else Path.cwd()
+            ) / f"{stem}_audit"
+            bundle = write_audit_bundle(
+                mod,
+                eml_source_path=args.source.resolve(),
+                out_root=audit_root,
+                backend=sol_backend,
+                machlib_root=args.machlib_root,
+            )
+            print(
+                f"wrote audit bundle {bundle.root} "
+                f"({len(bundle.files)} files)",
+                file=sys.stderr,
+            )
+            return 0
         if args.output:
             args.output.write_text(s, encoding="utf-8")
             print(f"wrote {args.output} ({len(s)} bytes)", file=sys.stderr)
