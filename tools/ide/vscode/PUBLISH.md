@@ -58,17 +58,21 @@ npx @vscode/vsce publish minor  # 0.3.0 -> 0.4.0
 
 ## What the extension assumes about the user
 
-The extension shells out to `eml-compile`. Document the install
-path in the README and at the top of the marketplace page:
+Open core. The extension is fully usable for writing EML
+(syntax, snippets, static completion, regex outline, bracket
+matching) without anything else installed. To unlock
+real-time diagnostics, hover, format, and compile commands,
+the user installs the licensed Forge CLI:
 
 ```
-pip install monogate-forge
+https://monogateforge.com/get-started
 ```
 
-Without that, the extension still loads (syntax highlighting +
-icon work), but the user gets a one-shot info message asking
-them to install the CLI. Lenses, diagnostics, and compile
-commands are no-ops until then.
+When the CLI isn't on PATH, the extension shows a one-shot
+info message ("Get Forge" / "Learn EML" buttons) pointing at
+the landing page. The free editor experience continues to
+work; only the LSP-dependent + compile features wait for the
+CLI install.
 
 ## Pre-publish checklist
 

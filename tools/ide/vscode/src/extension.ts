@@ -34,6 +34,9 @@ import { ChainOrderDiagnostics } from './diagnostics';
 import { ProfileLensProvider } from './profileProvider';
 import { resolveForge, runForge } from './forgeCli';
 import { startLspClient } from './lspClient';
+import {
+    StaticCompletionProvider, RegexDocumentSymbolProvider,
+} from './editorOnly';
 
 const ALL_TARGETS: ReadonlyArray<{ id: string; description: string }> = [
     // Software
@@ -77,15 +80,29 @@ export function activate(context: vscode.ExtensionContext): void {
         ),
     );
 
-    // Try to start the LSP server. When it succeeds, it owns the
-    // diagnostics pipeline (real-time as you type). When it
-    // doesn't (eml-lsp not on PATH), fall back to the legacy
-    // save-triggered ChainOrderDiagnostics so the extension still
-    // surfaces errors -- just only on save.
+    // Open core: the extension is fully usable for *writing*
+    // EML without the licensed Forge CLI. When the LSP starts
+    // (CLI installed), it owns diagnostics + completion + outline
+    // and we skip the editor-only fallbacks. When the LSP isn't
+    // available, register static-list completion and a regex
+    // outliner so the user still gets keyword suggestions and
+    // an outline view -- they just don't get type-aware analysis.
     const lsp = startLspClient(context);
     const diagnostics = lsp ? null : new ChainOrderDiagnostics();
     if (diagnostics) {
         context.subscriptions.push(diagnostics);
+    }
+    if (!lsp) {
+        context.subscriptions.push(
+            vscode.languages.registerCompletionItemProvider(
+                { language: 'eml' },
+                new StaticCompletionProvider(),
+            ),
+            vscode.languages.registerDocumentSymbolProvider(
+                { language: 'eml' },
+                new RegexDocumentSymbolProvider(),
+            ),
+        );
     }
 
     const fpgaStatus = new FpgaStatusBarItem();
