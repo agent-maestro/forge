@@ -158,11 +158,22 @@ class SolidityBackend:
 
     name = "solidity"
 
-    def __init__(self, indent: str = "    ", *, optimize: bool = True):
+    def __init__(
+        self,
+        indent: str = "    ",
+        *,
+        optimize: bool = True,
+        gas_estimate: bool = True,
+    ):
         # Solidity convention: 4-space indent (per the official style
         # guide). solc itself doesn't care about whitespace.
         self.indent = indent
         self.optimize = optimize
+        # NatSpec @dev gas annotation. On by default -- the estimate
+        # is cheap and the audit-trail value is high. Toggle off
+        # when round-tripping through the formatter or for diff
+        # tests that should be insensitive to the gas table.
+        self.gas_estimate = gas_estimate
         # Track which builtin helpers a module actually invokes so
         # we can emit only the stubs that are referenced. Populated
         # by _emit_expr; flushed in compile().
@@ -351,6 +362,22 @@ class SolidityBackend:
             out.append(
                 f"/// @dev Pfaffian profile: chain_order={co}, "
                 f"cost_class={cc}, drift_risk={drift}."
+            )
+
+        # Gas estimate sourced from solidity_gas.estimate_function_gas.
+        # Numbers assume PRBMath SD59x18 overrides for transcendentals
+        # (the default emitted stubs revert). Surfaced as a NatSpec
+        # @dev line so auditors and devs see an order-of-magnitude
+        # cost without running a Foundry gas-bench.
+        if self.gas_estimate and fn.body is not None:
+            from software.backends.solidity_gas import (
+                estimate_function_gas, format_gas_estimate,
+            )
+            gas = estimate_function_gas(fn)
+            out.append(
+                f"/// @dev Gas estimate: {format_gas_estimate(gas)} "
+                f"(PRBMath SD59x18 overrides assumed; run forge gas-bench "
+                f"for the canonical signal)."
             )
         # @param lines for each parameter.
         for p in fn.params:
