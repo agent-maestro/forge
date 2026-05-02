@@ -48,11 +48,22 @@ FREE_TARGETS: frozenset[str] = frozenset({
 })
 
 PRO_TARGETS: frozenset[str] = frozenset({
+    # Hardware
     "verilog", "systemverilog", "vhdl", "chisel",
+    # Safety-critical / automotive
     "ada", "autosar", "aadl", "ros2",
+    # Compiler IRs
     "llvm", "wasm",
+    # Formal verification (beyond Lean)
     "coq", "isabelle",
+    # Blockchain
     "solidity",
+    # GPU shaders
+    "hlsl", "glsl", "glsles", "wgsl", "metal",
+    # Mobile / desktop / web
+    "swift", "csharp", "javascript",
+    # Gaming
+    "luau", "gdscript",
 })
 
 

@@ -109,9 +109,36 @@ def main(argv: list[str] | None = None) -> int:
         prog="eml-compile",
         description=(
             "Monogate Forge -- the EML-lang compiler. "
-            "Run `eml-compile init <dir>` to scaffold a new project; "
-            "`eml-compile manpage` to print the man page."
+            "Compile one .eml source to 32 different targets: software, "
+            "GPU shaders, FPGA RTL, formal-verification proofs, and "
+            "safety-critical avionics."
         ),
+        epilog=(
+            "EXAMPLES\n"
+            "  eml-compile pid.eml --profile-only           # chain order + cost\n"
+            "  eml-compile pid.eml --target rust -o pid.rs  # single target\n"
+            "  eml-compile pid.eml --target all  -o build/  # every target your tier permits\n"
+            "  eml-compile pid.eml --explain                # what the optimizer did\n"
+            "  eml-compile pid.eml --allocate \\\n"
+            "                       --fpga-target xilinx.artix7  # FPGA resource plan\n"
+            "  eml-compile init my_project                  # scaffold a new project\n"
+            "  eml-compile manpage                          # print the man page\n"
+            "\n"
+            "TIERS\n"
+            "  Free:  c, cpp, rust, python, go, java, kotlin, lean, matlab\n"
+            "  Pro:   verilog, vhdl, systemverilog, chisel, llvm, wasm,\n"
+            "         hlsl, glsl, glsles, wgsl, metal, swift, csharp,\n"
+            "         javascript, luau, gdscript, ada, autosar, aadl,\n"
+            "         ros2, coq, isabelle, solidity\n"
+            "  Get a Pro license at https://monogateforge.com/get-started\n"
+            "\n"
+            "DOCS\n"
+            "  Quickstart:    https://github.com/agent-maestro/forge/blob/master/docs/quickstart.md\n"
+            "  Lang reference: https://github.com/agent-maestro/forge/blob/master/docs/language-reference.md\n"
+            "  Tutorial:      https://monogate.dev/learn/eml/intro\n"
+            "  Bug reports:   https://github.com/agent-maestro/forge/issues"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("source", type=Path, nargs="?",
                         help="Path to a .eml source file")
@@ -127,10 +154,11 @@ def main(argv: list[str] | None = None) -> int:
         "go", "autosar", "aadl",
         "solidity",
         "all",
-    ], help=("Output target. 'all' runs every live backend "
-            "(c, rust, lean, verilog) and writes <stem>.<ext> "
-            "files alongside the source (or into --output if it's "
-            "a directory)."))
+    ], help=("Output target. 'all' runs every backend your "
+            "license tier permits (Free: 9 software + Lean; "
+            "Pro: all 32) and writes <stem>.<ext> files into "
+            "--output (must be a directory) or alongside the "
+            "source. See `--help` epilog for the tier list."))
     parser.add_argument("-o", "--output", type=Path,
                         help="Output file (defaults to stdout)")
     parser.add_argument("--profile-only", action="store_true",
@@ -218,7 +246,7 @@ def main(argv: list[str] | None = None) -> int:
                              "text. Recommended for CI dashboards "
                              "and agents.")
     parser.add_argument("--version", action="version",
-                        version="eml-compile 0.1.0 (Phase 1 + 2.1)")
+                        version="eml-compile 0.1.0")
     args = parser.parse_args(argv)
 
     if not args.source:

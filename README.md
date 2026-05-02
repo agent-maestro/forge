@@ -1,203 +1,192 @@
 # Monogate Forge
 
-> **EML-Lang: a programming language for verified mathematical
-> computation. Every expression is an EML tree. The compiler
-> optimizes via SuperBEST routing, verifies via Lean, and targets
-> both software (C / Rust / Python / LLVM / WASM) AND hardware
-> (Verilog / VHDL / Chisel / FPGA / ASIC) from one source.**
+[![CI](https://github.com/agent-maestro/forge/actions/workflows/ci.yml/badge.svg)](https://github.com/agent-maestro/forge/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/monogate-forge.svg)](https://pypi.org/project/monogate-forge/)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/monogate.eml-lang?label=VS%20Code)](https://marketplace.visualstudio.com/items?itemName=monogate.eml-lang)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/pypi/pyversions/monogate-forge.svg)](https://pypi.org/project/monogate-forge/)
 
-**Status:** v0.2 — 9 live backends, 5 FPGA/ASIC targets, 11 industry
-verticals, 34 pre-verified blocks, 677+ tests passing.
-
-**Repository:** local only (private, pre-Blackwell baton handoff).
-
-**License:** MIT for compiler; specific methods covered by filed patents.
-
----
-
-## Why this exists
-
-Industrial automation today is stuck on ladder logic — Boolean rungs
-from the 1960s that can't express transcendental functions, can't
-prove correctness, can't optimize node count, and treat PID loops
-as black boxes. Structured Text is marginally better but still
-opaque. MATLAB / Simulink + HDL Coder will get you to FPGA, but the
-math is hidden inside vendor library calls and you have no formal
-proof of precision.
-
-**EML-Lang makes every mathematical operation visible, measurable,
-optimizable, and formally verifiable.**
-
-```
-EML-LANG:
-  fn pid(error: Real, integral: Real, derivative: Real) -> Real
-    where chain_order <= 0
-  {
-    Kp * error + Ki * integral + Kd * derivative
-  }
-
-  // Compiler tells you (always, not opt-in):
-  //   chain_order: 0 (purely polynomial — no transcendental risk)
-  //   total_nodes: 6 (SuperBEST optimal)
-  //   precision:   bounded by Lean theorem pid_relerr_bound
-  //   FPGA:        6 MAC units, 0 transcendental units needed
-```
-
-vs.
-
-```
-LADDER LOGIC:
-  |---[ EN ]---[ PID_BLOCK ]---( OUT )---|
-
-  What's inside PID_BLOCK? Nobody knows.
-  What precision does it use? Vendor-dependent.
-  Is it optimal? No way to measure.
-  Is it correct? Hope so.
-```
-
-See `tools/benchmarks/versus/vs_ladder_logic.md` for the full
-comparison and `lang/spec/EML_LANG_DESIGN.md` for the canonical
-language design document.
-
----
-
-## Compilation pipeline
-
-```
-.eml source
-    │
-    ▼
-PARSER → PROFILER → TYPE CHECK → 5-PASS OPTIMIZER
-    │                              (inline, fold, CSE,
-    │                              SuperBEST, tree-shake)
-    │
-    ├──▶ SOFTWARE  C99 │ Rust │ Python │ LLVM IR │ WebAssembly
-    │
-    ├──▶ HARDWARE  Verilog │ VHDL │ Chisel/FIRRTL
-    │              (FPGA allocator selects per-unit precision +
-    │              sharing + pipelining — Patent #14)
-    │
-    └──▶ VERIFY    Lean 4 theorems via `eml_auto` (Z3 SMT and CBMC
-                   planned for Phase 2.5)
-```
-
-Profiling is **automatic** — every expression carries its chain
-order, cost class, and dynamics counter. The optimizer is SuperBEST
-routing by default. Chain-order types are enforced at compile
-time. The compiler never silently loses precision.
+**Forge is the EML language and compiler. Write a math kernel once, compile it to 32 different targets — software, GPU shaders, FPGA RTL, formal-verification proofs, and safety-critical avionics — with chain-order analysis and Lean-checkable contracts on every function.**
 
 ---
 
 ## Quick start
 
 ```bash
-# Scaffold a new EML project
-python tools/cli/main.py init my_project
-cd my_project
-
-# Profile your starter program
-python ../tools/cli/main.py main.eml --profile-only
-
-# Compile to all 9 backends in one shot
-python ../tools/cli/main.py main.eml --target all -o build/
-
-# Or pick a single backend
-python ../tools/cli/main.py main.eml --target c       -o main.c
-python ../tools/cli/main.py main.eml --target rust    -o main.rs
-python ../tools/cli/main.py main.eml --target python  -o main.py
-python ../tools/cli/main.py main.eml --target llvm    -o main.ll
-python ../tools/cli/main.py main.eml --target wasm    -o main.wasm
-python ../tools/cli/main.py main.eml --target verilog -o main.v
-python ../tools/cli/main.py main.eml --target vhdl    -o main.vhd
-python ../tools/cli/main.py main.eml --target chisel  -o Main.scala
-python ../tools/cli/main.py main.eml --target lean    -o Main.lean
-
-# Allocate FPGA resources
-python ../tools/cli/main.py main.eml --allocate --fpga-target xilinx.artix7
+pip install monogate-forge
 ```
 
-Or skip writing EML entirely and use **`forge.blocks`** — 34
-pre-verified computation blocks (PID, sigmoid, Park, Kalman,
-biquad, FFT butterfly, …) where parse + profile + FPGA allocation
-are all pre-cached at import time:
+Create `hello.eml`:
 
-```python
-from forge.blocks.polynomial   import linear, quadratic
-from forge.blocks.exponential  import sigmoid_block
-from software.backends.c_backend import CBackend
+```eml
+module hello;
 
-pipeline = linear >> sigmoid_block      # chain_order = max(...)
-src = CBackend().compile(pipeline.to_module())
+fn pid(error: Real, integral: Real, derivative: Real) -> Real
+    where chain_order <= 0
+    requires (-1.0 <= error && error <= 1.0)
+    ensures  (-1.5 * 1.0 <= result && result <= 1.5 * 1.0)
+{
+    let kp = 1.0;
+    let ki = 0.2;
+    let kd = 0.3;
+    kp * error + ki * integral + kd * derivative
+}
 ```
 
-See [`docs/getting_started.md`](docs/getting_started.md) for the
-10-minute tour and [`forge/blocks/README.md`](forge/blocks/README.md)
-for the full block catalogue.
+Compile to every target at once:
+
+```bash
+eml-compile hello.eml --target all -o build/
+```
+
+You now have `build/hello.c`, `build/hello.rs`, `build/hello.py`, `build/hello.lean`, `build/hello.v`, `build/hello.hlsl`, `build/hello.metal`, `build/hello.swift`, … one file per target. Pick a single target instead:
+
+```bash
+eml-compile hello.eml --target rust -o hello.rs
+eml-compile hello.eml --target c    -o hello.c
+eml-compile hello.eml --target lean -o Hello.lean
+```
+
+A snippet of `hello.rs`:
+
+```rust
+#[inline(always)]
+pub fn pid(error: f64, integral: f64, derivative: f64) -> f64 {
+    debug_assert!((-1.0_f64) <= error && error <= 1.0_f64);
+    let kp: f64 = 1.0;
+    let ki: f64 = 0.2;
+    let kd: f64 = 0.3;
+    kp * error + ki * integral + kd * derivative
+}
+```
+
+Five-minute tour: [`docs/quickstart.md`](docs/quickstart.md). Full tutorial: [monogate.dev/learn/eml/intro](https://monogate.dev/learn/eml/intro).
 
 ---
 
-## Repository layout
+## What you get
 
-| Directory | Purpose |
-|-----------|---------|
-| `lang/`        | Language spec, grammar, parser, profiler, 5-pass optimizer, stdlib (`math`, `ml`, `control`, `signal`, `linalg`, `constants`) |
-| `software/`    | C / Rust / Python / LLVM / WASM backends + Lean / SMT / CBMC verification |
-| `hardware/`    | FPGA allocator (Patent #14), HDL generators (Verilog / VHDL / Chisel), CORDIC module library, 5 vendor targets |
-| `industries/`  | 11 verticals: aerospace, automotive, robotics, medical, defense, energy, audio (DSP + synthesis), ML inference, scientific physics, manufacturing |
-| `forge/blocks/`| 34 pre-verified standard-library blocks (oscillator / exponential / polynomial / control / signal / transform) |
-| `patents/`     | Patent portfolio + claim-to-implementation map |
-| `roadmap/`     | Phase plans, per-industry plans, business plans |
-| `tools/`       | CLI (`eml-compile` + `init` + `manpage`), VS Code extension (0.2.0), JetBrains plugin scaffold, benchmarks (incl. vs-ladder-logic), graph orientation tooling |
-| `data/`        | Canonical numbers — operators, tower registry, profiles |
-| `docs/`        | Getting started, language guide, software / hardware target guides, verification guide, architecture, API reference, industry guides |
-| `tests/`       | 677+ tests across unit, integration, equivalence, per-industry, regression, and benchmarks |
+**32 backends.** Every kernel compiles to all of these from the same source.
 
-See `AGENT_FORGE.md` for the agent role file used by Claude Code
-sessions working in this repo.
+### Software (general-purpose)
+| Target | Flag | Tier |
+|---|---|---|
+| C99 | `--target c` | Free |
+| C++17 | `--target cpp` | Free |
+| Rust | `--target rust` | Free |
+| Python 3 | `--target python` | Free |
+| Go | `--target go` | Free |
+| Java | `--target java` | Free |
+| Kotlin | `--target kotlin` | Free |
+| MATLAB | `--target matlab` | Free |
+| C# | `--target csharp` | Pro |
+| Swift | `--target swift` | Pro |
+| JavaScript | `--target javascript` | Pro |
+
+### Compiler IRs
+| Target | Flag | Tier |
+|---|---|---|
+| LLVM IR | `--target llvm` | Pro |
+| WebAssembly | `--target wasm` | Pro |
+
+### GPU shaders
+| Target | Flag | Tier |
+|---|---|---|
+| HLSL (DirectX) | `--target hlsl` | Pro |
+| GLSL (desktop) | `--target glsl` | Pro |
+| GLSL ES | `--target glsles` | Pro |
+| WGSL (WebGPU) | `--target wgsl` | Pro |
+| Metal (Apple) | `--target metal` | Pro |
+
+### Hardware (FPGA / ASIC)
+| Target | Flag | Tier |
+|---|---|---|
+| Verilog | `--target verilog` | Pro |
+| SystemVerilog | `--target systemverilog` | Pro |
+| VHDL | `--target vhdl` | Pro |
+| Chisel / FIRRTL | `--target chisel` | Pro |
+
+### Formal verification
+| Target | Flag | Tier |
+|---|---|---|
+| Lean 4 | `--target lean` | Free |
+| Coq | `--target coq` | Pro |
+| Isabelle/HOL | `--target isabelle` | Pro |
+
+### Safety-critical
+| Target | Flag | Tier |
+|---|---|---|
+| Ada/SPARK | `--target ada` | Pro |
+| AUTOSAR C | `--target autosar` | Pro |
+| AADL | `--target aadl` | Pro |
+| ROS 2 / C++ | `--target ros2` | Pro |
+
+### Gaming
+| Target | Flag | Tier |
+|---|---|---|
+| Luau (Roblox) | `--target luau` | Pro |
+| GDScript (Godot) | `--target gdscript` | Pro |
+
+### Blockchain
+| Target | Flag | Tier |
+|---|---|---|
+| Solidity (PRBMath SD59x18) | `--target solidity` | Pro |
+
+The Free tier is enough to use Forge productively for general-purpose software and Lean proofs. A Pro license unlocks every other target. Get a license at [monogateforge.com/get-started](https://monogateforge.com/get-started).
 
 ---
 
-## Status
+## VS Code extension
 
-**Production-ready compiler.** All nine backends emit working
-output for every demo and every industry vertical. The cross-target
-equivalence harness (Patent #22) verifies ULP-level agreement
-between the software and hardware paths.
+[![Install](https://img.shields.io/visual-studio-marketplace/d/monogate.eml-lang?label=installs)](https://marketplace.visualstudio.com/items?itemName=monogate.eml-lang)
 
-| Phase | Status |
-|-------|--------|
-| Phase 1 — Language design + parser  | shipped |
-| Phase 2 — Software backends         | shipped (5 of 5 backends) |
-| Phase 3 — Hardware backends         | shipped (3 HDL backends, 5 FPGA/ASIC targets); CUDA-accelerated Verilator gated on Blackwell delivery |
-| Phase 4 — IDE + DX                  | VS Code 0.2.0 shipped (picker + format-on-save + FPGA status bar); JetBrains 0.1 scaffold shipped; full polish in 0.2 |
+```
+ext install monogate.eml-lang
+```
 
-| Buildout      | Today | Last week |
-|---------------|-------|-----------|
-| Overall       | 56 %  | 26 %      |
-| `software/`   | 35 %  | 20 %      |
-| `hardware/`   | 42 %  | 24 %      |
-| `docs/`       | 113 % | 7 %       |
-| `tests/`      | 70 %  | 65 %      |
+LSP features:
 
-See `CHANGELOG.md` for the full ship history and
-`roadmap/phases/` for the remaining phase work.
+- **Chain-order on hover** — every function shows its profiled chain order, cost class, and node count.
+- **Completions** — keywords (`fn`, `let`, `where`, `requires`, `ensures`, `module`, `use`), builtins (`exp`, `ln`, `sin`, `cos`, `sqrt`, `tanh`, `pow`, `clamp`, `eml`, …), stdlib modules.
+- **Diagnostics** — type errors, unbound identifiers, chain-order violations, contract failures.
+- **FPGA status bar** — for any function annotated `@target(fpga)`, the status bar shows estimated LUT / DSP / latency for the selected device.
+- **Format on save** — canonical layout via `eml-fmt`.
+
+Marketplace listing: [monogate.eml-lang](https://marketplace.visualstudio.com/items?itemName=monogate.eml-lang).
+
+---
+
+## Why Forge
+
+Industrial automation today is stuck on ladder logic — Boolean rungs from the 1960s that can't express transcendental functions, can't prove correctness, can't optimize node count, and treat PID loops as black boxes. Structured Text is marginally better but still opaque. MATLAB/Simulink + HDL Coder will get you to FPGA, but the math hides inside vendor library calls and you have no formal proof of precision.
+
+**EML makes every mathematical operation visible, measurable, optimizable, and formally verifiable.** Every expression is an EML tree, every function carries a chain order, every contract becomes a Lean theorem. The same source compiles to your laptop, your microcontroller, your FPGA, your Solidity contract, and your formal proof — and the cross-target equivalence harness verifies they agree to the bit.
+
+---
+
+## Documentation
+
+- [Quickstart](docs/quickstart.md) — pip install to first compile in 5 minutes.
+- [Language reference](docs/language-reference.md) — every keyword, builtin, type, and annotation.
+- [Backends](docs/backends.md) — every compilation target with its CLI flag, file extension, and tier.
+- [Verify guide](docs/verify-guide.md) — `@verify`, `requires`/`ensures`, Lean output, MachLib integration.
+- [FPGA guide](docs/fpga-guide.md) — `@target(fpga)`, LUT/DSP estimates, precision selection, vendor support.
+
+External:
+
+- [monogate.dev/learn/eml/intro](https://monogate.dev/learn/eml/intro) — guided tutorial.
+- [monogate.org](https://monogate.org) — research papers and theory.
+- [machlib.org](https://machlib.org) — formal library of mathematical kernels with Lean proofs.
+- [arXiv preprint](https://arxiv.org/) — the EML cost conjecture and Pfaffian profile.
 
 ---
 
 ## Contributing
 
-See `CONTRIBUTING.md`. The compiler is open source under MIT;
-specific methods are patented and listed in `patents/index.md`.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Bug reports and feature requests via GitHub issues.
 
----
+## License
 
-## Related projects
+Compiler is MIT (see [`LICENSE`](LICENSE)). Specific algorithmic methods covered by patents — open implementation, but commercial re-implementations may need a license. See `patents/index.md`.
 
-- [`monogate-research`](file:///D:/monogate-research) (private) —
-  research notebooks, tooling, the structured + auto memory store,
-  and the canonical data files this repo's `data/` mirrors.
-- [`eml-cost`](https://pypi.org/project/eml-cost/) — the Pfaffian
-  cost analyzer that powers `lang/profiler/`.
-- [`monogate-lean`](file:///D:/monogate-lean) — the Lean 4
-  formalization that backs `software/verification/lean/` and
-  `forge.blocks` Lean theorems.
+Built by [Mosa Creates LLC](https://monogateforge.com).
