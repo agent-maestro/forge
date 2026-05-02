@@ -6,10 +6,16 @@ on:
     paths:
       - "hardware/**"
       - "lang/**"
-      - "tests/integration/test_verilog_output.py"
+      - "tests/equivalence/**"
   pull_request:
     paths:
       - "hardware/**"
+
+# Opt into Node 24 for all JavaScript-based actions so the
+# deprecation banner stops firing on every run. See
+# https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   verilator:
@@ -27,9 +33,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      - name: Compile + simulate golden examples
+      # Verilator-aware test paths. The dedicated `tests/integration/
+      # test_verilog_output.py` and the `-k hw_sw` filter referenced
+      # by the previous version of this workflow no longer exist;
+      # the actual hardware-simulation suite lives under
+      # hardware/{simulation,modules}/tests/.
+      - name: Pytest (HW-simulation paths)
         run: |
-          pytest tests/integration/test_verilog_output.py -v
-      - name: Compare hardware vs software outputs
+          pytest -q --tb=short \
+            hardware/simulation/tests/ \
+            hardware/modules/transcendental/tests/
+      - name: Pytest (HDL backend tests)
         run: |
-          pytest tests/integration/test_end_to_end.py -v -k hw_sw
+          pytest -q --tb=short hardware/hdl_gen/tests/
