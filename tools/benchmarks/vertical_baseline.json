@@ -4115,6 +4115,27 @@
     "node_count": 29,
     "trig_units": 0
   },
+  "vpd_control::saturation_vp": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 11,
+    "trig_units": 0
+  },
+  "vpd_control::vpd": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 19,
+    "trig_units": 0
+  },
+  "vpd_control::vpd_safe": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 17,
+    "trig_units": 0
+  },
   "waypoint_steering::cross_track_distance": {
     "chain_order": 1,
     "fpga_cycles": 18,
