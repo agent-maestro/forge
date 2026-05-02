@@ -104,12 +104,13 @@ def test_optimizer_is_bit_preserving(
         f"both rust paths must build (opt: {opt_rust.error}; "
         f"raw: {raw_rust.error})"
     )
+    diffs = [
+        o - r for o, r in zip(opt_rust.outputs, raw_rust.outputs)
+        if o != r
+    ]
     assert opt_rust.outputs == raw_rust.outputs, (
         f"{path}::{fn_name}: optimizer changed numerical outputs!\n"
         f"  optimized: {opt_rust.outputs}\n"
         f"  raw:       {raw_rust.outputs}\n"
-        f"  diffs:     {[
-            o - r for o, r in zip(opt_rust.outputs, raw_rust.outputs)
-            if o != r
-        ]}"
+        f"  diffs:     {diffs}"
     )
