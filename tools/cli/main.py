@@ -799,11 +799,25 @@ def main(argv: list[str] | None = None) -> int:
                 from software.backends.solidity_prbmath import (
                     emit_prbmath_override,
                 )
+                from software.backends.solidity_trig import (
+                    emit_trig_library,
+                )
                 from software.backends.solidity_spec import build_spec
                 spec = build_spec(mod, backend=sol_backend)
+                used_builtins = set(sol_backend._used_builtins)
+                trig = emit_trig_library(used_builtins)
+                if trig is not None:
+                    trig_path = args.output.with_name(
+                        f"{trig.library_name}.sol",
+                    )
+                    trig_path.write_text(trig.source, encoding="utf-8")
+                    print(
+                        f"wrote {trig_path} ({len(trig.source)} bytes)",
+                        file=sys.stderr,
+                    )
                 override = emit_prbmath_override(
                     parent_name=spec["contract"],
-                    used_builtins=set(sol_backend._used_builtins),
+                    used_builtins=used_builtins,
                     parent_path=f"./{args.output.name}",
                 )
                 override_path = args.output.with_name(
