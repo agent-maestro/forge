@@ -178,16 +178,18 @@ function findRepoRoot(filePath: string): string | null {
 function showMissingHintOnce(): void {
     if (_shownMissingHint) return;
     _shownMissingHint = true;
-    const installCmd = 'pip install monogate-forge';
+    const url = 'https://monogateforge.com/get-started';
     vscode.window
         .showInformationMessage(
-            'Monogate Forge CLI not found. Install with:  ' + installCmd,
-            'Copy command', 'Open docs',
+            'Forge CLI not installed. Compile + analysis features ' +
+            '(LSP, hover, diagnostics, FPGA status) unlock with the ' +
+            'licensed CLI. Free tier covers 9 backends.',
+            'Get Forge', 'Learn EML',
         )
         .then((choice) => {
-            if (choice === 'Copy command') {
-                vscode.env.clipboard.writeText(installCmd);
-            } else if (choice === 'Open docs') {
+            if (choice === 'Get Forge') {
+                vscode.env.openExternal(vscode.Uri.parse(url));
+            } else if (choice === 'Learn EML') {
                 vscode.env.openExternal(
                     vscode.Uri.parse('https://monogate.dev/learn/eml'),
                 );
