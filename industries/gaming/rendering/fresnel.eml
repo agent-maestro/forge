@@ -45,6 +45,7 @@ fn schlick_fresnel(cos_theta_clamped: Real, f0: Real) -> Reflectance
 // different documentation contract -- metals have F0 ~ 0.6-1.0
 // and tinted, dielectrics have F0 ~ 0.02-0.08 and white. Chain 1.
 @target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "schlick_fresnel_metal_in_unit_interval")
 fn schlick_fresnel_metal(cos_theta_clamped: Real, f0_channel: Real) -> Reflectance
     where chain_order <= 1
     requires (cos_theta_clamped >= ZERO)

@@ -64,6 +64,7 @@ fn exp_fog(d: Real, density: Real) -> Blend
 // Exponential-squared fog blend (Quake-style). Chain order 1
 // (exp on chain-0). Visually denser falloff than plain exp_fog.
 @target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "exp2_fog_in_unit_interval")
 fn exp2_fog(d: Real, density: Real) -> Blend
     where chain_order <= 1
     requires (d >= ZERO)

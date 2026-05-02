@@ -32,8 +32,13 @@ const X_MAX:       Real = 1.0e3        // hard ceiling on input radiance
 type Display = Real where chain_order <= 0
 
 // ACES Narkowicz fit for one channel. Chain order 0. Output is
-// guaranteed >= 0 and approaches 1 asymptotically; callers that
-// need a hard [0, 1] clamp should clamp the result separately.
+// guaranteed >= 0 and approaches the asymptote A/C ~ 1.033 as
+// x -> infinity; callers that need a hard [0, 1] clamp should
+// clamp the result separately. The function is monotonically
+// non-decreasing on [0, X_MAX] (no color inversions) -- verified
+// separately as the strict-monotonicity theorem
+// `aces_narkowicz_monotonic` in machlib (compares two evaluations,
+// not a single-call ensures).
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "aces_narkowicz_nonneg_when_input_nonneg")
 fn aces_narkowicz(x: Real) -> Display
@@ -41,6 +46,7 @@ fn aces_narkowicz(x: Real) -> Display
     requires (x >= ZERO)
     requires (x <= X_MAX)
     ensures  (result >= ZERO)
+    ensures  (result <= 1.05)
 {
     x * (A * x + B) / (x * (C * x + D) + E + TINY)
 }
