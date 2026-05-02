@@ -23,9 +23,17 @@ dev = [
     "ruff>=0.5",
     "mypy>=1.10",
 ]
+# `pip install monogate-forge[lsp]` pulls in pygls so the
+# `eml-lsp` entry point can run. Optional so the base install
+# stays small for users who only want the CLI.
+lsp = [
+    "pygls>=2.0",
+    "lsprotocol>=2024.0.0b1",
+]
 
 [project.scripts]
 eml-compile = "tools.cli.main:main"
+eml-lsp     = "tools.ide.lsp.server:main"
 
 [tool.setuptools.packages.find]
 # Auto-discover every Python package (any dir with __init__.py or
