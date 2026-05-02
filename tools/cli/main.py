@@ -165,6 +165,13 @@ def main(argv: list[str] | None = None) -> int:
                              "estimate. Useful for diff tests + "
                              "fixture comparisons that should be "
                              "insensitive to the gas table.")
+    parser.add_argument("--spec-bundle", action="store_true",
+                        help="When used with --target solidity, also "
+                             "write a `<stem>.spec.json` sidecar "
+                             "carrying the structured formal spec "
+                             "(requires/ensures, Lean theorem refs, "
+                             "Pfaffian profile, gas estimate). "
+                             "Auditors diff this against the .sol.")
     parser.add_argument("--explain", action="store_true",
                         help="Print a per-function diff showing which "
                              "optimizer passes fired, before/after "
@@ -428,12 +435,28 @@ def main(argv: list[str] | None = None) -> int:
             if not is_pro: skipped_pro.append("solidity"); raise _ProTierRequired
             from software.backends.solidity_backend import SolidityBackend
             sol_path = out_dir / f"{stem}.sol"
-            sol_src = SolidityBackend(
+            sol_backend = SolidityBackend(
                 optimize=not args.no_optimize,
                 gas_estimate=not args.no_gas_estimate,
-            ).compile(mod)
+            )
+            sol_src = sol_backend.compile(mod)
             sol_path.write_text(sol_src, encoding="utf-8")
             results.append(("solidity", sol_path, len(sol_src)))
+            if args.spec_bundle:
+                from software.backends.solidity_spec import build_spec
+                spec_path = out_dir / f"{stem}.spec.json"
+                import json as _json
+                spec_path.write_text(
+                    _json.dumps(
+                        build_spec(mod, backend=sol_backend),
+                        indent=2, sort_keys=True,
+                    ),
+                    encoding="utf-8",
+                )
+                results.append(
+                    ("solidity-spec", spec_path,
+                     spec_path.stat().st_size),
+                )
         except _ProTierRequired:
             pass
         except Exception as e:  # noqa: BLE001
@@ -686,18 +709,38 @@ def main(argv: list[str] | None = None) -> int:
             SolidityBackend, CompileError as SolErr,
         )
         try:
-            s = SolidityBackend(
+            sol_backend = SolidityBackend(
                 optimize=not args.no_optimize,
                 gas_estimate=not args.no_gas_estimate,
-            ).compile(mod)
+            )
+            s = sol_backend.compile(mod)
         except SolErr as e:
             print(f"compile error (solidity backend): {e}", file=sys.stderr)
             return 1
         if args.output:
             args.output.write_text(s, encoding="utf-8")
             print(f"wrote {args.output} ({len(s)} bytes)", file=sys.stderr)
+            if args.spec_bundle:
+                from software.backends.solidity_spec import build_spec
+                import json as _json
+                spec_path = args.output.with_suffix(".spec.json")
+                spec_text = _json.dumps(
+                    build_spec(mod, backend=sol_backend),
+                    indent=2, sort_keys=True,
+                )
+                spec_path.write_text(spec_text, encoding="utf-8")
+                print(
+                    f"wrote {spec_path} ({len(spec_text)} bytes)",
+                    file=sys.stderr,
+                )
         else:
             print(s, end="")
+            if args.spec_bundle:
+                print(
+                    "warn: --spec-bundle ignored without -o (spec is "
+                    "always written as a sidecar file).",
+                    file=sys.stderr,
+                )
         return 0
 
     if args.target == "autosar":
