@@ -120,7 +120,8 @@ def main(argv: list[str] | None = None) -> int:
         "verilog", "systemverilog", "vhdl", "chisel", "lean",
         "ada", "matlab",
         "coq", "isabelle", "ros2",
-        "java", "kotlin", "csharp", "hlsl", "go", "autosar", "aadl",
+        "java", "kotlin", "csharp", "hlsl", "glsl", "glsles",
+        "go", "autosar", "aadl",
         "solidity",
         "all",
     ], help=("Output target. 'all' runs every live backend "
@@ -466,6 +467,32 @@ def main(argv: list[str] | None = None) -> int:
             results.append(("hlsl", Path("<skipped>"), 0))
             print(f"  hlsl skipped: {e}", file=sys.stderr)
 
+        # GLSL desktop function library (Godot, OpenGL 3.3+)
+        try:
+            from software.backends.glsl_backend import GLSLBackend
+            gl_path = out_dir / f"{stem}.glsl"
+            gl_src = GLSLBackend(
+                optimize=not args.no_optimize, flavor="desktop",
+            ).compile(mod)
+            gl_path.write_text(gl_src, encoding="utf-8")
+            results.append(("glsl", gl_path, len(gl_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("glsl", Path("<skipped>"), 0))
+            print(f"  glsl skipped: {e}", file=sys.stderr)
+
+        # GLSL ES function library (WebGL 2.0, mobile OpenGL ES 3.0)
+        try:
+            from software.backends.glsl_backend import GLSLBackend
+            gles_path = out_dir / f"{stem}.glsles"
+            gles_src = GLSLBackend(
+                optimize=not args.no_optimize, flavor="es",
+            ).compile(mod)
+            gles_path.write_text(gles_src, encoding="utf-8")
+            results.append(("glsles", gles_path, len(gles_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("glsles", Path("<skipped>"), 0))
+            print(f"  glsles skipped: {e}", file=sys.stderr)
+
         # Go
         try:
             from software.backends.go_backend import GoBackend
@@ -780,6 +807,26 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wrote {args.output} ({len(hl)} bytes)", file=sys.stderr)
         else:
             print(hl, end="")
+        return 0
+
+    if args.target in ("glsl", "glsles"):
+        from software.backends.glsl_backend import (
+            GLSLBackend, CompileError as GlslErr,
+        )
+        flavor = "desktop" if args.target == "glsl" else "es"
+        try:
+            gl = GLSLBackend(
+                optimize=not args.no_optimize, flavor=flavor,
+            ).compile(mod)
+        except GlslErr as e:
+            print(f"compile error (glsl backend, {flavor}): {e}",
+                  file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(gl, encoding="utf-8")
+            print(f"wrote {args.output} ({len(gl)} bytes)", file=sys.stderr)
+        else:
+            print(gl, end="")
         return 0
 
     if args.target == "go":
