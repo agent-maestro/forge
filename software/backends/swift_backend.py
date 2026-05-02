@@ -104,9 +104,13 @@ _TYPE_TO_SWIFT: dict[str, str] = {
 }
 
 
-# Swift's reserved-word set is large. We include both keywords
-# (which can never be identifiers) and contextual keywords (which
-# can be identifiers but trip clang's diagnostic in many positions).
+# Swift's reserved-word set. Only true keywords -- contextual
+# keywords (`get`, `set`, `final`, etc.) are allowed as identifiers
+# in most positions and Foundation function names (`sin`, `cos`,
+# `min`, `max`, etc.) MUST stay un-renamed because EML kernels call
+# them by name. An earlier version stuffed the math globals into
+# this set and the renamer mangled `min(a, b)` into `min_(a, b)`,
+# which then failed swiftc with "cannot find 'min_' in scope".
 _SWIFT_RESERVED: frozenset[str] = frozenset({
     # Declarations
     "associatedtype", "class", "deinit", "enum", "extension",
@@ -121,20 +125,48 @@ _SWIFT_RESERVED: frozenset[str] = frozenset({
     # Expressions / types
     "Any", "as", "await", "false", "is", "nil", "rethrows", "self",
     "Self", "super", "throw", "throws", "true", "try", "Type",
-    # Contextual / patterns / modifiers
-    "actor", "async", "convenience", "didSet", "dynamic", "final",
-    "get", "indirect", "infix", "lazy", "left", "mutating",
-    "nonmutating", "none", "nonisolated", "optional", "override",
-    "package", "postfix", "precedence", "prefix", "Protocol",
-    "required", "right", "set", "some", "Subtype", "Supertype",
-    "unowned", "weak", "willSet",
-    # Foundation/C globals we import that would shadow user IDs
-    "sin", "cos", "tan", "exp", "log", "log2", "log10", "sqrt",
-    "pow", "abs", "fabs", "floor", "ceil", "round", "min", "max",
-    "atan2", "hypot",
-    # Common reserved literals
-    "Optional",
+    # Reserved patterns
+    "_",
 })
+
+
+# Call-target rewrites. SymPy-style names that EML preserves as
+# verbatim CALL identifiers (`arcsin`, `arccos`, `arctan`) need to
+# be lowered to Foundation's spelling. Functions Foundation doesn't
+# have at all (`step`, `exp10`) get synthesized as inline helpers.
+_CALL_REWRITE: dict[str, str] = {
+    "exp10":  "_forge_exp10",   # Foundation has no exp10
+    "step":   "_forge_step",    # GLSL/HLSL builtin; Swift has none
+    "log10":  "log10",          # Foundation has log10 natively
+    "log2":   "log2",           # Foundation has log2
+    "exp2":   "exp2",           # Foundation has exp2
+    "arcsin": "asin",
+    "arccos": "acos",
+    "arctan": "atan",
+    "asinh":  "asinh",
+    "acosh":  "acosh",
+    "atanh":  "atanh",
+}
+
+
+# Synthesized inline helpers. Emitted before first use whenever the
+# corresponding rewrite is referenced.
+_HELPERS_BY_REWRITE: dict[str, tuple[str, str]] = {
+    "_forge_exp10": (
+        "_forge_exp10",
+        "// _forge_exp10 -- Foundation has no exp10; lower as 10^x.\n"
+        "@inline(__always) public func _forge_exp10(_ x: Double) -> Double {\n"
+        "    return pow(10.0, x)\n"
+        "}",
+    ),
+    "_forge_step": (
+        "_forge_step",
+        "// _forge_step -- GLSL-style step. Returns 0 if x < edge, 1 otherwise.\n"
+        "@inline(__always) public func _forge_step(_ edge: Double, _ x: Double) -> Double {\n"
+        "    return x < edge ? 0.0 : 1.0\n"
+        "}",
+    ),
+}
 
 
 _DRIFT_WARN_CHAIN_FLOOR = 2
@@ -187,6 +219,18 @@ class SwiftBackend:
         if self.optimize:
             from lang.optimizer import optimize_module
             mod = optimize_module(mod)
+
+        # Track which synthesized helpers are referenced by the
+        # generated body so we can prepend their definitions.
+        self._helpers_used: set[str] = set()
+        # The set of names defined IN this module. CALL targets
+        # outside this set + outside the rewrite map are emitted
+        # verbatim (they may resolve to Foundation globals like
+        # `sin`, `min`, `max`, or to upstream un-inlined helpers).
+        self._in_module_names: set[str] = (
+            {fn.name for fn in mod.functions}
+            | {c.name for c in mod.constants}
+        )
 
         any_drift = any(
             _wants_drift_warning(fn.profile)[0]
@@ -244,13 +288,24 @@ class SwiftBackend:
         if mod.constants:
             lines.append("")
 
-        # Functions
+        # Functions -- emit into a buffer first so we know which
+        # synthesized helpers were referenced before we lay them out.
+        fn_lines: list[str] = []
         for fn in mod.functions:
             if fn.is_extern:
-                lines.extend(self._emit_extern(fn))
+                fn_lines.extend(self._emit_extern(fn))
             else:
-                lines.extend(self._emit_function(fn))
+                fn_lines.extend(self._emit_function(fn))
+            fn_lines.append("")
+
+        # Synthesized helpers (if any were used) before first call.
+        for helper_key in sorted(self._helpers_used):
+            _, src = _HELPERS_BY_REWRITE[helper_key]
+            for ln in src.split("\n"):
+                lines.append(ln)
             lines.append("")
+
+        lines.extend(fn_lines)
 
         return "\n".join(lines).rstrip() + "\n"
 
@@ -507,7 +562,21 @@ class SwiftBackend:
                 self._emit_expr(c, result_subst=result_subst)
                 for c in node.children
             )
-            return f"{_safe_ident(str(node.value))}({args})"
+            callee = str(node.value)
+            # Lower SymPy-style names + missing math via the rewrite
+            # table. Helper synthesis fires here so the helper is
+            # only emitted when actually needed.
+            rewritten = _CALL_REWRITE.get(callee)
+            if rewritten is not None:
+                if rewritten in _HELPERS_BY_REWRITE:
+                    self._helpers_used.add(rewritten)
+                return f"{rewritten}({args})"
+            # Only mangle in-module calls. External calls (Foundation
+            # globals like `sin`, `cos`, `min`, `max`, or upstream
+            # un-inlined helpers) pass through verbatim.
+            if callee in self._in_module_names:
+                return f"{_safe_ident(callee)}({args})"
+            return f"{callee}({args})"
 
         raise CompileError(
             f"Swift backend: unsupported NodeKind {kind} "

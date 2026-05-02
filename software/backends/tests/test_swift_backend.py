@@ -122,6 +122,102 @@ class TestSwiftMath:
         out = SwiftBackend().compile(_profile_source(src))
         # Portable clamp form (works on all Swift stdlib versions).
         assert "min(max(" in out
+        # Regression for over-eager renaming: `min` and `max` must
+        # NOT be mangled to `min_` / `max_`.
+        assert "min_(" not in out
+        assert "max_(" not in out
+
+    def test_min_max_call_not_mangled(self):
+        # Regression for the macOS-runner failure:
+        # `let age_factor = max((140.0 - age_years), 0.0)` was being
+        # emitted as `max_((140.0 - age_years), 0.0)`.
+        src = """
+        module test_minmax;
+        fn pick(a: Real, b: Real) -> Real
+            where chain_order <= 0
+        {
+            let lo = min(a, b);
+            let hi = max(a, b);
+            hi - lo
+        }
+        """
+        out = SwiftBackend().compile(_profile_source(src))
+        assert "min(a, b)" in out
+        assert "max(a, b)" in out
+        assert "min_(" not in out
+        assert "max_(" not in out
+
+    def test_log_call_not_mangled(self):
+        # Regression: `log_(...)` was emitted instead of `log(...)`.
+        src = """
+        module test_log;
+        fn natural(x: Real) -> Real
+            where chain_order <= 1
+            requires (x > 0.0)
+        {
+            log(x)
+        }
+        """
+        out = SwiftBackend().compile(_profile_source(src))
+        assert "log(x)" in out
+        assert "log_(" not in out
+
+    def test_arcsin_rewrites_to_asin(self):
+        # SymPy-style names need the rewrite table.
+        src = """
+        module test_arcsin;
+        extern fn arcsin(x: Real) -> Real;
+        fn use_it(x: Real) -> Real
+            where chain_order <= 1
+        {
+            arcsin(x) + 1.0
+        }
+        """
+        out = SwiftBackend(optimize=False).compile(_profile_source(src))
+        # The CALL site is rewritten to `asin(x)`; the extern stub
+        # may still carry the original `arcsin` declaration name,
+        # which is harmless because no live code calls it.
+        assert "asin(x)" in out
+        # Extract just the use_it body and confirm `arcsin(` is gone.
+        use_it_start = out.index("func use_it(")
+        use_it_body = out[use_it_start:]
+        assert "arcsin(" not in use_it_body
+
+    def test_step_synthesizes_helper(self):
+        # GLSL/HLSL `step(edge, x)` -- Swift has no equivalent, so
+        # we synthesize an inline helper.
+        src = """
+        module test_step;
+        extern fn step(edge: Real, x: Real) -> Real;
+        fn use_it(e: Real, x: Real) -> Real
+            where chain_order <= 0
+        {
+            step(e, x)
+        }
+        """
+        out = SwiftBackend(optimize=False).compile(_profile_source(src))
+        assert "_forge_step(" in out
+        assert "func _forge_step(" in out
+        # The helper should appear BEFORE the function that uses it.
+        helper_idx = out.index("func _forge_step(")
+        use_idx = out.index("_forge_step(e, x)")
+        assert helper_idx < use_idx
+
+    def test_exp10_synthesizes_helper(self):
+        src = """
+        module test_exp10;
+        extern fn exp10(x: Real) -> Real;
+        fn use_it(x: Real) -> Real
+            where chain_order <= 1
+        {
+            exp10(x)
+        }
+        """
+        out = SwiftBackend(optimize=False).compile(_profile_source(src))
+        assert "_forge_exp10(" in out
+        assert "func _forge_exp10(" in out
+        # Helper body uses pow(10, x).
+        assert "pow(10.0, x)" in out
 
 
 # ── Preconditions ─────────────────────────────────────────────
@@ -160,20 +256,37 @@ class TestSwiftIdentifiers:
         assert _safe_ident("regular_name") == "regular_name"
 
     def test_reserved_set_contains_swift_keywords(self):
+        # True Swift keywords that can never appear as identifiers.
+        # Contextual keywords like `lazy`, `final`, `dynamic`,
+        # `mutating`, `convenience`, etc. can be used as identifier
+        # names in most positions, so the renamer leaves them alone.
+        # Foundation function names (`sin`, `min`, `max`, etc.) MUST
+        # NOT be in this set -- mangling them breaks every CALL.
         for word in (
             "class", "struct", "protocol", "extension", "guard",
             "where", "self", "Self", "in", "is", "as", "try",
             "throw", "catch", "defer", "repeat", "switch", "case",
             "default", "break", "continue", "return", "fallthrough",
             "typealias", "associatedtype", "inout", "subscript",
-            "init", "deinit", "lazy", "weak", "unowned", "mutating",
-            "nonmutating", "convenience", "required", "override",
-            "final", "open", "public", "private", "fileprivate",
-            "internal", "static", "dynamic", "optional",
-            "prefix", "postfix", "infix", "precedencegroup",
-            "async", "await", "actor",
+            "init", "deinit",
+            "open", "public", "private", "fileprivate",
+            "internal", "static",
+            "precedencegroup",
         ):
             assert word in _SWIFT_RESERVED, f"{word!r} should be reserved"
+
+    def test_foundation_globals_NOT_in_reserved_set(self):
+        # Regression: an earlier draft put math globals in the
+        # reserved set and the renamer mangled `min(a, b)` into
+        # `min_(a, b)`. Adding this test so we never regress.
+        for word in (
+            "sin", "cos", "tan", "exp", "log", "log2", "log10",
+            "sqrt", "pow", "abs", "min", "max", "atan2", "hypot",
+        ):
+            assert word not in _SWIFT_RESERVED, (
+                f"{word!r} is a Foundation global; mangling it would "
+                f"break every CALL that targets it"
+            )
 
 
 # ── Tuple returns ─────────────────────────────────────────────
