@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "monogate-forge"
-version = "0.0.1"
+version = "0.1.0"
 description = "Programming language and compiler for verified mathematical computation, targeting both software and hardware"
 readme = "README.md"
 license = { text = "MIT" }
@@ -27,14 +27,32 @@ dev = [
 [project.scripts]
 eml-compile = "tools.cli.main:main"
 
-[tool.setuptools]
-packages = [
-    "lang", "lang.parser", "lang.profiler", "lang.optimizer",
-    "software", "software.backends", "software.verification",
-    "hardware", "hardware.allocator", "hardware.hdl_gen",
-    "hardware.simulation", "hardware.modules",
-    "tools", "tools.cli", "tools.audit", "tools.equivalence",
-]
+[tool.setuptools.packages.find]
+# Auto-discover every Python package (any dir with __init__.py or
+# any namespace package containing one). Hand-listing was lossy --
+# lang.loader, tools.benchmarks, tools.fmt all got dropped from
+# the previous wheel. Excludes test directories so installs stay
+# slim and tests don't get importable as `lang.parser.tests`.
+include = ["lang*", "software*", "hardware*", "tools*"]
+exclude = ["*.tests*", "tests*"]
+
+[tool.setuptools.package-data]
+# Ship the stdlib .eml modules + spec markdown alongside the
+# Python code. The loader resolves `use stdlib::math;` to
+# `<install>/lang/spec/stdlib/math.eml` via Path(__file__).parents
+# from lang/loader/resolver.py, so the on-disk layout must
+# match the source layout.
+"lang.spec" = ["*.md", "**/*.eml", "**/*.md", "**/*.g4"]
+"lang.spec.stdlib" = ["*.eml", "*.md"]
+"lang.spec.grammar" = ["*.g4", "examples/**/*"]
+"lang.spec.types" = ["*.md"]
+# Hardware module library + verification templates ship as data
+# next to the Python that emits them. Globs are file-extension
+# scoped so test files don't leak into the wheel.
+"hardware.modules" = ["**/*.v", "**/*.sv", "**/*.vhd", "**/*.scala",
+                       "**/*.md"]
+"software.verification" = ["**/*.lean", "**/*.v", "**/*.thy",
+                            "**/*.smt2", "**/*.md", "**/*.toml"]
 
 [tool.pytest.ini_options]
 # Tests live in:
