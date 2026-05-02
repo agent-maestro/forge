@@ -601,6 +601,48 @@
     "node_count": 8,
     "trig_units": 0
   },
+  "bounce::bounce_height_envelope": {
+    "chain_order": 3,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 17,
+    "trig_units": 1
+  },
+  "bounce::restitution_velocity": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "brdf_ggx::ggx_distribution": {
+    "chain_order": 0,
+    "fpga_cycles": 18,
+    "mac_units": 9,
+    "node_count": 24,
+    "trig_units": 0
+  },
+  "brdf_ggx::smith_geometry": {
+    "chain_order": 0,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 30,
+    "trig_units": 0
+  },
+  "breathing::breath_asymmetric": {
+    "chain_order": 4,
+    "fpga_cycles": 16,
+    "mac_units": 8,
+    "node_count": 18,
+    "trig_units": 2
+  },
+  "breathing::breath_simple": {
+    "chain_order": 2,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 11,
+    "trig_units": 1
+  },
   "butler_volmer::current_density": {
     "chain_order": 2,
     "fpga_cycles": 12,
@@ -613,6 +655,20 @@
     "fpga_cycles": 8,
     "mac_units": 4,
     "node_count": 17,
+    "trig_units": 0
+  },
+  "camera_shake::shake_offset": {
+    "chain_order": 3,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 15,
+    "trig_units": 1
+  },
+  "camera_shake::trauma_amplitude": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
     "trig_units": 0
   },
   "carbon_intensity::intensity": {
@@ -1070,6 +1126,20 @@
     "node_count": 4,
     "trig_units": 0
   },
+  "doppler::doppler_ratio": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "doppler::doppler_shift": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 12,
+    "trig_units": 0
+  },
   "doppler_velocity::doppler_shift_hz": {
     "chain_order": 0,
     "fpga_cycles": 4,
@@ -1131,6 +1201,27 @@
     "fpga_cycles": 8,
     "mac_units": 4,
     "node_count": 14,
+    "trig_units": 0
+  },
+  "ease_in_out::ease_in_out_lerp": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "ease_in_out::smootherstep": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 26,
+    "trig_units": 0
+  },
+  "ease_in_out::smoothstep": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 10,
     "trig_units": 0
   },
   "ecdsa::montgomery_ladder_p256_x": {
@@ -1406,6 +1497,20 @@
     "node_count": 16,
     "trig_units": 0
   },
+  "fbm::octave_amplitude": {
+    "chain_order": 1,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "fbm::octave_frequency": {
+    "chain_order": 1,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
   "feed_rate::chip_thinning_compensation": {
     "chain_order": 0,
     "fpga_cycles": 8,
@@ -1495,6 +1600,41 @@
     "fpga_cycles": 6,
     "mac_units": 3,
     "node_count": 20,
+    "trig_units": 0
+  },
+  "fog::exp2_fog": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "fog::exp_fog": {
+    "chain_order": 1,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "fog::linear_fog": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "fresnel::schlick_fresnel": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "fresnel::schlick_fresnel_metal": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 12,
     "trig_units": 0
   },
   "freundlich::adsorbed_amount": {
@@ -1642,6 +1782,20 @@
     "fpga_cycles": 4,
     "mac_units": 2,
     "node_count": 8,
+    "trig_units": 0
+  },
+  "gravity::newtonian_acceleration": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "gravity::surface_gravity_step": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
     "trig_units": 0
   },
   "great_circle_bearing::cross_track_distance": {
@@ -2176,6 +2330,20 @@
     "node_count": 14,
     "trig_units": 0
   },
+  "lowpass::single_pole_coef": {
+    "chain_order": 1,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "lowpass::single_pole_step": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
   "magnetometer_heading::magnetic_heading": {
     "chain_order": 0,
     "fpga_cycles": 4,
@@ -2652,6 +2820,27 @@
     "node_count": 34,
     "trig_units": 0
   },
+  "perlin::dot_grad_2d": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 8,
+    "trig_units": 0
+  },
+  "perlin::perlin_fade": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 26,
+    "trig_units": 0
+  },
+  "perlin::perlin_lerp": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 8,
+    "trig_units": 0
+  },
   "ph_control::concentration_from_pH": {
     "chain_order": 0,
     "fpga_cycles": 4,
@@ -2840,6 +3029,27 @@
     "mac_units": 4,
     "node_count": 24,
     "trig_units": 0
+  },
+  "projectile::position_x": {
+    "chain_order": 2,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 7,
+    "trig_units": 1
+  },
+  "projectile::position_y": {
+    "chain_order": 2,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 15,
+    "trig_units": 1
+  },
+  "projectile::range": {
+    "chain_order": 2,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 13,
+    "trig_units": 1
   },
   "proportional_navigation::augmented_pn_command": {
     "chain_order": 0,
@@ -3113,6 +3323,20 @@
     "mac_units": 2,
     "node_count": 5,
     "trig_units": 0
+  },
+  "reverb::mode_gain": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "reverb::reverb_tail": {
+    "chain_order": 3,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 13,
+    "trig_units": 1
   },
   "reverb_decay::reverb_envelope": {
     "chain_order": 1,
@@ -3653,6 +3877,27 @@
     "node_count": 16,
     "trig_units": 0
   },
+  "spring::damped_position_offset": {
+    "chain_order": 4,
+    "fpga_cycles": 20,
+    "mac_units": 10,
+    "node_count": 26,
+    "trig_units": 1
+  },
+  "spring::spring_step_position": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "spring::spring_step_velocity": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 18,
+    "trig_units": 0
+  },
   "stark::fri_fold": {
     "chain_order": -1,
     "fpga_cycles": 0,
@@ -3926,6 +4171,13 @@
     "node_count": 27,
     "trig_units": 0
   },
+  "tonemap_aces::aces_narkowicz": {
+    "chain_order": 0,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 20,
+    "trig_units": 0
+  },
   "tool_wear_taylor::extended_tool_life": {
     "chain_order": 3,
     "fpga_cycles": 8,
@@ -4113,6 +4365,27 @@
     "fpga_cycles": 10,
     "mac_units": 5,
     "node_count": 29,
+    "trig_units": 0
+  },
+  "voronoi::euclidean_distance": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 19,
+    "trig_units": 0
+  },
+  "voronoi::euclidean_distance_sq": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 16,
+    "trig_units": 0
+  },
+  "voronoi::manhattan_distance": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
     "trig_units": 0
   },
   "vpd_control::saturation_vp": {
