@@ -1,0 +1,76 @@
+// camera_shake.eml -- damped-noise camera-shake envelope.
+//
+// The Squirrel Eiserloh trauma model: camera shake amplitude is a
+// quadratic function of `trauma` in [0, 1] which decays over time
+// after each impulse:
+//
+//   amplitude(trauma) = trauma^2 * max_shake
+//   trauma'(t)        = -decay_rate * trauma          (exponential decay)
+//
+// The continuous envelope per axis (after normalising the impulse):
+//
+//   shake(t) = amplitude * exp(-t / tau) * sin(omega * t + phi)
+//
+// where tau is the trauma decay time-constant and omega is the
+// per-axis shake frequency (typically 30-60 Hz for "punchy" feel).
+// Three independent kernels (one per axis with their own omega/phi)
+// give a believable hand-held effect.
+//
+// Chain order 2 for the envelope (exp + sin, not nested), 0 for
+// trauma scaling. Sibling to spring.eml (analytical envelope) and
+// procedural/perlin.eml (the multi-octave drop-in noise variant).
+// drift_risk LOW.
+
+module camera_shake;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const TWO:         Real = 2.0
+const TINY:        Real = 1.0e-9
+
+const TRAUMA_MAX:  Real = 1.0
+const SHAKE_MAX:   Real = 1.0e2        // ~ 100 unit max displacement
+const TAU_MIN:     Real = 1.0e-3
+const TAU_MAX:     Real = 5.0
+const OMEGA_MIN:   Real = 1.0          // ~ 0.16 Hz
+const OMEGA_MAX:   Real = 1.0e3        // ~ 160 Hz
+const PHASE_MAX:   Real = 7.0
+const T_MAX:       Real = 30.0
+
+type ShakeAmp = Real where chain_order <= 2
+
+// Trauma -> amplitude scaling. Chain order 0 (squared input). The
+// quadratic shape means small traumas barely move the camera and
+// large traumas slam it -- the perceptual "kick" curve.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "trauma_amplitude_monotonic")
+fn trauma_amplitude(trauma: Real, max_shake: Real) -> Real
+    where chain_order <= 0
+    requires (trauma >= ZERO)
+    requires (trauma <= TRAUMA_MAX)
+    requires (max_shake >= ZERO)
+    requires (max_shake <= SHAKE_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= max_shake)
+{
+    trauma * trauma * max_shake
+}
+
+// Per-axis shake position offset. Chain order 2 (exp on chain-0
+// times sin on chain-0, multiplied -- not nested -- with amplitude
+// pre-computed by trauma_amplitude). drift_risk LOW.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "camera_shake_envelope_decreases")
+fn shake_offset(amplitude: Real, tau: Real, omega: Real, phase: Real, t: Real) -> ShakeAmp
+    where chain_order <= 2
+    requires (abs(amplitude) <= SHAKE_MAX)
+    requires (tau >= TAU_MIN)
+    requires (tau <= TAU_MAX)
+    requires (omega >= OMEGA_MIN)
+    requires (omega <= OMEGA_MAX)
+    requires (abs(phase) <= PHASE_MAX)
+    requires (t >= ZERO)
+    requires (t <= T_MAX)
+{
+    amplitude * exp(-t / tau) * sin(omega * t + phase)
+}

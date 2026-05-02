@@ -1,0 +1,75 @@
+// voronoi.eml -- Voronoi distance-field primitives.
+//
+// Worley/Voronoi noise builds cellular textures (skin, leather,
+// stone, water-caustics) by jittering grid-cell points and
+// computing the distance from a sample to the nearest of them.
+// The kernel exposes two distance metrics; the host loop iterates
+// over neighbouring cells and takes the minimum.
+//
+//   euclidean: d = sqrt((x-cx)^2 + (y-cy)^2)        chain 1
+//   manhattan: d = |x-cx| + |y-cy|                  chain 0
+//
+// Euclidean gives the classic round-cell look (Worley 1996);
+// Manhattan gives angular / diamond cells. drift_risk LOW.
+//
+// Sibling to perlin.eml (an alternative noise primitive) and
+// fbm.eml (which can sum multiple Voronoi octaves the same way
+// it sums Perlin octaves).
+
+module voronoi;
+
+const ZERO:        Real = 0.0
+const TINY:        Real = 1.0e-9
+
+const COORD_MAX:   Real = 1.0e6
+
+type Distance = Real where chain_order <= 1
+
+// Euclidean distance to a single feature point. Chain order 1
+// (sqrt). drift_risk LOW.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "euclidean_distance_nonneg")
+fn euclidean_distance(x: Real, y: Real, cx: Real, cy: Real) -> Distance
+    where chain_order <= 1
+    requires (abs(x) <= COORD_MAX)
+    requires (abs(y) <= COORD_MAX)
+    requires (abs(cx) <= COORD_MAX)
+    requires (abs(cy) <= COORD_MAX)
+    ensures  (result >= ZERO)
+{
+    let dx = x - cx;
+    let dy = y - cy;
+    sqrt(dx * dx + dy * dy + TINY)
+}
+
+// Manhattan (L1) distance to a single feature point. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "manhattan_distance_nonneg")
+fn manhattan_distance(x: Real, y: Real, cx: Real, cy: Real) -> Distance
+    where chain_order <= 0
+    requires (abs(x) <= COORD_MAX)
+    requires (abs(y) <= COORD_MAX)
+    requires (abs(cx) <= COORD_MAX)
+    requires (abs(cy) <= COORD_MAX)
+    ensures  (result >= ZERO)
+{
+    abs(x - cx) + abs(y - cy)
+}
+
+// Squared Euclidean distance -- skip the sqrt when only the rank
+// (nearest, second-nearest) matters. Chain order 0. The classic
+// Worley-noise inner loop uses this for the per-candidate
+// comparison and only takes sqrt of the winner.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn euclidean_distance_sq(x: Real, y: Real, cx: Real, cy: Real) -> Real
+    where chain_order <= 0
+    requires (abs(x) <= COORD_MAX)
+    requires (abs(y) <= COORD_MAX)
+    requires (abs(cx) <= COORD_MAX)
+    requires (abs(cy) <= COORD_MAX)
+    ensures  (result >= ZERO)
+{
+    let dx = x - cx;
+    let dy = y - cy;
+    dx * dx + dy * dy
+}

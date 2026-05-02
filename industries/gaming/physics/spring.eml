@@ -1,0 +1,104 @@
+// spring.eml -- spring-mass-damper for game physics + UI easing.
+//
+// Two kernels: one for the per-frame integrator that game engines
+// actually run (semi-implicit Euler step on the ODE), and one for
+// the analytical solution used to predict where the spring will
+// settle (UI animation pre-computation, camera follow envelopes).
+//
+// Spring-mass-damper ODE:
+//
+//   m * x''(t) + c * x'(t) + k * (x(t) - x_target) = 0
+//
+// Underdamped (zeta < 1) closed-form for displacement-from-target:
+//
+//   x(t) - x_target = A * exp(-zeta * omega_n * t) * cos(omega_d * t + phi)
+//
+// where omega_n = sqrt(k/m), zeta = c / (2 * sqrt(m*k)),
+// omega_d = omega_n * sqrt(1 - zeta^2).
+//
+// drift_risk LOW under the convention that callers clamp dt to the
+// physics tick rate (typically 1/60 to 1/120 of a second).
+// Sibling to projectile.eml (kinematics) and bounce.eml (rigid-body
+// collision response).
+
+module spring;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const TWO:         Real = 2.0
+const TINY:        Real = 1.0e-9
+
+const DT_MIN:      Real = 1.0e-5     // 100 kHz cap
+const DT_MAX:      Real = 0.1        // 10 Hz floor (slow-mo)
+const POS_MAX:     Real = 1.0e4      // game-world coordinate cap
+const VEL_MAX:     Real = 1.0e4
+const MASS_MIN:    Real = 1.0e-3
+const MASS_MAX:    Real = 1.0e6
+const STIFF_MAX:   Real = 1.0e6
+const DAMP_MAX:    Real = 1.0e6
+const T_MAX:       Real = 60.0       // analytical solution time cap
+const ZETA_MAX:    Real = 0.999      // underdamped only
+
+// Semi-implicit Euler step. Chain order 0 (pure rational on inputs).
+// The standard game-engine integrator: update velocity from forces
+// FIRST, then position from new velocity. Stable up to dt ~ 2/omega_n
+// for any underdamped spring.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "spring_step_velocity_bounded")
+fn spring_step_velocity(
+    x: Real, v: Real, x_target: Real,
+    stiffness: Real, damping: Real, mass: Real, dt: Real,
+) -> Real
+    where chain_order <= 0
+    requires (abs(x) <= POS_MAX)
+    requires (abs(v) <= VEL_MAX)
+    requires (abs(x_target) <= POS_MAX)
+    requires (stiffness >= ZERO)
+    requires (stiffness <= STIFF_MAX)
+    requires (damping >= ZERO)
+    requires (damping <= DAMP_MAX)
+    requires (mass >= MASS_MIN)
+    requires (mass <= MASS_MAX)
+    requires (dt >= DT_MIN)
+    requires (dt <= DT_MAX)
+{
+    let force = stiffness * (x_target - x) - damping * v;
+    v + force * dt / mass
+}
+
+// Position step that consumes the *new* velocity from the call
+// above. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn spring_step_position(x: Real, v_new: Real, dt: Real) -> Real
+    where chain_order <= 0
+    requires (abs(x) <= POS_MAX)
+    requires (abs(v_new) <= VEL_MAX)
+    requires (dt >= DT_MIN)
+    requires (dt <= DT_MAX)
+{
+    x + v_new * dt
+}
+
+// Analytical underdamped position envelope (relative to target).
+// Chain order 4 (max-path: omega_n -> sqrt -> cos, plus a separate
+// exp factor; the compiler counts the three transcendentals plus
+// structural overhead). Useful for pre-computing how long until
+// the spring settles below a visibility threshold.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "damped_oscillator_amplitude_bound")
+fn damped_position_offset(
+    amplitude: Real, zeta: Real, omega_n: Real, phase: Real, t: Real,
+) -> Real
+    where chain_order <= 4
+    requires (abs(amplitude) <= POS_MAX)
+    requires (zeta >= ZERO)
+    requires (zeta <= ZETA_MAX)
+    requires (omega_n >= TINY)
+    requires (omega_n <= 1.0e4)
+    requires (abs(phase) <= 7.0)
+    requires (t >= ZERO)
+    requires (t <= T_MAX)
+{
+    let omega_d = omega_n * sqrt(ONE - zeta * zeta);
+    amplitude * exp(-zeta * omega_n * t) * cos(omega_d * t + phase)
+}

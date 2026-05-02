@@ -1,0 +1,72 @@
+// breathing.eml -- gentle sinusoidal motion for idle animations.
+//
+// Idle characters and floating UI elements need subtle ambient
+// motion to avoid looking dead. The simplest believable breathing
+// is a low-frequency sine on the chest / floating offset:
+//
+//   y(t) = base + amp * sin(omega * t + phi)
+//
+// For a slightly less mechanical feel, a two-mode sum simulates
+// the asymmetry of inhale-vs-exhale (longer exhale than inhale):
+//
+//   y(t) = base + amp * (sin(omega * t)
+//                        + asym * sin(2 * omega * t))
+//
+// where asym ~ 0.2 gives a natural human-breath rhythm.
+// Frequencies are tuned for a resting rate of 12-16 breaths per
+// minute (omega ~ 1.3-1.7 rad/s).
+//
+// Chain order 1 (sin). drift_risk LOW. Sibling to camera_shake.eml
+// (the higher-frequency / higher-amplitude motion family).
+
+module breathing;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const TWO:         Real = 2.0
+
+const BASE_MAX:    Real = 1.0e3        // game-world coordinate cap
+const AMP_MAX:     Real = 1.0          // breath ~ 1 unit floor-up
+const OMEGA_MIN:   Real = 0.5          // very slow / sleeping
+const OMEGA_MAX:   Real = 6.28         // ~1 Hz max (stressed breathing)
+const PHASE_MAX:   Real = 7.0
+const ASYM_MAX:    Real = 0.5          // exhale-vs-inhale asymmetry
+const T_MAX:       Real = 3.6e3        // 1 hour idle cap
+
+type Offset = Real where chain_order <= 1
+
+// Pure-sinusoid breathing. Chain order 1.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "breathing_pure_in_amplitude_band")
+fn breath_simple(base: Real, amp: Real, omega: Real, phase: Real, t: Real) -> Offset
+    where chain_order <= 1
+    requires (abs(base) <= BASE_MAX)
+    requires (amp >= ZERO)
+    requires (amp <= AMP_MAX)
+    requires (omega >= OMEGA_MIN)
+    requires (omega <= OMEGA_MAX)
+    requires (abs(phase) <= PHASE_MAX)
+    requires (t >= ZERO)
+    requires (t <= T_MAX)
+{
+    base + amp * sin(omega * t + phase)
+}
+
+// Two-mode breath with inhale/exhale asymmetry. Chain order 1.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn breath_asymmetric(
+    base: Real, amp: Real, omega: Real, asym: Real, t: Real,
+) -> Offset
+    where chain_order <= 1
+    requires (abs(base) <= BASE_MAX)
+    requires (amp >= ZERO)
+    requires (amp <= AMP_MAX)
+    requires (omega >= OMEGA_MIN)
+    requires (omega <= OMEGA_MAX)
+    requires (asym >= ZERO)
+    requires (asym <= ASYM_MAX)
+    requires (t >= ZERO)
+    requires (t <= T_MAX)
+{
+    base + amp * (sin(omega * t) + asym * sin(TWO * omega * t))
+}

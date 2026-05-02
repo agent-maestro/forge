@@ -1,0 +1,58 @@
+// fresnel.eml -- Schlick Fresnel approximation, gaming variant.
+//
+// The Fresnel term controls how much light reflects off a surface
+// at grazing angles. The full Fresnel equation is expensive; the
+// Schlick (1994) approximation:
+//
+//   F(theta) = F0 + (1 - F0) * (1 - cos(theta))^5
+//
+// is the standard real-time game-shader approximation. Caller
+// supplies cos(theta) = dot(view, half) already clamped to [0, 1],
+// and F0 = the surface's normal-incidence reflectance.
+//
+// Sibling to industries/graphics/shading/cook_torrance_ggx.eml
+// (which exposes schlick_fresnel as one of four kernels in a full
+// microfacet BRDF). The gaming variant is a thin standalone
+// module so a game shader can pull just the Fresnel term without
+// linking the full BRDF chain.
+
+module fresnel;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const FIVE:        Real = 5.0
+
+type Reflectance = Real where chain_order <= 1
+
+// Schlick Fresnel for a single dielectric layer. Chain order 1
+// (pow on (1 - cos_theta)). drift_risk LOW.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "schlick_fresnel_in_unit_interval_when_f0_is")
+fn schlick_fresnel(cos_theta_clamped: Real, f0: Real) -> Reflectance
+    where chain_order <= 1
+    requires (cos_theta_clamped >= ZERO)
+    requires (cos_theta_clamped <= ONE)
+    requires (f0 >= ZERO)
+    requires (f0 <= ONE)
+    ensures  (result >= f0)
+    ensures  (result <= ONE)
+{
+    f0 + (ONE - f0) * pow(ONE - cos_theta_clamped, FIVE)
+}
+
+// Schlick Fresnel for a metal surface, where F0 is per-channel
+// (caller invokes the kernel three times for R/G/B). Same math,
+// different documentation contract -- metals have F0 ~ 0.6-1.0
+// and tinted, dielectrics have F0 ~ 0.02-0.08 and white. Chain 1.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn schlick_fresnel_metal(cos_theta_clamped: Real, f0_channel: Real) -> Reflectance
+    where chain_order <= 1
+    requires (cos_theta_clamped >= ZERO)
+    requires (cos_theta_clamped <= ONE)
+    requires (f0_channel >= ZERO)
+    requires (f0_channel <= ONE)
+    ensures  (result >= f0_channel)
+    ensures  (result <= ONE)
+{
+    f0_channel + (ONE - f0_channel) * pow(ONE - cos_theta_clamped, FIVE)
+}

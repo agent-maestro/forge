@@ -1,0 +1,55 @@
+// doppler.eml -- 1D Doppler frequency shift for game audio.
+//
+// When a sound source and a listener are in relative motion along
+// the line connecting them, the perceived frequency shifts:
+//
+//   f_obs = f_src * (c + v_listener) / (c + v_source)
+//
+// where c is the speed of sound (343 m/s in dry air at 20 C),
+// v_listener is the listener's velocity along the line toward the
+// source (positive = approaching), and v_source is the source's
+// velocity along the same line (positive = receding from the
+// listener -- yes, opposite sign convention from listener).
+//
+// Game engines typically clamp |v| to a fraction of c
+// (~0.5c) to avoid the mathematical artifact of f_obs going
+// negative when v_source approaches -c. drift_risk LOW within
+// that clamp.
+
+module doppler;
+
+const C_SOUND:     Real = 343.0      // m/s (dry air, 20 C)
+const C_HALF:      Real = 171.5      // half-c clamp for |v|
+const F_MIN:       Real = 20.0       // human hearing floor
+const F_MAX:       Real = 20000.0    // human hearing ceiling
+const TINY:        Real = 1.0e-3     // safe denominator floor
+
+type ShiftedFreq = Real where chain_order <= 0
+
+// Non-relativistic 1D Doppler shift. Chain order 0 (rational on
+// inputs). Caller provides the line-of-sight velocity components
+// already projected; this kernel does no vector math.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "doppler_shift_positive_under_subsonic")
+fn doppler_shift(f_src: Real, v_listener: Real, v_source: Real) -> ShiftedFreq
+    where chain_order <= 0
+    requires (f_src >= F_MIN)
+    requires (f_src <= F_MAX)
+    requires (abs(v_listener) <= C_HALF)
+    requires (abs(v_source) <= C_HALF)
+    ensures  (result >= 0.0)
+{
+    f_src * (C_SOUND + v_listener) / (C_SOUND + v_source + TINY)
+}
+
+// Pure ratio variant for callers that have already determined
+// f_src and want only the multiplicative shift factor. Chain 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn doppler_ratio(v_listener: Real, v_source: Real) -> Real
+    where chain_order <= 0
+    requires (abs(v_listener) <= C_HALF)
+    requires (abs(v_source) <= C_HALF)
+    ensures  (result >= 0.0)
+{
+    (C_SOUND + v_listener) / (C_SOUND + v_source + TINY)
+}

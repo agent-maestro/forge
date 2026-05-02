@@ -1,0 +1,60 @@
+// gravity.eml -- two gravity models for game physics.
+//
+// Newtonian inverse-square gravity is the right model for orbital
+// games (Kerbal-class, space sims, asteroid simulators). Surface
+// (uniform / "constant-g") gravity is the right model for platformers
+// and most ground-based games where the planet is "flat" at game
+// scale. Both kernels are provided so a hybrid game (rocket
+// launch + planet surface) can switch.
+//
+// Newton:    a(r) = G * M / r^2          (vector along -r-hat)
+// Surface:   a    = -g                   (constant)
+//
+// drift_risk LOW. Sibling to projectile.eml (which uses
+// surface_gravity_acceleration as input) and bounce.eml.
+
+module gravity;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const TINY:        Real = 1.0e-9
+
+const G_NEWTON:    Real = 6.6743e-11    // N m^2 / kg^2
+const M_EARTH:     Real = 5.972e24      // kg
+const R_EARTH:     Real = 6.371e6       // m
+const R_MIN:       Real = 1.0e3         // 1 km floor (avoid singularity)
+const R_MAX:       Real = 1.0e12        // 1 Tm cap (outer solar system)
+const M_MAX:       Real = 2.0e30        // ~ solar mass cap
+const G_SURFACE_MAX: Real = 100.0       // jovian-grav cap
+
+type Accel = Real where chain_order <= 0
+
+// Newtonian gravitational acceleration magnitude at distance r
+// from a point mass M. Chain order 0 (rational).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "newtonian_gravity_inverse_square")
+fn newtonian_acceleration(mass: Real, r: Real) -> Accel
+    where chain_order <= 0
+    requires (mass >= ZERO)
+    requires (mass <= M_MAX)
+    requires (r >= R_MIN)
+    requires (r <= R_MAX)
+    ensures  (result >= ZERO)
+{
+    G_NEWTON * mass / (r * r + TINY)
+}
+
+// Per-frame velocity update under uniform downward gravity. Chain
+// order 0. Most platformer / FPS engines use this -- the planet
+// is treated as flat at game scale and `g` is a tunable.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn surface_gravity_step(v_y: Real, g: Real, dt: Real) -> Real
+    where chain_order <= 0
+    requires (abs(v_y) <= 1.0e4)
+    requires (g >= ZERO)
+    requires (g <= G_SURFACE_MAX)
+    requires (dt >= 1.0e-5)
+    requires (dt <= 0.1)
+{
+    v_y - g * dt
+}

@@ -1,0 +1,66 @@
+// reverb.eml -- tonal reverb tail for game audio.
+//
+// Distinct from industries/audio/effects/reverb_decay.eml (which
+// is the pure-energy exponential RT60 envelope). The gaming
+// variant models the *tonal* component of a reverberant tail --
+// the late field carries a slowly-modulating ringing whose
+// amplitude is the exp envelope and whose carrier is a sinusoid
+// at the room's dominant resonance:
+//
+//   tail(t) = exp(-alpha * t) * sin(omega * t + phi)
+//
+// where alpha = 1 / tau (tau is the energy time constant) and
+// omega is the perceptual "ring tone" of the space. Real spaces
+// have many such modes; the kernel handles one and the host sums
+// across modes with different (alpha, omega, phi) triples.
+//
+// Chain order 2 (exp + sin, not nested). drift_risk LOW.
+// Sibling to industries/audio/effects/reverb_decay.eml (the
+// canonical pure-energy variant) and to camera_shake.eml (same
+// damped-sinusoid math, different phenomenon).
+
+module reverb;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const TINY:        Real = 1.0e-9
+
+const ALPHA_MIN:   Real = 0.05         // 20 s tail floor
+const ALPHA_MAX:   Real = 100.0        // 10 ms tail ceiling
+const OMEGA_MIN:   Real = 6.28         // ~1 Hz floor
+const OMEGA_MAX:   Real = 1.26e5       // ~20 kHz ceiling
+const PHASE_MAX:   Real = 7.0
+const T_MAX:       Real = 60.0
+
+type TailSample = Real where chain_order <= 2
+
+// One mode of a tonal reverb tail. Chain order 2 (exp on chain-0,
+// sin on chain-0; not nested). The host sums across modes.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "reverb_tail_envelope_bound")
+fn reverb_tail(alpha: Real, omega: Real, phase: Real, t: Real) -> TailSample
+    where chain_order <= 2
+    requires (alpha >= ALPHA_MIN)
+    requires (alpha <= ALPHA_MAX)
+    requires (omega >= OMEGA_MIN)
+    requires (omega <= OMEGA_MAX)
+    requires (abs(phase) <= PHASE_MAX)
+    requires (t >= ZERO)
+    requires (t <= T_MAX)
+    ensures  (abs(result) <= ONE)
+{
+    exp(-alpha * t) * sin(omega * t + phase)
+}
+
+// Per-mode amplitude scaling. Chain order 0. Caller scales the
+// reverb_tail output by this before summing.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn mode_gain(input_gain: Real, mode_amp: Real) -> Real
+    where chain_order <= 0
+    requires (abs(input_gain) <= 8.0)
+    requires (mode_amp >= ZERO)
+    requires (mode_amp <= ONE)
+    ensures  (abs(result) <= 8.0)
+{
+    input_gain * mode_amp
+}

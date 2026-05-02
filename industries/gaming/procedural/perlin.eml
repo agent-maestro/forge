@@ -1,0 +1,78 @@
+// perlin.eml -- Perlin gradient-noise primitives for procedural
+// content (terrain, clouds, materials, level layout).
+//
+// Perlin (1985, improved 2002) noise is built from three primitives:
+//
+//   1. fade(t)  = 6t^5 - 15t^4 + 10t^3       (quintic interpolant,
+//                                             the Perlin "fade")
+//   2. dot_grad = gradient . offset           (dot of the cell-corner
+//                                              gradient with the local
+//                                              offset to the sample)
+//   3. lerp(a,b,t) = a + (b-a)*t              (linear interpolation
+//                                              between corners)
+//
+// The host loop chooses gradients (typically from a permutation
+// table), feeds the dot products into eight calls of `lerp`
+// arranged on a cube, and uses `fade` to smooth the trilinear
+// blend. The kernel exposes the three primitives so each one
+// becomes its own FPGA pipeline stage.
+//
+// Sibling to fbm.eml (which sums octaves of `perlin_lerp` calls
+// at decreasing amplitude / increasing frequency) and to
+// animation/ease_in_out.eml (smootherstep is the same polynomial
+// as `perlin_fade`). drift_risk LOW.
+
+module perlin;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const SIX:         Real = 6.0
+const TEN:         Real = 10.0
+const FIFTEEN:     Real = 15.0
+
+type NoiseUnit = Real where chain_order <= 0
+
+// Perlin fade: 6t^5 - 15t^4 + 10t^3. Caller passes t already in
+// [0, 1] (the local offset within a unit cell). Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "perlin_fade_in_unit_interval")
+fn perlin_fade(t: Real) -> NoiseUnit
+    where chain_order <= 0
+    requires (t >= ZERO)
+    requires (t <= ONE)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    let t3 = t * t * t;
+    let t4 = t3 * t;
+    let t5 = t4 * t;
+    SIX * t5 - FIFTEEN * t4 + TEN * t3
+}
+
+// 2D dot product of a cell-corner gradient with the offset vector
+// to the sample point. Chain order 0. The host samples 4 such
+// products on the corners of a unit square and lerps them.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn dot_grad_2d(gx: Real, gy: Real, ox: Real, oy: Real) -> Real
+    where chain_order <= 0
+    requires (abs(gx) <= ONE)
+    requires (abs(gy) <= ONE)
+    requires (abs(ox) <= ONE)
+    requires (abs(oy) <= ONE)
+{
+    gx * ox + gy * oy
+}
+
+// Linear interpolation. Caller has already passed `t` through
+// `perlin_fade` so the resulting curve is C^2 at the cell
+// boundaries. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn perlin_lerp(a: Real, b: Real, t_faded: Real) -> Real
+    where chain_order <= 0
+    requires (abs(a) <= ONE)
+    requires (abs(b) <= ONE)
+    requires (t_faded >= ZERO)
+    requires (t_faded <= ONE)
+{
+    a + (b - a) * t_faded
+}
