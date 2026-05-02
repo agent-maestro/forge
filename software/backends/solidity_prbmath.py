@@ -42,15 +42,18 @@ _BUILTIN_TO_PRBMATH: dict[NodeKind, str] = {
     NodeKind.POW:  "pow",
 }
 
-# Builtins the parent emits stubs for but PRBMath SD59x18 doesn't
-# provide. The override contract leaves these as-is (still reverting)
-# and adds a comment saying so, so an integrator knows where to plug
-# in their own trig.
-_UNSUPPORTED: frozenset[NodeKind] = frozenset({
+# Builtins PRBMath SD59x18 doesn't provide. We route these through
+# the companion ``TrigSD59x18`` library (see software.backends.
+# solidity_trig). The override contract imports both libraries.
+_VIA_TRIG_LIBRARY: frozenset[NodeKind] = frozenset({
     NodeKind.SIN, NodeKind.COS, NodeKind.TAN,
     NodeKind.ASIN, NodeKind.ACOS, NodeKind.ATAN,
     NodeKind.SINH, NodeKind.COSH, NodeKind.TANH,
 })
+
+# Kept for backwards-compatible callers; identical to the trig set
+# (any builtin we previously left unsupported is now covered).
+_UNSUPPORTED: frozenset[NodeKind] = frozenset()
 
 
 # ── Result type ─────────────────────────────────────────────────────
@@ -67,8 +70,10 @@ class PRBMathOverride:
     """Full Solidity source of the override contract."""
     overridden: tuple[NodeKind, ...]
     """Builtins that received a PRBMath-backed override."""
+    via_trig_library: tuple[NodeKind, ...]
+    """Builtins routed through the TrigSD59x18 companion library."""
     unsupported: tuple[NodeKind, ...]
-    """Builtins the parent uses but PRBMath can't supply."""
+    """Builtins still left as parent revert stubs (none in v1+)."""
 
 
 # ── Public API ──────────────────────────────────────────────────────
@@ -102,6 +107,12 @@ def emit_prbmath_override(
             key=lambda k: k.name,
         ),
     )
+    via_trig_library = tuple(
+        sorted(
+            (k for k in used_builtins if k in _VIA_TRIG_LIBRARY),
+            key=lambda k: k.name,
+        ),
+    )
     unsupported = tuple(
         sorted(
             (k for k in used_builtins if k in _UNSUPPORTED),
@@ -114,6 +125,7 @@ def emit_prbmath_override(
         contract_name=contract_name,
         parent_path=parent_path.format(parent=parent_name),
         overridden=overridden,
+        via_trig_library=via_trig_library,
         unsupported=unsupported,
         indent=indent,
     )
@@ -122,6 +134,7 @@ def emit_prbmath_override(
         parent_name=parent_name,
         source=source,
         overridden=overridden,
+        via_trig_library=via_trig_library,
         unsupported=unsupported,
     )
 
@@ -135,15 +148,18 @@ def _render(
     contract_name: str,
     parent_path: str,
     overridden: tuple[NodeKind, ...],
+    via_trig_library: tuple[NodeKind, ...],
     unsupported: tuple[NodeKind, ...],
     indent: str,
 ) -> str:
+    from software.backends.solidity_trig import trig_function_name
+
     lines: list[str] = []
     lines.append("// SPDX-License-Identifier: MIT")
     lines.append("pragma solidity ^0.8.20;")
     lines.append("")
     lines.append(
-        f"// {contract_name} — PRBMath SD59x18 overrides for "
+        f"// {contract_name} — PRBMath + TrigSD59x18 overrides for "
         f"{parent_name}."
     )
     lines.append(
@@ -161,16 +177,7 @@ def _render(
     if unsupported:
         names = ", ".join(k.name.lower() for k in unsupported)
         lines.append(
-            f"// PRBMath gap: parent also uses {names}; PRBMath SD59x18 "
-            f"does not"
-        )
-        lines.append(
-            "// supply these. Stubs from the parent stay in place "
-            "(revert on call)."
-        )
-        lines.append(
-            "// Drop in your own trig implementation by extending this "
-            "contract."
+            f"// Note: parent also uses {names}; no override emitted."
         )
     lines.append("")
     lines.append(f'import "{parent_path}";')
@@ -182,25 +189,34 @@ def _render(
         lines.append(
             f'import {{ {names} }} from "@prb/math/src/sd59x18/Math.sol";'
         )
+    if via_trig_library:
+        lines.append(
+            'import { TrigSD59x18 } from "./TrigSD59x18.sol";'
+        )
     lines.append("")
     lines.append(
         f"contract {contract_name} is {parent_name} {{"
     )
-    if not overridden:
+    if not overridden and not via_trig_library:
         lines.append(
             f"{indent}// No PRBMath-supported builtins are used by the "
             f"parent."
         )
     for kind in overridden:
         lines.append("")
-        lines.extend(_render_override(kind, indent=indent))
+        lines.extend(_render_prbmath_override(kind, indent=indent))
+    for kind in via_trig_library:
+        lines.append("")
+        lines.extend(_render_trig_override(
+            kind, fn_name=trig_function_name(kind), indent=indent,
+        ))
     lines.append("}")
     lines.append("")
     return "\n".join(lines)
 
 
-def _render_override(kind: NodeKind, *, indent: str) -> list[str]:
-    """Emit a single `override` function for one builtin."""
+def _render_prbmath_override(kind: NodeKind, *, indent: str) -> list[str]:
+    """Emit a single `override` function for one PRBMath builtin."""
     pmath = _BUILTIN_TO_PRBMATH[kind]
     if kind == NodeKind.POW:
         sig = "int256 base, int256 exp_"
@@ -213,5 +229,19 @@ def _render_override(kind: NodeKind, *, indent: str) -> list[str]:
         f"{indent}function _{kind.name.lower()}({sig}) internal pure "
         f"override returns (int256) {{",
         f"{indent}{indent}{body}",
+        f"{indent}}}",
+    ]
+
+
+def _render_trig_override(
+    kind: NodeKind, *, fn_name: str, indent: str,
+) -> list[str]:
+    """Emit a single `override` function routed to TrigSD59x18."""
+    return [
+        f"{indent}/// @dev {kind.name.lower()} via TrigSD59x18 "
+        f"(Taylor / PRBMath exp).",
+        f"{indent}function _{kind.name.lower()}(int256 x) internal pure "
+        f"override returns (int256) {{",
+        f"{indent}{indent}return unwrap(TrigSD59x18.{fn_name}(sd(x)));",
         f"{indent}}}",
     ]

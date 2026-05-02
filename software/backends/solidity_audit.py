@@ -128,10 +128,19 @@ def write_audit_bundle(
     ))
     written.extend(proof_results)
 
-    # PRBMath override (forces on when foundry tests are requested).
+    # PRBMath + TrigSD59x18 overrides (forces on when foundry tests
+    # are requested).
     override_name: str | None = None
     if with_prbmath or with_foundry_tests:
         from software.backends.solidity_prbmath import emit_prbmath_override
+        from software.backends.solidity_trig import emit_trig_library
+        # TrigSD59x18 ships first so the override import resolves.
+        trig = emit_trig_library(used_builtins)
+        if trig is not None:
+            written.append(_write(
+                out_root / f"{trig.library_name}.sol",
+                trig.source,
+            ))
         override = emit_prbmath_override(
             parent_name=spec["contract"],
             used_builtins=used_builtins,
@@ -362,8 +371,13 @@ compiled from EML module `{module}`.
   the per-function gas estimate and Pfaffian profile. Transcendental
   helpers (`_exp`, `_ln`, etc.) are virtual stubs that revert.
 - `{contract}WithPRBMath.sol` — deployable child contract that
-  overrides each transcendental via PRBMath SD59x18. This is the
-  contract you ship.
+  overrides each transcendental via PRBMath SD59x18 (exp/ln/sqrt/abs/
+  pow) and the bundled `TrigSD59x18` library (sin/cos/tan/asin/acos/
+  atan + hyperbolics). This is the contract you ship.
+- `TrigSD59x18.sol` — circular-trig + hyperbolic library, only
+  emitted when the parent uses any of the 9 trig builtins. Taylor
+  series for circular trig; PRBMath `exp` compositions for
+  hyperbolics. ~14-digit precision; ~30-80k gas per call.
 - `spec.json` — structured formal spec. One entry per function with
   preconditions (Solidity-rendered + EML source line), postconditions,
   Lean theorem references, gas estimate.

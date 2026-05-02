@@ -65,24 +65,25 @@ def test_pow_override_uses_two_arg_signature():
     assert "return unwrap(pow(sd(base), sd(exp_)));" in out.source
 
 
-def test_unsupported_trig_emits_warning_but_no_override():
-    """SIN is not in PRBMath SD59x18 — we leave the parent stub
-    in place and warn the integrator."""
+def test_trig_is_routed_via_trig_library():
+    """SIN is not in PRBMath SD59x18, so it routes through the
+    companion TrigSD59x18 library — not left as a parent revert stub."""
     out = emit_prbmath_override(
         parent_name="Wave", used_builtins={NodeKind.SIN, NodeKind.EXP},
     )
-    assert NodeKind.SIN in out.unsupported
+    # Trig goes via the trig library; PRBMath-supported go direct.
+    assert NodeKind.SIN in out.via_trig_library
     assert NodeKind.EXP in out.overridden
-    # Source mentions the gap and routes only EXP through PRBMath.
-    assert "PRBMath gap" in out.source
-    assert "sin" in out.source.lower()
-    assert "function _sin" not in out.source  # no override emitted
+    assert NodeKind.SIN not in out.unsupported
+    # Source imports the trig library and emits an override for _sin.
+    assert 'import { TrigSD59x18 } from "./TrigSD59x18.sol";' in out.source
+    assert "function _sin(int256 x) internal pure override" in out.source
+    assert "TrigSD59x18.sin(sd(x))" in out.source
+    # PRBMath route still works for EXP.
     assert "function _exp" in out.source
 
 
-def test_supported_set_excludes_trig_family():
-    """Sanity check: every function in (SIN, COS, TAN, ASIN, ACOS,
-    ATAN, SINH, COSH, TANH) lands in `unsupported`, not `overridden`."""
+def test_full_trig_set_routes_through_trig_library():
     trig = {
         NodeKind.SIN, NodeKind.COS, NodeKind.TAN,
         NodeKind.ASIN, NodeKind.ACOS, NodeKind.ATAN,
@@ -91,8 +92,13 @@ def test_supported_set_excludes_trig_family():
     out = emit_prbmath_override(
         parent_name="X", used_builtins=trig,
     )
-    assert set(out.unsupported) == trig
+    assert set(out.via_trig_library) == trig
     assert out.overridden == ()
+    assert out.unsupported == ()
+    # Each trig builtin gets a routed override.
+    for kind in trig:
+        assert f"function _{kind.name.lower()}(int256 x)" in out.source
+        assert f"TrigSD59x18.{kind.name.lower()}(sd(x))" in out.source
 
 
 def test_all_supported_emit_overrides():
