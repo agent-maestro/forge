@@ -53,6 +53,12 @@ xsim.dir/
 # Temporary / scratch
 scratch/
 *.scratch.*
+demo/
+final_check/
+
+# Per-machine audit + cost cache
+.audit_baselines/
+industries/.audit_baselines/
 
 # live_counts.py per-machine slow-cache (pytest count + lake build seconds)
 .live_counts_cache.json
@@ -60,6 +66,40 @@ scratch/
 # Local environment
 .env
 .env.local
+.env.*.local
+
+# License tokens (Pro tier) — never commit
+*.license
+*.license.json
+license_token*
+forge_license*
+
+# Compiler-emitted multi-language build outputs
+# (industries/<x>/build/ artifacts are checked in deliberately;
+#  loose multi-language siblings of an .eml file are not)
+industries/agriculture/greenhouse/vpd_control.aadl
+industries/agriculture/greenhouse/vpd_control.adb
+industries/agriculture/greenhouse/vpd_control.ads
+industries/agriculture/greenhouse/vpd_control.arxml
+industries/agriculture/greenhouse/vpd_control.autosar.c
+industries/agriculture/greenhouse/vpd_control.c
+industries/agriculture/greenhouse/vpd_control.cpp
+industries/agriculture/greenhouse/vpd_control.go
+industries/agriculture/greenhouse/VpdControl.java
+industries/agriculture/greenhouse/VpdControl.scala
+industries/agriculture/greenhouse/vpd_control.kt
+industries/agriculture/greenhouse/vpd_control.lean
+industries/agriculture/greenhouse/vpd_control.ll
+industries/agriculture/greenhouse/vpd_control.m
+industries/agriculture/greenhouse/vpd_control.py
+industries/agriculture/greenhouse/vpd_control.rs
+industries/agriculture/greenhouse/vpd_control.sol
+industries/agriculture/greenhouse/vpd_control.sv
+industries/agriculture/greenhouse/vpd_control.thy
+industries/agriculture/greenhouse/vpd_control.v
+industries/agriculture/greenhouse/vpd_control.vhd
+industries/agriculture/greenhouse/vpd_control.wasm.ll
+industries/agriculture/greenhouse/vpd_control_pkg/
 
 # OS
 Thumbs.db

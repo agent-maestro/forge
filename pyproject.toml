@@ -5,11 +5,49 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "monogate-forge"
 version = "0.1.0"
-description = "Programming language and compiler for verified mathematical computation, targeting both software and hardware"
+description = "EML language and compiler for verified mathematical computation. 31 backends spanning software, GPU shaders, hardware (FPGA/ASIC), formal verification, and safety-critical systems."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
-    { name = "Monogate Research" },
+    { name = "Arturo R. Almaguer", email = "almaguer1986@gmail.com" },
+    { name = "Mosa Creates LLC" },
+]
+maintainers = [
+    { name = "Arturo R. Almaguer", email = "almaguer1986@gmail.com" },
+]
+keywords = [
+    "compiler",
+    "programming-language",
+    "formal-verification",
+    "lean",
+    "fpga",
+    "hdl",
+    "verilog",
+    "vhdl",
+    "safety-critical",
+    "embedded",
+    "math",
+    "shader",
+    "hlsl",
+    "metal",
+    "wgsl",
+    "eml",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Software Development :: Compilers",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Embedded Systems",
+    "Typing :: Typed",
 ]
 requires-python = ">=3.11"
 dependencies = [
@@ -18,6 +56,16 @@ dependencies = [
     # to gate Pro backends behind an Ed25519-signed token.
     "cryptography>=42",
 ]
+
+[project.urls]
+Homepage      = "https://monogateforge.com"
+Documentation = "https://monogate.dev/learn/eml/intro"
+Repository    = "https://github.com/agent-maestro/forge"
+Issues        = "https://github.com/agent-maestro/forge/issues"
+Changelog     = "https://github.com/agent-maestro/forge/blob/master/CHANGELOG.md"
+"VS Code Extension" = "https://marketplace.visualstudio.com/items?itemName=monogate.eml-lang"
+"Research"    = "https://monogate.org"
+"MachLib"     = "https://machlib.org"
 
 [project.optional-dependencies]
 dev = [

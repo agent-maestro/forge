@@ -5,6 +5,12 @@ language + compiler half of the broader Monogate stack; it
 depends on `eml-cost`, `monogate-research`, and `monogate-lean`
 upstream.
 
+**Quick links:**
+- [Bug report](https://github.com/agent-maestro/forge/issues/new?template=bug_report.md)
+- [Feature request](https://github.com/agent-maestro/forge/issues/new?template=feature_request.md)
+- [Industry application](https://github.com/agent-maestro/forge/issues/new?template=industry_application.md)
+- [Open issues](https://github.com/agent-maestro/forge/issues)
+
 ---
 
 ## Before you start
@@ -17,8 +23,7 @@ upstream.
    algorithmic method. Some methods are patented; the
    implementation is open but commercial re-implementations may
    need a license.
-4. Verify the stack is current: `python tools/audit/audit.py`
-   (when implemented).
+4. Verify the stack is current: `python tools/cli/audit.py`.
 
 ---
 

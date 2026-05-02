@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.0] — 2026-05-02 (initial public release)
+
+First public release on PyPI. `pip install monogate-forge`.
+
+### Highlights
+
+- **32 compilation backends** — software (C, C++, Rust, Python, Go,
+  Java, Kotlin, MATLAB, C#, Swift, JavaScript), compiler IRs
+  (LLVM, WebAssembly), GPU shaders (HLSL, GLSL, GLSL ES, WGSL,
+  Metal), hardware (Verilog, SystemVerilog, VHDL, Chisel/FIRRTL),
+  formal verification (Lean 4, Coq, Isabelle/HOL), safety-critical
+  (Ada/SPARK, AUTOSAR C, AADL, ROS 2), gaming (Luau, GDScript),
+  and blockchain (Solidity with PRBMath SD59x18).
+- **EML language** with chain-order constraints (`where chain_order
+  <= N`), `requires`/`ensures` contracts, `@verify` and
+  `@target(fpga, ...)` annotations, and a complete stdlib
+  (`stdlib::math`, `stdlib::signal`, `stdlib::control`,
+  `stdlib::linalg`, `stdlib::ml`, `stdlib::constants`).
+- **VS Code extension** (`monogate.eml-lang` on the marketplace)
+  with LSP: chain-order on hover, completions for keywords +
+  builtins + stdlib, diagnostics, format-on-save, and the FPGA
+  status bar showing live LUT/DSP/latency estimates.
+- **Forward declarations** in HLSL and Metal output ensure every
+  CALL target resolves regardless of source order or `extern fn`
+  placement.
+- **Cross-target equivalence harness** validates that the C, Rust,
+  Python, and HDL paths produce ULP-equivalent results across the
+  industry-vertical corpus.
+- **Audit bundles** for Solidity contracts (`--audit-bundle`)
+  produce a self-contained directory with the .sol, .spec.json,
+  EML source, copies of every referenced Lean theorem, AUDITOR.md,
+  and a manifest.json with sha256 of every artifact.
+- **Apple toolchain validation** runs Metal (`xcrun metal -c`) and
+  Swift (`swiftc -typecheck`) on the full corpus via a GitHub
+  Actions macOS runner.
+
+### Free vs Pro
+
+- **Free tier:** C, C++, Rust, Python, Go, Java, Kotlin, Lean,
+  MATLAB. Use the CLI without any license.
+- **Pro tier:** all remaining 23 targets. Get a license at
+  [monogateforge.com/get-started](https://monogateforge.com/get-started).
+
+### Documentation
+
+- `README.md` rewritten for launch.
+- `docs/quickstart.md`, `docs/language-reference.md`,
+  `docs/backends.md`, `docs/verify-guide.md`, `docs/fpga-guide.md`.
+- `CONTRIBUTING.md` covers bug reports, feature requests, PR
+  workflow, and how to add a new vertical or hardware target.
+
+---
+
 ## [Unreleased] — 2026-04-30 (5-Phase post-baton ship)
 
 Verticals + optimizer fixes that landed after the 2026-04-29 baton

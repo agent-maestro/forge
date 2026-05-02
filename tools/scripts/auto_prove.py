@@ -33,8 +33,8 @@ Usage::
 
     # Sweep an entire directory (all .eml files), conservative scope.
     python tools/scripts/auto_prove.py \\
-        --target D:/monogate-forge/industries \\
-        --machlib-root D:/machlib \\
+        --target ./industries \\
+        --machlib-root ../machlib \\
         --max-chain 1 --limit 10
 
     # JSON summary for piping.
@@ -482,12 +482,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="A single .eml file or a directory to sweep recursively.",
     )
     p.add_argument(
-        "--machlib-root", default="D:/machlib",
-        help="Path to the machlib repo (default D:/machlib).",
+        "--machlib-root", default="../machlib",
+        help="Path to the machlib repo (default sibling: ../machlib).",
     )
     p.add_argument(
         "--audit-cli",
-        default="D:/monogate-forge/tools/cli/audit.py",
+        default=str(Path(__file__).resolve().parents[2] / "tools" / "cli" / "audit.py"),
         help="Path to the forge audit CLI.",
     )
     p.add_argument("--max-chain", type=int, default=1,
