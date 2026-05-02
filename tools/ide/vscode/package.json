@@ -2,17 +2,17 @@
   "name": "monogate-forge-vscode",
   "displayName": "Monogate Forge",
   "description": "EML-lang for VS Code. Free: syntax + snippets + completion + outline. With Forge CLI: LSP (errors-as-you-type, hover, cross-file goto-def + references + rename, format, workspace symbol search), builtin docs, inline profiling, FPGA status, 22-target compile.",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "publisher": "Monogate",
   "license": "MIT",
   "homepage": "https://monogate.dev/learn/eml",
   "repository": {
     "type": "git",
-    "url": "https://github.com/agent-maestro/monogate-forge.git",
+    "url": "https://github.com/agent-maestro/forge.git",
     "directory": "tools/ide/vscode"
   },
   "bugs": {
-    "url": "https://github.com/agent-maestro/monogate-forge/issues"
+    "url": "https://github.com/agent-maestro/forge/issues"
   },
   "keywords": ["eml", "monogate", "forge", "verified-math", "lean",
                "verilog", "vhdl", "fpga", "verification"],
