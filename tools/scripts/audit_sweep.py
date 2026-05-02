@@ -110,13 +110,46 @@ def _sweep_one(
         p.name for p in (bundle.root / "proofs").iterdir()
         if p.name.endswith(".MISSING.txt")
     ]
+    # `sorry` in a Lean proof is the standard "axiom of admit" — the
+    # theorem statement is real but the proof body is a placeholder.
+    # Surface those distinctly from MISSING (no theorem at all) so the
+    # report doesn't pretend a sorry-stub is a verified proof.
+    sorry_proofs = [
+        p.name for p in (bundle.root / "proofs").iterdir()
+        if p.name.endswith(".lean") and _contains_sorry(p)
+    ]
     return {
         "kernel": str(rel).replace("\\", "/"),
         "status": "ok",
         "manifest": bundle.manifest,
         "missing_proofs": sorted(missing),
+        "sorry_proofs": sorted(sorry_proofs),
         "bundle_dir": str(bundle.root),
     }
+
+
+def _contains_sorry(path: Path) -> bool:
+    """True iff the Lean file declares `sorry` as a tactic or term —
+    the standard Lean placeholder for an unfinished proof. Does not
+    match the substring inside comments/strings (cheap heuristic:
+    check for `sorry` as a whitespace-bounded token)."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    for line in text.splitlines():
+        # Strip line comments before checking — Lean uses `--`.
+        code = line.split("--", 1)[0]
+        # Token-bounded match so we don't trip on identifiers like
+        # `sorrysort` that don't exist in practice but are safer to
+        # exclude.
+        for sep in (" sorry ", " sorry\t", " sorry;", " sorry,",
+                    " sorry)", "\tsorry ", "\tsorry\t"):
+            if sep in f" {code} ":
+                return True
+        if code.strip() == "sorry":
+            return True
+    return False
 
 
 # ── Baseline diffing ────────────────────────────────────────────────
@@ -186,10 +219,17 @@ def _render_report(results: list[dict]) -> str:
         and r["missing_proofs"]
         and r["diff"]["status"] in ("changed", "new")
     ]
+    pending = [
+        r for r in results
+        if r["status"] == "ok" and r.get("sorry_proofs")
+    ]
     lines: list[str] = ["# Solidity audit-bundle sweep", ""]
     lines.append(f"- kernels swept: **{swept}**")
     lines.append(f"- new baselines: **{len(new_baselines)}**")
     lines.append(f"- baselines with hash drift: **{len(changed)}**")
+    lines.append(f"- proofs pending (sorry-stubs): "
+                 f"**{sum(len(r['sorry_proofs']) for r in pending)}** "
+                 f"across {len(pending)} kernels")
     lines.append(f"- compile errors: **{len(failed)}**")
     lines.append(f"- parse errors: **{len(parse_err)}**")
     lines.append("")
@@ -203,10 +243,29 @@ def _render_report(results: list[dict]) -> str:
         lines.append("")
     if new_gaps:
         lines.append("## New / outstanding MISSING proof stubs")
+        lines.append(
+            "_Theorems claimed in the EML kernel that have no Lean "
+            "file in MachLib at all — auto_prove couldn't generate "
+            "a stub within the configured chain-order scope._"
+        )
+        lines.append("")
         for r in new_gaps:
             lines.append(
                 f"- `{r['kernel']}` — " +
                 ", ".join(f"`{p}`" for p in r["missing_proofs"])
+            )
+        lines.append("")
+    if pending:
+        lines.append("## Proofs pending (sorry-stubs)")
+        lines.append(
+            "_Theorem statement is present + correct in MachLib; the "
+            "proof body is `sorry` and needs hand-completion._"
+        )
+        lines.append("")
+        for r in pending:
+            lines.append(
+                f"- `{r['kernel']}` — " +
+                ", ".join(f"`{p}`" for p in r["sorry_proofs"])
             )
         lines.append("")
     if failed:
