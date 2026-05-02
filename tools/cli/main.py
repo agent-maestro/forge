@@ -120,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         "verilog", "systemverilog", "vhdl", "chisel", "lean",
         "ada", "matlab",
         "coq", "isabelle", "ros2",
-        "java", "kotlin", "csharp", "go", "autosar", "aadl",
+        "java", "kotlin", "csharp", "hlsl", "go", "autosar", "aadl",
         "solidity",
         "all",
     ], help=("Output target. 'all' runs every live backend "
@@ -455,6 +455,17 @@ def main(argv: list[str] | None = None) -> int:
             results.append(("csharp", Path("<skipped>"), 0))
             print(f"  csharp skipped: {e}", file=sys.stderr)
 
+        # HLSL shader function library
+        try:
+            from software.backends.hlsl_backend import HLSLBackend
+            hl_path = out_dir / f"{stem}.hlsl"
+            hl_src = HLSLBackend(optimize=not args.no_optimize).compile(mod)
+            hl_path.write_text(hl_src, encoding="utf-8")
+            results.append(("hlsl", hl_path, len(hl_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("hlsl", Path("<skipped>"), 0))
+            print(f"  hlsl skipped: {e}", file=sys.stderr)
+
         # Go
         try:
             from software.backends.go_backend import GoBackend
@@ -753,6 +764,22 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wrote {args.output} ({len(cs)} bytes)", file=sys.stderr)
         else:
             print(cs, end="")
+        return 0
+
+    if args.target == "hlsl":
+        from software.backends.hlsl_backend import (
+            HLSLBackend, CompileError as HlslErr,
+        )
+        try:
+            hl = HLSLBackend(optimize=not args.no_optimize).compile(mod)
+        except HlslErr as e:
+            print(f"compile error (hlsl backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(hl, encoding="utf-8")
+            print(f"wrote {args.output} ({len(hl)} bytes)", file=sys.stderr)
+        else:
+            print(hl, end="")
         return 0
 
     if args.target == "go":
