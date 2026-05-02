@@ -1,0 +1,99 @@
+{
+  "module declaration": {
+    "prefix": "module",
+    "body": ["module ${1:my_module};", "", "$0"],
+    "description": "Module declaration at the top of the file"
+  },
+  "use stdlib (whole module)": {
+    "prefix": "usestdlib",
+    "body": ["use stdlib::${1|math,ml,signal,linalg,control,constants|};"],
+    "description": "Pull in a whole stdlib module"
+  },
+  "use stdlib (selective)": {
+    "prefix": "usestdselect",
+    "body": [
+      "use stdlib::${1|math,ml,signal,linalg,control|}::{${2:lerp}};"
+    ],
+    "description": "Selective import of one stdlib symbol"
+  },
+  "function with @verify contract": {
+    "prefix": "fnverify",
+    "body": [
+      "@verify(lean, theorem = \"${1:my_theorem}\")",
+      "fn ${2:my_fn}(${3:x: Real}) -> ${4:Real}",
+      "    where chain_order <= ${5:1}",
+      "    requires (${6:x > 0.0})",
+      "    ensures  (${7:result > 0.0})",
+      "{",
+      "    $0",
+      "}"
+    ],
+    "description": "Function with @verify Hoare contract for Lean export"
+  },
+  "function with chain_order bound": {
+    "prefix": "fnchain",
+    "body": [
+      "fn ${1:my_fn}(${2:x: Real}) -> ${3:Real}",
+      "    where chain_order <= ${4:1}",
+      "{",
+      "    $0",
+      "}"
+    ],
+    "description": "Function with explicit chain_order constraint"
+  },
+  "plain function": {
+    "prefix": "fn",
+    "body": [
+      "fn ${1:my_fn}(${2:x: Real}) -> ${3:Real} {",
+      "    $0",
+      "}"
+    ],
+    "description": "Plain function declaration"
+  },
+  "real constant": {
+    "prefix": "const",
+    "body": ["const ${1:NAME}: ${2:Real} = ${3:0.0};"],
+    "description": "Module-level constant"
+  },
+  "type alias": {
+    "prefix": "type",
+    "body": ["type ${1:MyType} = ${2:Real};"],
+    "description": "Domain type alias"
+  },
+  "requires precondition": {
+    "prefix": "requires",
+    "body": ["requires (${1:x > 0.0})"],
+    "description": "@verify precondition clause"
+  },
+  "ensures postcondition": {
+    "prefix": "ensures",
+    "body": ["ensures  (${1:result > 0.0})"],
+    "description": "@verify postcondition clause"
+  },
+  "@target FPGA": {
+    "prefix": "targetfpga",
+    "body": ["@target(fpga, latency_cycles = ${1:8}, mac_units = ${2:4})"],
+    "description": "FPGA target annotation"
+  },
+  "@verify Lean": {
+    "prefix": "verify",
+    "body": ["@verify(lean, theorem = \"${1:my_theorem}\")"],
+    "description": "@verify annotation for Lean export"
+  },
+  "let binding": {
+    "prefix": "let",
+    "body": ["let ${1:x} = ${2:expr};"],
+    "description": "Local let binding"
+  },
+  "if-else": {
+    "prefix": "if",
+    "body": [
+      "if ${1:cond} {",
+      "    ${2:then_expr}",
+      "} else {",
+      "    ${3:else_expr}",
+      "}"
+    ],
+    "description": "If-else expression"
+  }
+}
