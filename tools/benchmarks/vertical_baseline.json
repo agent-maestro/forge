@@ -1203,6 +1203,55 @@
     "node_count": 14,
     "trig_units": 0
   },
+  "ease_curves::ease_in_cubic": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 6,
+    "trig_units": 0
+  },
+  "ease_curves::ease_in_out_quad": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 25,
+    "trig_units": 0
+  },
+  "ease_curves::ease_in_quad": {
+    "chain_order": 0,
+    "fpga_cycles": 2,
+    "mac_units": 1,
+    "node_count": 4,
+    "trig_units": 0
+  },
+  "ease_curves::ease_out_bounce": {
+    "chain_order": 3,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 19,
+    "trig_units": 1
+  },
+  "ease_curves::ease_out_cubic": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 12,
+    "trig_units": 0
+  },
+  "ease_curves::ease_out_elastic": {
+    "chain_order": 3,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 15,
+    "trig_units": 1
+  },
+  "ease_curves::ease_out_quad": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 6,
+    "trig_units": 0
+  },
   "ease_in_out::ease_in_out_lerp": {
     "chain_order": 0,
     "fpga_cycles": 8,
@@ -3050,6 +3099,34 @@
     "mac_units": 5,
     "node_count": 13,
     "trig_units": 1
+  },
+  "projectile_drag::position_x_drag": {
+    "chain_order": 1,
+    "fpga_cycles": 12,
+    "mac_units": 6,
+    "node_count": 18,
+    "trig_units": 0
+  },
+  "projectile_drag::position_y_drag": {
+    "chain_order": 1,
+    "fpga_cycles": 14,
+    "mac_units": 7,
+    "node_count": 29,
+    "trig_units": 0
+  },
+  "projectile_drag::velocity_x_drag": {
+    "chain_order": 1,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "projectile_drag::velocity_y_drag": {
+    "chain_order": 1,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 21,
+    "trig_units": 0
   },
   "proportional_navigation::augmented_pn_command": {
     "chain_order": 0,

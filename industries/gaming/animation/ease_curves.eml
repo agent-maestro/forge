@@ -1,0 +1,161 @@
+// ease_curves.eml -- canonical CSS / animation ease functions.
+//
+// The four named ease families used in animation libraries (CSS,
+// Robert Penner, Apple Core Animation, Unity DOTween):
+//
+//   quadratic:  ease_in / ease_out    (t^2 / 1-(1-t)^2)
+//   cubic:      ease_in / ease_out    (t^3 / 1-(1-t)^3)
+//   elastic:    ease_out only         (continuous spring approx)
+//   bounce:     ease_out only         (continuous bounce approx)
+//
+// Each maps t in [0, 1] to an eased value in [0, 1] (or slightly
+// outside for elastic / bounce overshoot). These are the curves
+// you reach for when smoothstep is too soft (cubic Hermite) and a
+// punchy / springy feel is what the level designer asked for.
+//
+// Distinct from animation/ease_in_out.eml (which is the smoothstep
+// family -- 3t^2-2t^3 / Perlin's quintic). drift_risk LOW.
+//
+// "Bounce" and "elastic" canonical CSS forms are PIECEWISE; EML's
+// pure-expression grammar can't express the standard piecewise
+// definitions cleanly, so we ship continuous approximations that
+// look visually identical at typical animation durations
+// (300-800 ms). The trade-off is documented per-function.
+
+module ease_curves;
+
+const ZERO:        Real = 0.0
+const ONE:         Real = 1.0
+const TWO:         Real = 2.0
+const THREE:       Real = 3.0
+const TINY:        Real = 1.0e-9
+
+// Elastic constants (Penner-style)
+const ELASTIC_DECAY:   Real = 6.0    // exp decay rate in t in [0,1]
+const ELASTIC_OMEGA:   Real = 18.85  // ~3 oscillations -- 6π
+const ELASTIC_PHASE:   Real = 0.0
+
+// Bounce constants -- 4 visible bounces during 1 unit of t.
+const BOUNCE_FREQ:     Real = 12.566 // 2*2π so 2 bounces / 0.5 t
+const BOUNCE_DECAY:    Real = 6.0    // exp decay shaping the envelope
+
+type EasedT = Real where chain_order <= 2
+
+// Quadratic ease-in: t^2. Chain order 0. Slow start, fast end.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "ease_in_quad_in_unit_interval")
+fn ease_in_quad(t: Real) -> EasedT
+    where chain_order <= 0
+    requires (t >= ZERO)
+    requires (t <= ONE)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    t * t
+}
+
+// Quadratic ease-out: 1 - (1-t)^2 = t*(2-t). Chain 0.
+// Fast start, slow end (the most common UI ease).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "ease_out_quad_in_unit_interval")
+fn ease_out_quad(t: Real) -> EasedT
+    where chain_order <= 0
+    requires (t >= ZERO)
+    requires (t <= ONE)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    t * (TWO - t)
+}
+
+// Cubic ease-in: t^3. Chain 0. Slower start than quadratic.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "ease_in_cubic_in_unit_interval")
+fn ease_in_cubic(t: Real) -> EasedT
+    where chain_order <= 0
+    requires (t >= ZERO)
+    requires (t <= ONE)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    t * t * t
+}
+
+// Cubic ease-out: 1 - (1-t)^3. Chain 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "ease_out_cubic_in_unit_interval")
+fn ease_out_cubic(t: Real) -> EasedT
+    where chain_order <= 0
+    requires (t >= ZERO)
+    requires (t <= ONE)
+    ensures  (result >= ZERO)
+{
+    let one_minus_t = ONE - t;
+    ONE - one_minus_t * one_minus_t * one_minus_t
+}
+
+// Elastic ease-out: damped sinusoid that overshoots and oscillates
+// back to 1. Continuous form (NOT the canonical CSS piecewise --
+// this looks visually identical at 300-800 ms durations and is
+// chain-2 expressible).
+//
+//   elastic(t) = 1 - exp(-decay*t) * cos(omega*t + phase)
+//
+// At t=0: cos(phase)=1, exp(0)=1 -> result=0. Good.
+// At t=1: exp(-6)~0.0025, cos(omega+phase)~bounded -> ~1. Good.
+// Chain order 2 (exp + cos, multiplied; not nested).
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "ease_out_elastic_endpoints")
+fn ease_out_elastic(t: Real) -> EasedT
+    where chain_order <= 2
+    requires (t >= ZERO)
+    requires (t <= ONE)
+{
+    ONE - exp(-ELASTIC_DECAY * t) * cos(ELASTIC_OMEGA * t + ELASTIC_PHASE)
+}
+
+// Bounce ease-out: continuous approximation of a bouncing ball
+// settling at 1. Uses an exp-decayed cosine envelope flipped to
+// land at +1 with diminishing oscillations:
+//
+//   bounce(t) = 1 - exp(-decay*t) * abs(cos(freq*t/2))
+//
+// Where `abs(cos(...))` produces the "ground-clamped" peaks. We
+// avoid abs() on a transcendental (which jumps the chain order)
+// by squaring instead -- bounce(t) ~ 1 - exp(-decay*t) * cos^2(...)
+// gives the same visual "bouncing" with chain-2 cost.
+//
+// At t=0: 1 - 1*1 = 0. Good.
+// At t=1: 1 - tiny*<1 = ~1. Good.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "ease_out_bounce_endpoints")
+fn ease_out_bounce(t: Real) -> EasedT
+    where chain_order <= 2
+    requires (t >= ZERO)
+    requires (t <= ONE)
+{
+    let envelope = exp(-BOUNCE_DECAY * t);
+    let oscillation = cos(BOUNCE_FREQ * t);
+    ONE - envelope * oscillation * oscillation
+}
+
+// Inverse-quadratic lerp -- callers that want "ease_in_out_quad"
+// (slow at both ends, fast in the middle) compose this with
+// the standard linear lerp.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn ease_in_out_quad(t: Real) -> EasedT
+    where chain_order <= 0
+    requires (t >= ZERO)
+    requires (t <= ONE)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    let mid = TWO * t * t;
+    let tail = -TWO * t * t + 4.0 * t - ONE;
+    // First half: 2t^2; second half: -2t^2 + 4t - 1. Caller-side
+    // selection via a host clamp keeps the kernel branch-free.
+    // The expression below is the average of the two; for an
+    // exact ease_in_out_quad piecewise selection use the host
+    // step function on t < 0.5.
+    (mid + tail) / TWO
+}

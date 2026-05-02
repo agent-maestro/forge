@@ -71,6 +71,7 @@ fn shake_offset(amplitude: Real, tau: Real, omega: Real, phase: Real, t: Real) -
     requires (abs(phase) <= PHASE_MAX)
     requires (t >= ZERO)
     requires (t <= T_MAX)
+    ensures  (abs(result) <= abs(amplitude))
 {
     amplitude * exp(-t / tau) * sin(omega * t + phase)
 }
