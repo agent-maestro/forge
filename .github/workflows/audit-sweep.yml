@@ -1,0 +1,87 @@
+name: Audit sweep
+
+on:
+  schedule:
+    # Mondays at 09:13 UTC. Off-hour minute keeps us out of the GH
+    # Actions :00 traffic spike.
+    - cron: "13 9 * * 1"
+  workflow_dispatch:
+    inputs:
+      machlib_ref:
+        description: "MachLib git ref to check out for proof lookup."
+        required: false
+        default: "master"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sweep:
+    name: Sweep industries/ kernels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout monogate-forge
+        uses: actions/checkout@v4
+
+      - name: Checkout MachLib (sibling repo for Lean proofs)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/machlib
+          ref: ${{ github.event.inputs.machlib_ref || 'master' }}
+          path: machlib
+        # Don't fail the sweep if the user doesn't have a private
+        # machlib repo yet — solidity_audit will emit MISSING.txt
+        # stubs and the report will surface them as audit gaps.
+        continue-on-error: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install monogate-forge
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run audit sweep
+        env:
+          # Long-lived Pro license token for the runner. Mint with
+          # `python tools/license/issuer.py --tier pro --expires
+          # 2030-01-01` from a private machine that has the signing
+          # key, then store the token as a repo secret.
+          MONOGATE_LICENSE: ${{ secrets.MONOGATE_LICENSE }}
+        run: |
+          python tools/scripts/audit_sweep.py \
+            --machlib-root machlib/foundations/MachLib/Discovered
+
+      - name: Upload sweep report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-sweep-report
+          path: build/audit_sweep_report.md
+
+      - name: Detect baseline drift
+        id: drift
+        run: |
+          if git diff --quiet -- industries/.audit_baselines; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open PR with updated baselines
+        if: steps.drift.outputs.drift == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: audit-sweep/auto-baseline-update
+          base: master
+          commit-message: "chore(audit): refresh kernel manifest baselines"
+          title: "chore(audit): weekly Solidity audit-bundle baseline update"
+          body-path: build/audit_sweep_report.md
+          add-paths: |
+            industries/.audit_baselines/**
+          labels: |
+            audit
+            automated
