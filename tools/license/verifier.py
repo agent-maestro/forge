@@ -45,6 +45,11 @@ PUBLIC_KEY_B64 = "iDqeS44SGhVALHevTY6J8XLctHayJpIt82o2QhQmK0I="
 FREE_TARGETS: frozenset[str] = frozenset({
     "c", "cpp", "rust", "python", "go", "java", "kotlin",
     "lean", "matlab",
+    # Web / mobile / desktop runtimes — added to Free tier
+    # 2026-05-02 to broaden the on-ramp for application
+    # developers. WebAssembly belongs alongside JS for the
+    # browser/edge story.
+    "javascript", "wasm", "csharp",
 })
 
 PRO_TARGETS: frozenset[str] = frozenset({
@@ -53,15 +58,15 @@ PRO_TARGETS: frozenset[str] = frozenset({
     # Safety-critical / automotive
     "ada", "autosar", "aadl", "ros2",
     # Compiler IRs
-    "llvm", "wasm",
+    "llvm",
     # Formal verification (beyond Lean)
     "coq", "isabelle",
     # Blockchain
     "solidity",
     # GPU shaders
     "hlsl", "glsl", "glsles", "wgsl", "metal",
-    # Mobile / desktop / web
-    "swift", "csharp", "javascript",
+    # Mobile (Apple)
+    "swift",
     # Gaming
     "luau", "gdscript",
 })

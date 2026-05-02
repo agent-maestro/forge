@@ -63,7 +63,7 @@ A complete tier listing lives in `tools/license/verifier.py:FREE_TARGETS` and `:
 **Use it for:** Simulink import, MATLAB-resident research code, vendor toolchains that consume `.m`.
 **Notes:** one function per file when MATLAB requires it; matrix-friendly operators where applicable.
 
-### C# — `--target csharp` (Pro)
+### C# — `--target csharp` (Free)
 **Extension:** `.cs`
 **Use it for:** Unity, .NET services, Xamarin / MAUI, Windows desktop.
 **Notes:** wraps in a `static class`; uses `System.Math` for transcendentals; `[MethodImpl(MethodImplOptions.AggressiveInlining)]`.
@@ -73,7 +73,7 @@ A complete tier listing lives in `tools/license/verifier.py:FREE_TARGETS` and `:
 **Use it for:** iOS / macOS / watchOS / tvOS, server-side Swift via SwiftNIO.
 **Notes:** `import Foundation`; top-level `@inline(__always) public func`; unlabeled parameters (`_ paramName: Type`) so call sites match the EML convention; `precondition()` for `requires`.
 
-### JavaScript — `--target javascript` (Pro)
+### JavaScript — `--target javascript` (Free)
 **Extension:** `.js`
 **Use it for:** browser frontends, Node.js, any JS runtime.
 **Notes:** ES module form (`export function …`); `Math.exp`, `Math.cos`; emits a JSDoc block with the chain-order profile.
@@ -87,7 +87,7 @@ A complete tier listing lives in `tools/license/verifier.py:FREE_TARGETS` and `:
 **Use it for:** custom toolchains, hand-tuned codegen, embedding in your own LLVM-based compiler.
 **Notes:** SSA-form, function-level attributes (`alwaysinline`), uses `llvm.exp.f64` etc. intrinsics where possible.
 
-### WebAssembly — `--target wasm` (Pro)
+### WebAssembly — `--target wasm` (Free)
 **Extension:** `.wasm.ll` (LLVM IR targeting wasm), or compile that with `llc` to a `.wasm` binary.
 **Use it for:** sandboxed numerical kernels in browsers, edge-runtime compute.
 **Notes:** generates LLVM IR with the wasm32 target triple; `f32` is the default precision.
@@ -226,8 +226,10 @@ Companion flags:
 eml-compile my_file.eml --target all -o build/
 ```
 
-`all` runs every backend your tier permits and writes one file per target into the output directory. On the Free tier you'll get 9 files; on Pro you'll get all 32. Use it for cross-target equivalence testing — the bit-equivalence harness in `tests/equivalence/` validates that the C, Rust, Python, and Verilog paths produce identical results within ULP tolerance.
+`all` runs every backend your tier permits and writes one file per target into the output directory. On the Free tier you'll get 12 files; on Pro you'll get all 32. Use it for cross-target equivalence testing — the bit-equivalence harness in `tests/equivalence/` validates that the C, Rust, Python, and Verilog paths produce identical results within ULP tolerance.
 
 ---
 
 For the optimizer pipeline (constant folding, CSE, SuperBEST routing, tree-shaking) and chain-order analysis, see [`docs/architecture/`](architecture/). For the FPGA path specifically, see [fpga guide](fpga-guide.md).
+
+For a guided tour of how to *choose* between targets — when to ship to Wasm vs Lean vs FPGA, and how the `@target(fpga)` and `@verify` annotations gate which backends fire — work through the [Engineering course on monogate.dev](https://monogate.dev/learn/eml/engineering).

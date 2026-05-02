@@ -183,7 +183,7 @@ function showMissingHintOnce(): void {
         .showInformationMessage(
             'Forge CLI not installed. Compile + analysis features ' +
             '(LSP, hover, diagnostics, FPGA status) unlock with the ' +
-            'licensed CLI. Free tier covers 9 backends.',
+            'licensed CLI. Free tier covers 12 backends.',
             'Get Forge', 'Learn EML',
         )
         .then((choice) => {

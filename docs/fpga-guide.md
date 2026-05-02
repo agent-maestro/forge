@@ -154,4 +154,11 @@ The kernel in `industries/aerospace/flight_control/autopilot.eml` is a complete 
 
 For the full FPGA allocator algorithm and the per-unit precision selection (Patent #14), see `hardware/allocator/README.md` and `patents/014_fpga_allocator.md`.
 
-Back to [backends](backends.md) for non-hardware targets, or [verify guide](verify-guide.md) for the formal-verification path.
+---
+
+Continue learning:
+
+- **[Engineering course — Lesson 4: FPGA targeting](https://monogate.dev/learn/eml/engineering#lesson-4)** — end-to-end walkthrough of `@target(fpga)`, precision tradeoffs, the Patent-#14 allocator, and synthesizing a verified kernel for an Artix-7.
+- [Verify guide](verify-guide.md) — pair the FPGA path with formal contracts so the synthesized hardware carries a Lean proof.
+- [Backends](backends.md) — the non-hardware targets (software, GPU shaders, formal verification).
+- [Get a Pro license](https://monogateforge.com/get-started) — the FPGA-targeting backends (Verilog, SystemVerilog, VHDL, Chisel) require Pro.

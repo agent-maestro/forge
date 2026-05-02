@@ -14,7 +14,7 @@ This gives you the `eml-compile` CLI. Check it works:
 eml-compile --version
 ```
 
-The Free tier covers C, C++, Rust, Python, Go, Java, Kotlin, Lean, and MATLAB — no license required. For the other targets (GPU shaders, FPGA, Solidity, Coq/Isabelle, safety-critical), grab a Pro license at [monogateforge.com/get-started](https://monogateforge.com/get-started).
+The Free tier covers 12 targets — C, C++, Rust, Python, Go, Java, Kotlin, C#, JavaScript, WebAssembly, MATLAB, and Lean 4 — no license required. For the other 20 targets (GPU shaders, FPGA, Apple Swift, Solidity, Coq/Isabelle, safety-critical, gaming), grab a Pro license at [monogateforge.com/get-started](https://monogateforge.com/get-started).
 
 ## 2. Install the VS Code extension (optional but recommended)
 
@@ -88,7 +88,7 @@ pub fn pid(error: f64, integral: f64, derivative: f64) -> f64 {
 eml-compile pid.eml --target all -o build/
 ```
 
-You now have `build/pid.c`, `build/pid.rs`, `build/pid.py`, `build/pid.lean`, `build/pid.v`, … — one file per target. The Free tier gets you 9 of these; a Pro license unlocks the rest.
+You now have `build/pid.c`, `build/pid.rs`, `build/pid.py`, `build/pid.lean`, `build/pid.cs`, `build/pid.js`, `build/pid.wasm.ll`, … — one file per target. The Free tier gets you 12 of these; a Pro license unlocks the remaining 20.
 
 ## 7. See what the optimizer did
 
@@ -108,7 +108,12 @@ See the [verify guide](verify-guide.md) for a full walkthrough including how to 
 
 - **[Language reference](language-reference.md)** — every keyword, builtin, and annotation.
 - **[Backends](backends.md)** — every target documented with examples.
+- **[Verify guide](verify-guide.md)** — `@verify`, contracts, Lean output.
 - **[FPGA guide](fpga-guide.md)** — synthesizing a kernel for an Artix-7.
-- **[monogate.dev/learn/eml/intro](https://monogate.dev/learn/eml/intro)** — the guided tutorial with interactive examples.
+
+Online courses:
+
+- **[monogate.dev/learn/eml/intro](https://monogate.dev/learn/eml/intro)** — guided beginner tutorial with interactive examples.
+- **[monogate.dev/learn/eml/engineering](https://monogate.dev/learn/eml/engineering)** — intermediate course covering chain orders, contracts, FPGA targeting, and Lean verification.
 
 Stuck? File a bug at [github.com/agent-maestro/forge/issues](https://github.com/agent-maestro/forge/issues).
