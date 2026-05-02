@@ -15,11 +15,14 @@
  *                           for the active .eml when it has at least
  *                           one @target(fpga) function.
  *
- *   "Compile to..." picker  Single command palette entry that asks
- *                           the user to pick from the 9 live targets
- *                           (c / rust / python / llvm / wasm /
- *                           verilog / vhdl / chisel / lean) plus
- *                           "all".
+ *   "Compile to..." picker  Single-target QuickPick across all 32
+ *                           live backends, tagged [Free] / [Pro] in
+ *                           the description so users see licensing
+ *                           before they hit a token check.
+ *
+ *   "Compile to multiple    Multi-select QuickPick (canPickMany) for
+ *    targets..."            shipping bundles like Unity (HLSL + C# +
+ *                           WGSL) or Apple (Metal + Swift) in one go.
  *
  *   format-on-save          DocumentFormattingEditProvider that
  *                           shells out to `eml-compile --fmt`.
@@ -38,37 +41,62 @@ import {
     StaticCompletionProvider, RegexDocumentSymbolProvider,
 } from './editorOnly';
 
-const ALL_TARGETS: ReadonlyArray<{ id: string; description: string }> = [
+type Tier = 'Free' | 'Pro' | 'Bulk';
+
+interface Target {
+    id: string;
+    description: string;
+    tier: Tier;
+}
+
+const ALL_TARGETS: ReadonlyArray<Target> = [
+    // ────── Free tier (12) ──────
     // Software
-    { id: 'c',             description: 'C99 source via libmonogate' },
-    { id: 'cpp',           description: 'C++17 source' },
-    { id: 'rust',          description: 'Rust source via the monogate-sys crate' },
-    { id: 'go',            description: 'Go source using math.* / gonum' },
-    { id: 'java',          description: 'Java source (java.lang.Math)' },
-    { id: 'kotlin',        description: 'Kotlin source (kotlin.math)' },
-    { id: 'python',        description: 'Python module using math.* (Tool 5)' },
-    { id: 'matlab',        description: 'MATLAB / Octave .m source' },
-    // Low-level / bytecode
-    { id: 'llvm',          description: 'Portable LLVM IR' },
-    { id: 'wasm',          description: 'WebAssembly bytecode (LLVM IR fallback)' },
+    { id: 'c',             description: 'C99 source via libmonogate',            tier: 'Free' },
+    { id: 'cpp',           description: 'C++17 source',                          tier: 'Free' },
+    { id: 'rust',          description: 'Rust source via the monogate-sys crate',tier: 'Free' },
+    { id: 'go',            description: 'Go source using math.* / gonum',        tier: 'Free' },
+    { id: 'java',          description: 'Java source (java.lang.Math)',          tier: 'Free' },
+    { id: 'kotlin',        description: 'Kotlin source (kotlin.math)',           tier: 'Free' },
+    { id: 'csharp',        description: 'C# source (System.Math, Unity-ready)',  tier: 'Free' },
+    { id: 'python',        description: 'Python module using math.*',            tier: 'Free' },
+    { id: 'matlab',        description: 'MATLAB / Octave .m source',             tier: 'Free' },
+    { id: 'javascript',    description: 'JavaScript ES2020+ (Node + browser)',   tier: 'Free' },
+    { id: 'wasm',          description: 'WebAssembly bytecode',                  tier: 'Free' },
+    // Verification (Free)
+    { id: 'lean',          description: 'Lean 4 verification artifacts',         tier: 'Free' },
+
+    // ────── Pro tier (20) ──────
+    // Compiler IRs
+    { id: 'llvm',          description: 'Portable LLVM IR',                      tier: 'Pro' },
     // Hardware
-    { id: 'verilog',       description: 'Synthesizable Verilog (FPGA target)' },
-    { id: 'systemverilog', description: 'SystemVerilog with assertions' },
-    { id: 'vhdl',          description: 'VHDL-2008 (FPGA target)' },
-    { id: 'chisel',        description: 'Chisel 3 / FIRRTL source' },
+    { id: 'verilog',       description: 'Synthesizable Verilog (FPGA target)',   tier: 'Pro' },
+    { id: 'systemverilog', description: 'SystemVerilog with assertions',         tier: 'Pro' },
+    { id: 'vhdl',          description: 'VHDL-2008 (FPGA target)',               tier: 'Pro' },
+    { id: 'chisel',        description: 'Chisel 3 / FIRRTL source',              tier: 'Pro' },
+    // GPU shaders
+    { id: 'hlsl',          description: 'HLSL — Unity / Unreal GPU shaders',     tier: 'Pro' },
+    { id: 'glsl',          description: 'GLSL desktop — Godot / OpenGL',         tier: 'Pro' },
+    { id: 'glsles',        description: 'GLSL ES — WebGL / mobile',              tier: 'Pro' },
+    { id: 'wgsl',          description: 'WGSL — WebGPU / browser',               tier: 'Pro' },
+    { id: 'metal',         description: 'Metal — Apple GPU (iOS / Mac)',         tier: 'Pro' },
+    // Apple + game engines
+    { id: 'swift',         description: 'Swift — iOS / macOS app code',          tier: 'Pro' },
+    { id: 'gdscript',      description: 'GDScript — Godot 4.x game logic',       tier: 'Pro' },
+    { id: 'luau',          description: 'Luau — Roblox game logic',              tier: 'Pro' },
     // Safety-critical / certification
-    { id: 'ada',           description: 'Ada / SPARK 2014' },
-    { id: 'autosar',       description: 'AUTOSAR Classic (.arxml + C)' },
-    { id: 'aadl',          description: 'AADL architecture model' },
-    { id: 'ros2',          description: 'ROS 2 node skeleton' },
-    // Verification
-    { id: 'lean',          description: 'Lean 4 verification artifacts' },
-    { id: 'coq',           description: 'Coq / Rocq verification artifacts' },
-    { id: 'isabelle',      description: 'Isabelle/HOL theory file' },
+    { id: 'ada',           description: 'Ada / SPARK 2014',                      tier: 'Pro' },
+    { id: 'autosar',       description: 'AUTOSAR Classic (.arxml + C)',          tier: 'Pro' },
+    { id: 'aadl',          description: 'AADL architecture model',               tier: 'Pro' },
+    { id: 'ros2',          description: 'ROS 2 node skeleton',                   tier: 'Pro' },
+    // Verification (Pro)
+    { id: 'coq',           description: 'Coq / Rocq verification artifacts',     tier: 'Pro' },
+    { id: 'isabelle',      description: 'Isabelle/HOL theory file',              tier: 'Pro' },
     // Smart contracts
-    { id: 'solidity',      description: 'Solidity contract (PRBMath SD59x18)' },
-    // Bulk
-    { id: 'all',           description: 'All live backends; writes to source dir' },
+    { id: 'solidity',      description: 'Solidity contract (PRBMath SD59x18)',   tier: 'Pro' },
+
+    // ────── Bulk ──────
+    { id: 'all',           description: 'All live backends in your tier; writes to source dir', tier: 'Bulk' },
 ];
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -154,6 +182,10 @@ export function activate(context: vscode.ExtensionContext): void {
             'monogate-forge.compile.pick',
             () => compileToPicker(),
         ),
+        vscode.commands.registerCommand(
+            'monogate-forge.compile.pickMany',
+            () => compileToManyPicker(),
+        ),
     );
     for (const t of ALL_TARGETS) {
         context.subscriptions.push(
@@ -175,6 +207,13 @@ export function deactivate(): void {
     // No cleanup needed; subscriptions clean up automatically.
 }
 
+/**
+ * Single-target picker. The QuickPick label is the bare target id
+ * (so typing "metal" still matches), and the right-aligned detail
+ * carries the tier badge -- separating these means matchOnDescription
+ * stays useful for keyword search without leaking the badge into
+ * fuzzy matching.
+ */
 async function compileToPicker(): Promise<void> {
     const editor = vscode.window.activeTextEditor;
     if (!editor || editor.document.languageId !== 'eml') {
@@ -184,19 +223,59 @@ async function compileToPicker(): Promise<void> {
         return;
     }
     const pick = await vscode.window.showQuickPick(
-        ALL_TARGETS.map((t) => ({
-            label: t.id,
-            description: t.description,
-        })),
+        ALL_TARGETS.map(toQuickPickItem),
         {
             placeHolder: 'Pick a target for eml-compile --target ...',
             matchOnDescription: true,
+            matchOnDetail: false,
         },
     );
     if (!pick) {
         return;
     }
     await compileTo(pick.label);
+}
+
+/**
+ * Multi-target picker. Lets the user check several targets in one
+ * shot -- useful for shipping bundles like Unity (HLSL + C# + WGSL)
+ * or Apple (Metal + Swift). The bulk "all" entry is hidden here
+ * because it has its own dedicated command.
+ */
+async function compileToManyPicker(): Promise<void> {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || editor.document.languageId !== 'eml') {
+        vscode.window.showErrorMessage(
+            'monogate-forge: open a .eml file first',
+        );
+        return;
+    }
+    const picks = await vscode.window.showQuickPick(
+        ALL_TARGETS.filter((t) => t.tier !== 'Bulk').map(toQuickPickItem),
+        {
+            placeHolder: 'Pick one or more targets to compile...',
+            canPickMany: true,
+            matchOnDescription: true,
+            matchOnDetail: false,
+        },
+    );
+    if (!picks || picks.length === 0) {
+        return;
+    }
+    // Sequential dispatch through the existing compileTo path. Each
+    // target gets its own terminal (matching the single-target UX);
+    // the user can collapse them after if the run is large.
+    for (const pick of picks) {
+        await compileTo(pick.label);
+    }
+}
+
+function toQuickPickItem(t: Target): vscode.QuickPickItem {
+    const badge = t.tier === 'Bulk' ? '· Bulk' : `· ${t.tier}`;
+    return {
+        label: t.id,
+        description: `${t.description}  ${badge}`,
+    };
 }
 
 async function compileTo(target: string): Promise<void> {
