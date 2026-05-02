@@ -121,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
         "ada", "matlab",
         "coq", "isabelle", "ros2",
         "java", "kotlin", "go", "autosar", "aadl",
+        "solidity",
         "all",
     ], help=("Output target. 'all' runs every live backend "
             "(c, rust, lean, verilog) and writes <stem>.<ext> "
@@ -373,6 +374,17 @@ def main(argv: list[str] | None = None) -> int:
             results.append(("go", Path("<skipped>"), 0))
             print(f"  go skipped: {e}", file=sys.stderr)
 
+        # Solidity
+        try:
+            from software.backends.solidity_backend import SolidityBackend
+            sol_path = out_dir / f"{stem}.sol"
+            sol_src = SolidityBackend(optimize=not args.no_optimize).compile(mod)
+            sol_path.write_text(sol_src, encoding="utf-8")
+            results.append(("solidity", sol_path, len(sol_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("solidity", Path("<skipped>"), 0))
+            print(f"  solidity skipped: {e}", file=sys.stderr)
+
         # AUTOSAR (writes .arxml + .c)
         try:
             from software.backends.autosar_backend import AutosarBackend
@@ -580,6 +592,22 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wrote {args.output} ({len(g)} bytes)", file=sys.stderr)
         else:
             print(g, end="")
+        return 0
+
+    if args.target == "solidity":
+        from software.backends.solidity_backend import (
+            SolidityBackend, CompileError as SolErr,
+        )
+        try:
+            s = SolidityBackend(optimize=not args.no_optimize).compile(mod)
+        except SolErr as e:
+            print(f"compile error (solidity backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(s, encoding="utf-8")
+            print(f"wrote {args.output} ({len(s)} bytes)", file=sys.stderr)
+        else:
+            print(s, end="")
         return 0
 
     if args.target == "autosar":
