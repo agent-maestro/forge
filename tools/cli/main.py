@@ -121,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
         "ada", "matlab",
         "coq", "isabelle", "ros2",
         "java", "kotlin", "csharp", "hlsl", "glsl", "glsles",
+        "gdscript",
         "go", "autosar", "aadl",
         "solidity",
         "all",
@@ -493,6 +494,17 @@ def main(argv: list[str] | None = None) -> int:
             results.append(("glsles", Path("<skipped>"), 0))
             print(f"  glsles skipped: {e}", file=sys.stderr)
 
+        # GDScript (Godot 4.x)
+        try:
+            from software.backends.gdscript_backend import GDScriptBackend
+            gd_path = out_dir / f"{stem}.gd"
+            gd_src = GDScriptBackend(optimize=not args.no_optimize).compile(mod)
+            gd_path.write_text(gd_src, encoding="utf-8")
+            results.append(("gdscript", gd_path, len(gd_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("gdscript", Path("<skipped>"), 0))
+            print(f"  gdscript skipped: {e}", file=sys.stderr)
+
         # Go
         try:
             from software.backends.go_backend import GoBackend
@@ -827,6 +839,22 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wrote {args.output} ({len(gl)} bytes)", file=sys.stderr)
         else:
             print(gl, end="")
+        return 0
+
+    if args.target == "gdscript":
+        from software.backends.gdscript_backend import (
+            GDScriptBackend, CompileError as GdErr,
+        )
+        try:
+            gd = GDScriptBackend(optimize=not args.no_optimize).compile(mod)
+        except GdErr as e:
+            print(f"compile error (gdscript backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(gd, encoding="utf-8")
+            print(f"wrote {args.output} ({len(gd)} bytes)", file=sys.stderr)
+        else:
+            print(gd, end="")
         return 0
 
     if args.target == "go":
