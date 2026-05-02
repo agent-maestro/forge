@@ -1,16 +1,18 @@
 """EML-lang Language Server.
 
-Capabilities provided in this version (v0.2):
+Capabilities provided in this version (v0.3):
 - textDocument/didOpen, didChange, didClose
 - textDocument/publishDiagnostics (lex / parse / type errors)
 - textDocument/hover (chain order + cost class for fn names)
 - textDocument/completion (builtins, stdlib symbols, in-scope decls)
-- textDocument/definition (jump from a name to its declaration)
+- textDocument/definition (jump from a name to its declaration --
+  resolves cross-file via the workspace index for stdlib symbols)
 - textDocument/documentSymbol (outline view: fns, consts, types)
+- textDocument/documentLink (ctrl-click `use stdlib::*` clauses)
 
 Planned for later:
 - textDocument/formatting (delegate to `eml-compile --fmt`)
-- workspace-aware cross-file goto-def / find-references
+- textDocument/references + textDocument/rename (workspace-wide)
 
 Architectural notes:
 
@@ -42,10 +44,11 @@ from lang.parser.ast_nodes import (
 from lang.parser.lexer import KEYWORDS, LexError
 from lang.parser.parser import ParseError, parse_source
 from lang.parser.type_checker import type_check_program
+from tools.ide.lsp.workspace import WorkspaceIndex
 
 
 LSP_NAME = "eml-lsp"
-LSP_VERSION = "0.2.0"
+LSP_VERSION = "0.3.0"
 
 # Builtin math functions surfaced as completion items. Sourced from
 # the parser's BUILTIN_TO_KIND dispatch table so the LSP and the
@@ -57,6 +60,20 @@ BUILTIN_NAMES: tuple[str, ...] = tuple(sorted(BUILTIN_TO_KIND.keys()))
 _STDLIB_CACHE: dict[str, list[tuple[str, str]]] = {}  # name → kind ("fn"/"const")
 
 server = LanguageServer(LSP_NAME, LSP_VERSION)
+
+# Workspace symbol index. Built lazily at first use so server
+# startup stays fast (~10ms). Indexes the bundled stdlib so
+# cross-module goto-def resolves into math.eml / ml.eml / etc.
+_WORKSPACE: WorkspaceIndex | None = None
+
+
+def _workspace() -> WorkspaceIndex:
+    global _WORKSPACE
+    if _WORKSPACE is None:
+        wi = WorkspaceIndex()
+        wi.index_stdlib()
+        _WORKSPACE = wi
+    return _WORKSPACE
 
 
 # ─── diagnostics ──────────────────────────────────────────────────
@@ -321,15 +338,34 @@ def _definition(params: lsp.DefinitionParams) -> lsp.Location | None:
         mod = parse_source(doc.source, doc.uri, resolve=False)
     except Exception:
         return None
+
+    # 1) Local decls first -- a fn / const / type defined in the
+    #    open file shadows any imported symbol of the same name.
     target = _find_decl(mod, word)
-    if not target:
-        return None
-    line, col, length = target
+    if target:
+        line, col, length = target
+        return _location_for(doc.uri, line, col, length)
+
+    # 2) Cross-module: walk imports and look up via workspace index.
+    sym = _workspace().lookup_via_imports(word, mod.imports)
+    if sym:
+        return _location_for(
+            Path(sym.file_path).as_uri(),
+            sym.line, sym.col, sym.name_length,
+        )
+    return None
+
+
+def _location_for(
+    uri: str, line: int, col: int, length: int,
+) -> lsp.Location:
+    line0 = max(0, line - 1)
+    col0 = max(0, col - 1)
     return lsp.Location(
-        uri=doc.uri,
+        uri=uri,
         range=lsp.Range(
-            start=lsp.Position(line=max(0, line - 1), character=max(0, col - 1)),
-            end=lsp.Position(line=max(0, line - 1), character=max(0, col - 1) + length),
+            start=lsp.Position(line=line0, character=col0),
+            end=lsp.Position(line=line0, character=col0 + length),
         ),
     )
 
@@ -349,6 +385,50 @@ def _find_decl(
         if t.name == name:
             return (t.line, t.col, len(t.name))
     return None
+
+
+# ─── document links (ctrl-click on `use stdlib::*` clauses) ───────
+
+@server.feature(lsp.TEXT_DOCUMENT_DOCUMENT_LINK)
+def _document_links(
+    params: lsp.DocumentLinkParams,
+) -> list[lsp.DocumentLink]:
+    """Emit one DocumentLink per `use stdlib::*;` clause whose
+    target module is in the workspace index. Ctrl-clicking the
+    link opens the target .eml file."""
+    doc = server.workspace.get_text_document(params.text_document.uri)
+    try:
+        mod = parse_source(doc.source, doc.uri, resolve=False)
+    except Exception:
+        return []
+    out: list[lsp.DocumentLink] = []
+    wi = _workspace()
+    lines = doc.source.splitlines()
+    for imp in mod.imports:
+        target_file = wi.resolve_module_file(tuple(imp.path))
+        if not target_file:
+            continue
+        if imp.line < 1 or imp.line > len(lines):
+            continue
+        line_text = lines[imp.line - 1]
+        # Highlight the joined path (e.g. `stdlib::math`) inside
+        # the `use ...` clause. Falls back to the whole line.
+        joined = imp.joined
+        col = line_text.find(joined)
+        if col < 0:
+            col = max(0, imp.col - 1)
+            length = len(line_text) - col
+        else:
+            length = len(joined)
+        out.append(lsp.DocumentLink(
+            range=lsp.Range(
+                start=lsp.Position(line=imp.line - 1, character=col),
+                end=lsp.Position(line=imp.line - 1, character=col + length),
+            ),
+            target=Path(target_file).as_uri(),
+            tooltip=f"open {Path(target_file).name}",
+        ))
+    return out
 
 
 # ─── document symbols (outline view) ──────────────────────────────
