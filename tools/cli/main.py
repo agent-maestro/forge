@@ -121,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
         "ada", "matlab",
         "coq", "isabelle", "ros2",
         "java", "kotlin", "csharp", "hlsl", "glsl", "glsles",
+        "wgsl",
         "gdscript",
         "go", "autosar", "aadl",
         "solidity",
@@ -505,6 +506,17 @@ def main(argv: list[str] | None = None) -> int:
             results.append(("gdscript", Path("<skipped>"), 0))
             print(f"  gdscript skipped: {e}", file=sys.stderr)
 
+        # WGSL (WebGPU)
+        try:
+            from software.backends.wgsl_backend import WGSLBackend
+            wg_path = out_dir / f"{stem}.wgsl"
+            wg_src = WGSLBackend(optimize=not args.no_optimize).compile(mod)
+            wg_path.write_text(wg_src, encoding="utf-8")
+            results.append(("wgsl", wg_path, len(wg_src)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("wgsl", Path("<skipped>"), 0))
+            print(f"  wgsl skipped: {e}", file=sys.stderr)
+
         # Go
         try:
             from software.backends.go_backend import GoBackend
@@ -839,6 +851,22 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wrote {args.output} ({len(gl)} bytes)", file=sys.stderr)
         else:
             print(gl, end="")
+        return 0
+
+    if args.target == "wgsl":
+        from software.backends.wgsl_backend import (
+            WGSLBackend, CompileError as WgslErr,
+        )
+        try:
+            wg = WGSLBackend(optimize=not args.no_optimize).compile(mod)
+        except WgslErr as e:
+            print(f"compile error (wgsl backend): {e}", file=sys.stderr)
+            return 1
+        if args.output:
+            args.output.write_text(wg, encoding="utf-8")
+            print(f"wrote {args.output} ({len(wg)} bytes)", file=sys.stderr)
+        else:
+            print(wg, end="")
         return 0
 
     if args.target == "gdscript":
