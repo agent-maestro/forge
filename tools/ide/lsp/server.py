@@ -1,6 +1,6 @@
 """EML-lang Language Server.
 
-Capabilities provided in this version (v0.4):
+Capabilities provided in this version (v0.5):
 - textDocument/didOpen, didChange, didSave, didClose
 - textDocument/publishDiagnostics (lex / parse / type errors)
 - textDocument/hover (chain order + cost class for fn names,
@@ -14,14 +14,15 @@ Capabilities provided in this version (v0.4):
   rename via WorkspaceEdit)
 - textDocument/documentSymbol (outline view: fns, consts, types)
 - textDocument/documentLink (ctrl-click `use stdlib::*` clauses)
+- textDocument/formatting (in-process call to tools.fmt.formatter --
+  no subprocess hop)
+- workspace/symbol (Ctrl+T cross-file symbol search across the
+  bundled stdlib + every indexed user .eml)
 
 Workspace folders are indexed at initialize; saves refresh the
 per-file index. Builtin transcendentals (exp, ln, ...) are NOT
 renameable -- prepareRename returns null so VS Code suppresses
 the input box.
-
-Planned for later:
-- textDocument/formatting (delegate to `eml-compile --fmt`)
 
 Architectural notes:
 
@@ -53,13 +54,14 @@ from lang.parser.ast_nodes import (
 from lang.parser.lexer import KEYWORDS, LexError
 from lang.parser.parser import ParseError, parse_source
 from lang.parser.type_checker import type_check_program
+from tools.fmt.formatter import format_source
 from tools.ide.lsp.workspace import (
     RefHit, WorkspaceIndex, collect_refs_in_module, is_renameable,
 )
 
 
 LSP_NAME = "eml-lsp"
-LSP_VERSION = "0.4.0"
+LSP_VERSION = "0.5.0"
 
 # Builtin math functions surfaced as completion items. Sourced from
 # the parser's BUILTIN_TO_KIND dispatch table so the LSP and the
@@ -653,6 +655,103 @@ def _document_links(
             tooltip=f"open {Path(target_file).name}",
         ))
     return out
+
+
+# ─── formatting (in-process; no subprocess hop) ───────────────────
+
+@server.feature(lsp.TEXT_DOCUMENT_FORMATTING)
+def _formatting(
+    params: lsp.DocumentFormattingParams,
+) -> list[lsp.TextEdit]:
+    """Re-emit the document via tools.fmt.formatter.format_source.
+
+    Comments are stripped (the parser drops them at lex time --
+    surface this caveat once via the EmlBackend output channel
+    if anyone hits it). Returns a single full-document
+    TextEdit so VS Code applies it as one undo step.
+    """
+    doc = server.workspace.get_text_document(params.text_document.uri)
+    try:
+        formatted = format_source(doc.source, source_file=doc.uri)
+    except Exception as e:
+        # Don't mangle the document on a parse error -- the
+        # diagnostics provider already surfaces the underlying
+        # problem.
+        logging.warning("format failed: %r", e)
+        return []
+    if formatted == doc.source:
+        return []  # No-op formats are wire-cheaper as []
+    last_line = max(0, len(doc.source.splitlines()) - 1)
+    last_col = len(doc.source.splitlines()[-1]) if doc.source else 0
+    return [lsp.TextEdit(
+        range=lsp.Range(
+            start=lsp.Position(line=0, character=0),
+            end=lsp.Position(line=last_line + 1, character=last_col),
+        ),
+        new_text=formatted,
+    )]
+
+
+# ─── workspace symbol search (Ctrl+T) ─────────────────────────────
+
+@server.feature(lsp.WORKSPACE_SYMBOL)
+def _workspace_symbol(
+    params: lsp.WorkspaceSymbolParams,
+) -> list[lsp.SymbolInformation]:
+    """Substring-match SYM in every indexed module. Empty query
+    returns every symbol -- VS Code paginates client-side, so we
+    don't impose an arbitrary limit."""
+    query = (params.query or "").lower()
+    out: list[lsp.SymbolInformation] = []
+    for path in _workspace().all_indexed_files():
+        try:
+            text = Path(path).read_text(encoding="utf-8")
+            mod = parse_source(text, path, resolve=False)
+        except Exception:
+            continue
+        uri = Path(path).as_uri()
+        container = mod.name or Path(path).stem
+        for fn in mod.functions:
+            if query and query not in fn.name.lower():
+                continue
+            out.append(_workspace_sym(
+                fn.name, fn.line, fn.col, len(fn.name),
+                lsp.SymbolKind.Function, uri, container,
+            ))
+        for c in mod.constants:
+            if query and query not in c.name.lower():
+                continue
+            out.append(_workspace_sym(
+                c.name, c.line, c.col, len(c.name),
+                lsp.SymbolKind.Constant, uri, container,
+            ))
+        for t in mod.types:
+            if query and query not in t.name.lower():
+                continue
+            out.append(_workspace_sym(
+                t.name, t.line, t.col, len(t.name),
+                lsp.SymbolKind.TypeParameter, uri, container,
+            ))
+    return out
+
+
+def _workspace_sym(
+    name: str, line: int, col: int, length: int,
+    kind: lsp.SymbolKind, uri: str, container: str,
+) -> lsp.SymbolInformation:
+    line0 = max(0, line - 1)
+    col0 = max(0, col - 1)
+    return lsp.SymbolInformation(
+        name=name, kind=kind,
+        location=lsp.Location(
+            uri=uri,
+            range=lsp.Range(
+                start=lsp.Position(line=line0, character=col0),
+                end=lsp.Position(line=line0, character=col0 + length),
+            ),
+        ),
+        container_name=container,
+    )
 
 
 # ─── document symbols (outline view) ──────────────────────────────

@@ -111,13 +111,18 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
     );
 
-    // Format-on-save provider -- shells out to eml-compile --fmt.
-    context.subscriptions.push(
-        vscode.languages.registerDocumentFormattingEditProvider(
-            'eml',
-            new EmlFormattingProvider(),
-        ),
-    );
+    // Format-on-save provider. The LSP owns formatting via
+    // textDocument/formatting (in-process call to
+    // tools.fmt.formatter); only register the legacy subprocess
+    // path when the LSP isn't running.
+    if (!lsp) {
+        context.subscriptions.push(
+            vscode.languages.registerDocumentFormattingEditProvider(
+                'eml',
+                new EmlFormattingProvider(),
+            ),
+        );
+    }
 
     // Commands users can invoke from the palette. Per-target shortcut
     // commands are registered in a loop so adding a 23rd backend only
