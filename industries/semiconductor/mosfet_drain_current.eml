@@ -1,0 +1,111 @@
+// mosfet_drain_current.eml -- MOSFET drain-current models.
+//
+// The level-1 (Shichman-Hodges) MOSFET drain current has three
+// regions:
+//
+//   subthreshold:    I_D ~ 0 (cutoff)
+//   triode/linear:   I_D = K * (V_GS - V_th) * V_DS - 0.5 * V_DS^2 * K
+//   saturation:      I_D = 0.5 * K * (V_GS - V_th)^2 * (1 + lambda * V_DS)
+//
+// where K = mu * Cox * W/L (the transconductance parameter),
+// V_th is the threshold voltage, and lambda is the channel-
+// length-modulation parameter.
+//
+// EML ships per-region gates (the host can also call
+// `drain_current_branchless` for a clamp-based form).
+// Companion of shockley_diode.eml + bjt_collector_current.eml
+// in the semiconductor vertical.
+
+module mosfet_drain_current;
+
+const K_MIN:       Real = 1.0e-9
+const K_MAX:       Real = 1.0e-2
+const VTH_MIN:     Real = 0.1
+const VTH_MAX:     Real = 5.0
+const V_MAX:       Real = 50.0
+const LAMBDA_MAX:  Real = 0.5
+const HALF:        Real = 0.5
+
+type DrainCurrent = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "saturation_current_quadratic_in_vgs_minus_vth")
+fn saturation_current(
+    transconductance_k: Real,
+    vgs: Real,
+    vth: Real,
+    vds: Real,
+    lambda_clm: Real,
+) -> DrainCurrent
+    where chain_order <= 0
+    requires (transconductance_k >= K_MIN)
+    requires (transconductance_k <= K_MAX)
+    requires (vgs >= 0.0)
+    requires (vgs <= V_MAX)
+    requires (vth >= VTH_MIN)
+    requires (vth <= VTH_MAX)
+    requires (vds >= 0.0)
+    requires (vds <= V_MAX)
+    requires (lambda_clm >= 0.0)
+    requires (lambda_clm <= LAMBDA_MAX)
+    ensures  (result >= 0.0)
+{
+    let overdrive = clamp(vgs - vth, 0.0, V_MAX);
+    HALF * transconductance_k * overdrive * overdrive * (1.0 + lambda_clm * vds)
+}
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "triode_current_linear_in_vds_at_low_vds")
+fn triode_current(
+    transconductance_k: Real,
+    vgs: Real,
+    vth: Real,
+    vds: Real,
+) -> DrainCurrent
+    where chain_order <= 0
+    requires (transconductance_k >= K_MIN)
+    requires (transconductance_k <= K_MAX)
+    requires (vgs >= 0.0)
+    requires (vgs <= V_MAX)
+    requires (vth >= VTH_MIN)
+    requires (vth <= VTH_MAX)
+    requires (vds >= 0.0)
+    requires (vds <= V_MAX)
+    ensures  (result >= 0.0)
+{
+    let overdrive = clamp(vgs - vth, 0.0, V_MAX);
+    transconductance_k * (overdrive * vds - HALF * vds * vds)
+}
+
+// Branchless: clamp(V_DS, 0, V_GS - V_th) gives the linear-region
+// effective V_DS, and the saturation form takes over when V_DS
+// exceeds the overdrive. The host can use this single gate
+// without dispatching to per-region kernels.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "branchless_matches_per_region")
+fn drain_current_branchless(
+    transconductance_k: Real,
+    vgs: Real,
+    vth: Real,
+    vds: Real,
+    lambda_clm: Real,
+) -> DrainCurrent
+    where chain_order <= 0
+    requires (transconductance_k >= K_MIN)
+    requires (transconductance_k <= K_MAX)
+    requires (vgs >= 0.0)
+    requires (vgs <= V_MAX)
+    requires (vth >= VTH_MIN)
+    requires (vth <= VTH_MAX)
+    requires (vds >= 0.0)
+    requires (vds <= V_MAX)
+    requires (lambda_clm >= 0.0)
+    requires (lambda_clm <= LAMBDA_MAX)
+    ensures  (result >= 0.0)
+{
+    let overdrive = clamp(vgs - vth, 0.0, V_MAX);
+    let vds_eff = clamp(vds, 0.0, overdrive);
+    transconductance_k
+    * (overdrive * vds_eff - HALF * vds_eff * vds_eff)
+    * (1.0 + lambda_clm * vds)
+}

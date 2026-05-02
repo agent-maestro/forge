@@ -1,0 +1,89 @@
+// sas_pitch_damper.eml -- pitch-axis stability augmentation.
+//
+// A Stability Augmentation System (SAS) adds artificial damping
+// to a marginally-stable airframe via a feedback loop:
+//
+//   delta_e = -K_q * (q_meas - q_cmd)
+//
+// where q is the pitch rate (rad/s) and delta_e is the
+// elevator-deflection command (rad). EML ships the gain-scheduled
+// form:
+//
+//   K_q(M, h) = K_q_base * (1 + a_M * M + a_h * h_norm)
+//
+// to compensate the per-flight-condition pitch-damping
+// degradation. Chain order 0. DO-178C Tool Qualification
+// Level A (pitch-axis SAS failure is a primary hazard for fly-
+// by-wire airframes).
+
+module sas_pitch_damper;
+
+const Q_MAX:        Real = 5.0
+const M_MAX:        Real = 5.0           // Mach 5 ceiling
+const H_MAX:        Real = 25000.0
+const K_BASE_MAX:   Real = 50.0
+const A_M_MAX:      Real = 5.0
+const A_H_MAX:      Real = 5.0
+const ELEV_MAX:     Real = 0.7
+
+type ElevatorDeflection = Real where chain_order <= 0
+type GainSchedule       = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "sas_pitch_command_signed_by_rate_error")
+fn sas_pitch_command(
+    pitch_rate_meas: Real,
+    pitch_rate_cmd: Real,
+    gain: Real,
+) -> ElevatorDeflection
+    where chain_order <= 0
+    requires (abs(pitch_rate_meas) <= Q_MAX)
+    requires (abs(pitch_rate_cmd) <= Q_MAX)
+    requires (gain >= 0.0)
+    requires (gain <= K_BASE_MAX)
+{
+    clamp(-gain * (pitch_rate_meas - pitch_rate_cmd), -ELEV_MAX, ELEV_MAX)
+}
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "scheduled_gain_increases_with_dynamic_pressure")
+fn scheduled_gain(
+    base_gain: Real,
+    mach: Real,
+    altitude: Real,
+    a_mach: Real,
+    a_altitude: Real,
+) -> GainSchedule
+    where chain_order <= 0
+    requires (base_gain >= 0.0)
+    requires (base_gain <= K_BASE_MAX)
+    requires (mach >= 0.0)
+    requires (mach <= M_MAX)
+    requires (altitude >= 0.0)
+    requires (altitude <= H_MAX)
+    requires (abs(a_mach) <= A_M_MAX)
+    requires (abs(a_altitude) <= A_H_MAX)
+    ensures  (result >= 0.0)
+{
+    let h_norm = altitude / H_MAX;
+    let scale = 1.0 + a_mach * mach + a_altitude * h_norm;
+    let scaled = base_gain * scale;
+    clamp(scaled, 0.0, 5.0 * K_BASE_MAX)
+}
+
+// Trim-bias addition: the SAS output is summed with the pilot's
+// stick command; this gate is the saturation-aware sum.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "trim_bias_combined_within_authority")
+fn elevator_with_trim(
+    sas_command: Real,
+    pilot_stick: Real,
+    trim_bias: Real,
+) -> ElevatorDeflection
+    where chain_order <= 0
+    requires (abs(sas_command) <= ELEV_MAX)
+    requires (abs(pilot_stick) <= ELEV_MAX)
+    requires (abs(trim_bias) <= ELEV_MAX)
+{
+    clamp(sas_command + pilot_stick + trim_bias, -ELEV_MAX, ELEV_MAX)
+}

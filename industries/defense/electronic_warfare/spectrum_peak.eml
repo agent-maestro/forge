@@ -1,0 +1,64 @@
+// spectrum_peak.eml -- per-bin spectral magnitude detection.
+//
+// The unit gate inside an electronic-warfare receiver's
+// spectrum-monitor block. The host runs an FFT over a buffered
+// window; this kernel takes the per-bin (real, imag) pair and
+// produces (a) the magnitude squared (cheap detector) and
+// (b) the magnitude (the dB-scaled output for the operator
+// console).
+//
+// Chain order 0 for the magnitude-squared gate, 1 for the
+// log10 conversion. MIL-STD-882: the spectrum monitor is
+// classified Class C (marginal hazard) on most surface combatant
+// platforms.
+
+module spectrum_peak;
+
+const COMPONENT_MAX: Real = 1.0e6
+const POWER_MIN:     Real = 1.0e-30
+const POWER_MAX:     Real = 1.0e30
+const LN10_INV:      Real = 0.4342944819032518   // 1 / ln(10)
+
+type Magnitude       = Real where chain_order <= 0
+type LogMagnitudeDb  = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "magnitude_squared_nonneg")
+fn magnitude_squared(real_part: Real, imag_part: Real) -> Magnitude
+    where chain_order <= 0
+    requires (abs(real_part) <= COMPONENT_MAX)
+    requires (abs(imag_part) <= COMPONENT_MAX)
+    ensures  (result >= 0.0)
+{
+    real_part * real_part + imag_part * imag_part
+}
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "log_magnitude_db_finite_above_floor")
+fn log_magnitude_db(power: Real) -> LogMagnitudeDb
+    where chain_order <= 1
+    requires (power >= POWER_MIN)
+    requires (power <= POWER_MAX)
+{
+    10.0 * LN10_INV * ln(power)
+}
+
+// Threshold detector: returns 1.0 if the bin power exceeds the
+// adaptive noise-floor estimate by a margin (linear, not dB),
+// else 0.0. Branch-free via clamp on the difference.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "spectrum_detect_zero_below_threshold")
+fn spectrum_detect(power: Real, noise_floor: Real, margin: Real) -> Real
+    where chain_order <= 0
+    requires (power >= 0.0)
+    requires (power <= POWER_MAX)
+    requires (noise_floor >= 0.0)
+    requires (noise_floor <= POWER_MAX)
+    requires (margin >= 1.0)
+    requires (margin <= 1.0e6)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    let excess = power - margin * noise_floor;
+    clamp(excess, 0.0, 1.0) / clamp(excess, 1.0e-30, 1.0)
+}

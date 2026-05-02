@@ -1,0 +1,96 @@
+// imu_complementary_filter.eml -- IMU attitude estimator.
+//
+// The classical Wahba-light fusion: the gyro integrates angular
+// rate (low drift over short windows but accumulates bias), the
+// accelerometer measures the gravity vector (no drift but noisy
+// and corrupted by linear acceleration). A complementary filter
+// blends the two:
+//
+//   pitch[k+1] = alpha * (pitch[k] + gyro_y * dt) + (1 - alpha) * accel_pitch
+//
+// alpha is typically 0.98 -- 98 % gyro short-term, 2 % accel
+// long-term. atan2 over the accel components recovers pitch
+// independent of bank angle. Chain order 1 (single atan2).
+//
+// This is the kernel inside every consumer drone autopilot's
+// attitude loop. Same .eml compiles to the C reference (host
+// validation), Verilog (FPGA flight controller), and Lean
+// (DO-178C Tool Qualification Level B argument).
+
+module imu_complementary_filter;
+
+const ALPHA_DEFAULT: Real = 0.98
+const G_REF:         Real = 9.80665
+const DT_MAX:        Real = 0.1
+const RATE_MAX:      Real = 35.0           // 35 rad/s -- well past tumble
+
+type AttitudeAngle = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "complementary_filter_bounded_drift")
+fn pitch_update(
+    pitch_prev: Real,
+    gyro_y: Real,
+    accel_x: Real,
+    accel_z: Real,
+    dt: Real,
+    alpha: Real,
+) -> AttitudeAngle
+    where chain_order <= 1
+    requires (abs(pitch_prev) <= 3.1416)
+    requires (abs(gyro_y) <= RATE_MAX)
+    requires (abs(accel_x) <= 16.0 * G_REF)
+    requires (abs(accel_z) <= 16.0 * G_REF)
+    requires (dt > 0.0)
+    requires (dt <= DT_MAX)
+    requires (alpha >= 0.0)
+    requires (alpha <= 1.0)
+{
+    let gyro_step = pitch_prev + gyro_y * dt;
+    let accel_pitch = atan2(accel_x, accel_z);
+    alpha * gyro_step + (1.0 - alpha) * accel_pitch
+}
+
+// Roll equivalent. Same structure as pitch_update; uses
+// gyro_x and the (accel_y, accel_z) axes.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "complementary_filter_roll_bounded_drift")
+fn roll_update(
+    roll_prev: Real,
+    gyro_x: Real,
+    accel_y: Real,
+    accel_z: Real,
+    dt: Real,
+    alpha: Real,
+) -> AttitudeAngle
+    where chain_order <= 1
+    requires (abs(roll_prev) <= 3.1416)
+    requires (abs(gyro_x) <= RATE_MAX)
+    requires (abs(accel_y) <= 16.0 * G_REF)
+    requires (abs(accel_z) <= 16.0 * G_REF)
+    requires (dt > 0.0)
+    requires (dt <= DT_MAX)
+    requires (alpha >= 0.0)
+    requires (alpha <= 1.0)
+{
+    let gyro_step = roll_prev + gyro_x * dt;
+    let accel_roll = atan2(accel_y, accel_z);
+    alpha * gyro_step + (1.0 - alpha) * accel_roll
+}
+
+// Gravity-vector magnitude check. The accelerometer-derived
+// pitch term is only trustworthy when |a| ≈ g; outside that
+// window (during a coordinated turn or hard manoeuvre) the
+// filter should drop alpha toward 1 to ride on gyro alone.
+// This gate returns the gain-modulation factor in [0, 1].
+@target(fpga, clock_mhz = 300, precision = float32)
+fn accel_trust(accel_mag: Real) -> Real
+    where chain_order <= 0
+    requires (accel_mag >= 0.0)
+    requires (accel_mag <= 16.0 * G_REF)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    let dev = abs(accel_mag - G_REF);
+    1.0 - clamp(dev / G_REF, 0.0, 1.0)
+}

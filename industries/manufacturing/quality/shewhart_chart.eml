@@ -1,0 +1,114 @@
+// shewhart_chart.eml -- Shewhart statistical process control gate.
+//
+// The Shewhart x-bar control chart is the workhorse of
+// statistical process control on the factory floor. For each
+// sub-group of measurements, compute the sample mean and
+// compare against control limits derived from the long-run
+// sigma:
+//
+//   UCL = mu + L * sigma / sqrt(n)
+//   LCL = mu - L * sigma / sqrt(n)
+//
+// where L is typically 3 (the canonical "3-sigma" rule).
+// A point outside [LCL, UCL] is a signal of an out-of-control
+// process (Western Electric Rule 1).
+//
+// Chain order 1 (sqrt). All three gates here are pure scalar:
+// the host loop accumulates the running mean / variance
+// and feeds the per-subgroup statistic into the limit-check.
+
+module shewhart_chart;
+
+const N_MIN:      Real = 1.0
+const N_MAX:      Real = 100.0
+const SIGMA_MIN:  Real = 1.0e-9
+const SIGMA_MAX:  Real = 1.0e6
+const L_MIN:      Real = 1.0
+const L_MAX:      Real = 6.0
+
+type ControlLimit = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "ucl_above_centerline")
+fn upper_control_limit(
+    centerline: Real,
+    sigma: Real,
+    subgroup_size: Real,
+    sigma_factor: Real,
+) -> ControlLimit
+    where chain_order <= 1
+    requires (sigma >= SIGMA_MIN)
+    requires (sigma <= SIGMA_MAX)
+    requires (subgroup_size >= N_MIN)
+    requires (subgroup_size <= N_MAX)
+    requires (sigma_factor >= L_MIN)
+    requires (sigma_factor <= L_MAX)
+{
+    centerline + sigma_factor * sigma / sqrt(subgroup_size)
+}
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "lcl_below_centerline")
+fn lower_control_limit(
+    centerline: Real,
+    sigma: Real,
+    subgroup_size: Real,
+    sigma_factor: Real,
+) -> ControlLimit
+    where chain_order <= 1
+    requires (sigma >= SIGMA_MIN)
+    requires (sigma <= SIGMA_MAX)
+    requires (subgroup_size >= N_MIN)
+    requires (subgroup_size <= N_MAX)
+    requires (sigma_factor >= L_MIN)
+    requires (sigma_factor <= L_MAX)
+{
+    centerline - sigma_factor * sigma / sqrt(subgroup_size)
+}
+
+// Process capability index Cpk -- min(mu - LSL, USL - mu) /
+// (3 * sigma). A value >= 1.33 indicates a process capable of
+// meeting tolerance with margin; >= 1.67 is the six-sigma
+// target. Chain order 0 (the sqrt is hidden inside the sigma
+// argument supplied by the host).
+@target(fpga, clock_mhz = 400, precision = float64)
+@verify(lean, theorem = "cpk_zero_when_at_spec_boundary")
+fn process_capability(
+    mean: Real,
+    sigma: Real,
+    lower_spec_limit: Real,
+    upper_spec_limit: Real,
+) -> Real
+    where chain_order <= 0
+    requires (sigma >= SIGMA_MIN)
+    requires (sigma <= SIGMA_MAX)
+    requires (lower_spec_limit < upper_spec_limit)
+    requires (mean >= lower_spec_limit)
+    requires (mean <= upper_spec_limit)
+{
+    let lower_margin = mean - lower_spec_limit;
+    let upper_margin = upper_spec_limit - mean;
+    let smaller = clamp(lower_margin, 0.0, upper_margin);
+    smaller / (3.0 * sigma)
+}
+
+// Z-score per subgroup mean -- the "how many sigmas off
+// target" question. Ties into the Western Electric rules
+// without spelling them out (the host enforces rule
+// transitions on a stream of z-scores).
+@target(fpga, clock_mhz = 400, precision = float64)
+@verify(lean, theorem = "z_score_zero_at_target")
+fn subgroup_z_score(
+    subgroup_mean: Real,
+    target: Real,
+    sigma: Real,
+    subgroup_size: Real,
+) -> Real
+    where chain_order <= 1
+    requires (sigma >= SIGMA_MIN)
+    requires (sigma <= SIGMA_MAX)
+    requires (subgroup_size >= N_MIN)
+    requires (subgroup_size <= N_MAX)
+{
+    (subgroup_mean - target) * sqrt(subgroup_size) / sigma
+}

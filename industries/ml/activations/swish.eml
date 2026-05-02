@@ -1,0 +1,53 @@
+// swish.eml -- Swish / SiLU activation: x * sigmoid(x).
+//
+// Discovered by automated activation search (Ramachandran et al.
+// 2017) and subsequently adopted by EfficientNet, MobileNetV3,
+// and most modern vision backbones. Smooth + non-monotonic +
+// self-gated -- retains gradient signal at large negative
+// inputs unlike ReLU.
+//
+// Surface form: x / (1 + exp(-x)) -- a single exp call,
+// chain order 1. Identical to "SiLU" (Sigmoid Linear Unit)
+// in PyTorch.
+
+module swish;
+
+const SWISH_X_MAX: Real = 30.0
+const HARD_SWISH_DENOM: Real = 6.0
+const HARD_SWISH_OFFSET: Real = 3.0
+
+type SwishSignal = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "swish_smooth_at_zero")
+fn swish(x: Real) -> SwishSignal
+    where chain_order <= 1
+    requires (abs(x) < SWISH_X_MAX)
+{
+    x / (1.0 + exp(-x))
+}
+
+// Hard-Swish -- the MobileNetV3 piecewise-linear approximation:
+//   hardswish(x) = x * relu6(x + 3) / 6
+// Chain order 0; perfect for int8 inference and the FPGA
+// allocator (Patent #14) preferring branch-free clamps.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "hard_swish_bounded")
+fn hard_swish(x: Real) -> SwishSignal
+    where chain_order <= 0
+    requires (abs(x) < SWISH_X_MAX)
+{
+    x * clamp(x + HARD_SWISH_OFFSET, 0.0, HARD_SWISH_DENOM) / HARD_SWISH_DENOM
+}
+
+// E-Swish -- a learnable scaling: beta * x * sigmoid(x).
+// `beta` is typically 1.25-1.75; deeper networks prefer 1.5.
+@target(fpga, clock_mhz = 250, precision = float32)
+fn e_swish(x: Real, beta: Real) -> SwishSignal
+    where chain_order <= 1
+    requires (abs(x) < SWISH_X_MAX)
+    requires (beta > 0.0)
+    requires (beta <= 2.0)
+{
+    beta * x / (1.0 + exp(-x))
+}

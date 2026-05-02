@@ -1,0 +1,81 @@
+// esc_yaw_rate.eml -- electronic stability control yaw-rate gate.
+//
+// ESC compares the measured yaw rate (gyro) against a
+// reference yaw rate predicted by the bicycle model:
+//
+//   psi_dot_ref = (v / L) * tan(steer) / (1 + (v / v_ch)^2)
+//
+// where v is longitudinal speed (m/s), steer is the road-wheel
+// angle (rad), L is the wheelbase, and v_ch is the
+// characteristic speed where understeer kicks in.
+//
+// If |psi_dot_meas - psi_dot_ref| exceeds a threshold (typ.
+// 4 deg/s), the controller commands differential braking on
+// individual wheels to bring the yaw rate back to reference.
+//
+// Chain order 1 (single tan). ISO 26262 ASIL-D in the OEM
+// specifications.
+
+module esc_yaw_rate;
+
+const V_MIN:    Real = 0.5
+const V_MAX:    Real = 80.0
+const STEER_MAX: Real = 0.7        // ~40 deg at the road wheels
+const L_MIN:    Real = 1.5
+const L_MAX:    Real = 4.5
+const VCH_MIN:  Real = 5.0
+const VCH_MAX:  Real = 50.0
+
+type YawRate = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "yaw_rate_reference_increases_with_steer")
+fn yaw_rate_reference(
+    speed: Real,
+    steer_angle: Real,
+    wheelbase: Real,
+    char_speed: Real,
+) -> YawRate
+    where chain_order <= 1
+    requires (speed >= V_MIN)
+    requires (speed <= V_MAX)
+    requires (abs(steer_angle) <= STEER_MAX)
+    requires (wheelbase >= L_MIN)
+    requires (wheelbase <= L_MAX)
+    requires (char_speed >= VCH_MIN)
+    requires (char_speed <= VCH_MAX)
+{
+    let understeer = 1.0 + (speed * speed) / (char_speed * char_speed);
+    (speed / wheelbase) * tan(steer_angle) / understeer
+}
+
+// Yaw-rate error -- the host loop input to the differential-
+// braking decision. Bounded by the saturation of yaw_rate_ref.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "yaw_error_zero_at_reference_match")
+fn yaw_rate_error(measured: Real, reference: Real) -> Real
+    where chain_order <= 0
+    requires (abs(measured) <= 5.0)
+    requires (abs(reference) <= 5.0)
+{
+    measured - reference
+}
+
+// Sideslip-angle approximation from lateral acceleration and
+// yaw rate: beta_dot = a_y / v - psi_dot. The host integrates
+// this to recover sideslip. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "sideslip_rate_well_defined_at_speed")
+fn sideslip_rate(
+    lateral_accel: Real,
+    yaw_rate: Real,
+    speed: Real,
+) -> Real
+    where chain_order <= 0
+    requires (abs(lateral_accel) <= 12.0)
+    requires (abs(yaw_rate) <= 5.0)
+    requires (speed >= V_MIN)
+    requires (speed <= V_MAX)
+{
+    lateral_accel / speed - yaw_rate
+}

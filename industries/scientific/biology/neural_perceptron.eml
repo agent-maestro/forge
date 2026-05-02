@@ -1,0 +1,108 @@
+// neural_perceptron.eml -- McCulloch-Pitts / Rosenblatt
+// perceptron from the biology angle.
+//
+// The original 1943 / 1957 model of a single biological
+// neuron's input-output behaviour:
+//
+//   v = sum_i w_i * x_i + bias
+//   y = step(v)        threshold activation
+//
+// The biology lens (vs the ml/inference vertical) treats this
+// as a model OF a neuron rather than a model FOR a classifier.
+// Companion of hodgkin_huxley_step.eml -- HH is the continuous
+// biophysical model, this is the rate-coded abstraction.
+//
+// Chain order 0 (the activation is a clamp). The smooth-rate
+// variant ships in the ml vertical's activation kernels.
+
+module neural_perceptron;
+
+const W_MAX:     Real = 100.0
+const X_MAX:     Real = 1000.0
+const BIAS_MAX:  Real = 1.0e3
+const SUM_MAX:   Real = 1.0e6
+
+type FiringRate = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "perceptron_threshold_in_unit_interval")
+fn perceptron_threshold(
+    weighted_sum: Real,
+    bias: Real,
+) -> FiringRate
+    where chain_order <= 0
+    requires (abs(weighted_sum) <= SUM_MAX)
+    requires (abs(bias) <= BIAS_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    let v = weighted_sum + bias;
+    clamp(v / 0.001, 0.0, 1.0)
+}
+
+// Two-input neuron (the canonical biology textbook example).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "two_input_perceptron_linear_in_weights")
+fn two_input_perceptron(
+    x1: Real, x2: Real,
+    w1: Real, w2: Real,
+    bias: Real,
+) -> FiringRate
+    where chain_order <= 0
+    requires (abs(x1) <= X_MAX)
+    requires (abs(x2) <= X_MAX)
+    requires (abs(w1) <= W_MAX)
+    requires (abs(w2) <= W_MAX)
+    requires (abs(bias) <= BIAS_MAX)
+{
+    let v = w1 * x1 + w2 * x2 + bias;
+    clamp(v / 0.001, 0.0, 1.0)
+}
+
+// Rate-coded neuron: replaces the hard threshold with a
+// linear-saturated transfer (the leaky-integrate-and-fire
+// rate response). Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "rate_coded_bounded_in_max_rate")
+fn rate_coded_response(
+    weighted_sum: Real,
+    threshold_v: Real,
+    max_rate: Real,
+    gain: Real,
+) -> FiringRate
+    where chain_order <= 0
+    requires (abs(weighted_sum) <= SUM_MAX)
+    requires (abs(threshold_v) <= BIAS_MAX)
+    requires (max_rate >= 0.0)
+    requires (max_rate <= 1000.0)
+    requires (gain >= 0.0)
+    requires (gain <= 1.0e3)
+    ensures  (result >= 0.0)
+{
+    let v = weighted_sum - threshold_v;
+    clamp(gain * v, 0.0, max_rate)
+}
+
+// Hebbian weight-update rule: dw = eta * x * y. The biology
+// canonical "neurons that fire together wire together"
+// learning rule. Used in unsupervised neural-population
+// modelling.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "hebbian_step_signed_by_correlation")
+fn hebbian_weight_step(
+    weight_prev: Real,
+    presynaptic_rate: Real,
+    postsynaptic_rate: Real,
+    learning_rate: Real,
+) -> Real
+    where chain_order <= 0
+    requires (abs(weight_prev) <= W_MAX)
+    requires (presynaptic_rate >= 0.0)
+    requires (presynaptic_rate <= X_MAX)
+    requires (postsynaptic_rate >= 0.0)
+    requires (postsynaptic_rate <= X_MAX)
+    requires (learning_rate >= 0.0)
+    requires (learning_rate <= 1.0)
+{
+    weight_prev + learning_rate * presynaptic_rate * postsynaptic_rate
+}

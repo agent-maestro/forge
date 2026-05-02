@@ -1,0 +1,104 @@
+// infusion_pid.eml -- closed-loop drug-infusion PID gate.
+//
+// Target-controlled infusion (TCI) systems use a PID loop on
+// the predicted plasma concentration error to command the
+// pump rate. The medical-vertical PID has tighter bounds than
+// the general stdlib::control::pid because (a) the actuator is
+// a syringe pump with a hard upper rate limit and (b) integrator
+// windup during a clinician-mediated bolus is a known incident
+// pattern.
+//
+// IEC 62304 Class C, FDA 510(k)-relevant. This kernel ships
+// the integrator-saturated, output-saturated form so the
+// Lean theorem can prove "the PID never commands above the
+// pump's mechanical maximum".
+//
+// Chain order 0. Companion of devices/infusion_pump.eml.
+
+module infusion_pid;
+
+const RATE_MAX:    Real = 1200.0       // mL/h, syringe pump ceiling
+const I_LIMIT_MAX: Real = 100.0
+const KP_MAX:      Real = 1.0e3
+const KI_MAX:      Real = 1.0e3
+const KD_MAX:      Real = 1.0e3
+const ERR_MAX:     Real = 1.0e3
+
+type PumpRate = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "infusion_pid_within_pump_limit")
+fn infusion_pid_step(
+    error: Real,
+    integral: Real,
+    derivative: Real,
+    kp: Real,
+    ki: Real,
+    kd: Real,
+    integral_limit: Real,
+    rate_max: Real,
+) -> PumpRate
+    where chain_order <= 0
+    requires (abs(error) <= ERR_MAX)
+    requires (abs(integral) <= I_LIMIT_MAX)
+    requires (abs(derivative) <= ERR_MAX)
+    requires (kp >= 0.0)
+    requires (kp <= KP_MAX)
+    requires (ki >= 0.0)
+    requires (ki <= KI_MAX)
+    requires (kd >= 0.0)
+    requires (kd <= KD_MAX)
+    requires (integral_limit >= 0.0)
+    requires (integral_limit <= I_LIMIT_MAX)
+    requires (rate_max >= 0.0)
+    requires (rate_max <= RATE_MAX)
+    ensures  (result >= 0.0)
+{
+    let i_sat = clamp(integral, -integral_limit, integral_limit);
+    let raw   = kp * error + ki * i_sat + kd * derivative;
+    clamp(raw, 0.0, rate_max)
+}
+
+// Trapezoidal integrator update for the infusion PID's I term,
+// with anti-windup hold: when the previous output was at the
+// pump's saturation limit and the error is the same sign as
+// the integral, freeze the integrator (returns prev integral
+// unchanged via the saturation_active flag).
+@target(fpga, clock_mhz = 400, precision = float64)
+@verify(lean, theorem = "infusion_integral_held_under_saturation")
+fn infusion_integral_step(
+    integral_prev: Real,
+    error: Real,
+    error_prev: Real,
+    dt: Real,
+    saturation_active: Real,
+) -> Real
+    where chain_order <= 0
+    requires (abs(integral_prev) <= I_LIMIT_MAX)
+    requires (abs(error) <= ERR_MAX)
+    requires (abs(error_prev) <= ERR_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= 1.0)
+    requires (saturation_active >= 0.0)
+    requires (saturation_active <= 1.0)
+{
+    let trapezoid = 0.5 * (error + error_prev) * dt;
+    integral_prev + (1.0 - saturation_active) * trapezoid
+}
+
+// Bispectral-index target tracker -- the BIS sensor reports a
+// scalar in [0, 100] indicating depth of anaesthesia.
+// The error term feeding the PID is target_bis - measured_bis;
+// this gate exposes the clamped form so the host doesn't
+// over-drive the pump on transient sensor dropouts.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "bis_error_bounded")
+fn bis_error(target_bis: Real, measured_bis: Real) -> Real
+    where chain_order <= 0
+    requires (target_bis >= 20.0)
+    requires (target_bis <= 80.0)
+    requires (measured_bis >= 0.0)
+    requires (measured_bis <= 100.0)
+{
+    clamp(target_bis - measured_bis, -50.0, 50.0)
+}

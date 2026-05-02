@@ -1,0 +1,115 @@
+// reactor_kinetics.eml -- point-reactor kinetics (PRK) step.
+//
+// The classical 1-group point-reactor equations describe the
+// neutron population in a thermal reactor:
+//
+//   dn/dt   = (rho - beta) / Lambda * n + lambda * c
+//   dc/dt   = beta / Lambda * n - lambda * c
+//
+// where:
+//   n        prompt neutron density
+//   c        delayed-neutron precursor concentration
+//   rho      reactivity (dimensionless, ~$ units after / beta)
+//   beta     delayed-neutron fraction (~0.0065 for U-235)
+//   Lambda   prompt neutron lifetime (~1e-4 s)
+//   lambda   precursor decay constant (~0.0767 1/s)
+//
+// EML's scalar surface ships the explicit-Euler step gates;
+// the host loop iterates them at typically 100 Hz. NRC / IEC
+// 61508 SIL-3 in the energy vertical's certification template.
+//
+// Chain order 0 (polynomial in n and c).
+
+module reactor_kinetics;
+
+const N_MAX:        Real = 1.0e20
+const C_MAX:        Real = 1.0e20
+const RHO_MAX:      Real = 0.01            // 1 % reactivity, prompt-critical bound
+const BETA_MIN:     Real = 0.001
+const BETA_MAX:     Real = 0.02
+const LAMBDA_MIN:   Real = 1.0e-6
+const LAMBDA_MAX:   Real = 10.0
+const LIFETIME_MIN: Real = 1.0e-6
+const LIFETIME_MAX: Real = 1.0e-2
+const DT_MAX:       Real = 0.1
+
+type NeutronState = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "n_step_zero_growth_at_critical_with_zero_c")
+fn neutron_step(
+    n: Real,
+    c: Real,
+    reactivity: Real,
+    beta: Real,
+    prompt_lifetime: Real,
+    decay_const: Real,
+    dt: Real,
+) -> NeutronState
+    where chain_order <= 0
+    requires (n >= 0.0)
+    requires (n <= N_MAX)
+    requires (c >= 0.0)
+    requires (c <= C_MAX)
+    requires (abs(reactivity) <= RHO_MAX)
+    requires (beta >= BETA_MIN)
+    requires (beta <= BETA_MAX)
+    requires (prompt_lifetime >= LIFETIME_MIN)
+    requires (prompt_lifetime <= LIFETIME_MAX)
+    requires (decay_const >= LAMBDA_MIN)
+    requires (decay_const <= LAMBDA_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+{
+    n + dt * ((reactivity - beta) / prompt_lifetime * n + decay_const * c)
+}
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "precursor_step_decays_without_source")
+fn precursor_step(
+    n: Real,
+    c: Real,
+    beta: Real,
+    prompt_lifetime: Real,
+    decay_const: Real,
+    dt: Real,
+) -> NeutronState
+    where chain_order <= 0
+    requires (n >= 0.0)
+    requires (n <= N_MAX)
+    requires (c >= 0.0)
+    requires (c <= C_MAX)
+    requires (beta >= BETA_MIN)
+    requires (beta <= BETA_MAX)
+    requires (prompt_lifetime >= LIFETIME_MIN)
+    requires (prompt_lifetime <= LIFETIME_MAX)
+    requires (decay_const >= LAMBDA_MIN)
+    requires (decay_const <= LAMBDA_MAX)
+    requires (dt >= 0.0)
+    requires (dt <= DT_MAX)
+{
+    c + dt * (beta / prompt_lifetime * n - decay_const * c)
+}
+
+// Reactor period: the time for neutron population to e-fold.
+// On a stable subcritical or critical reactor this should be
+// large (or infinite); short periods (< 10 s) trigger SCRAM
+// in production reactor protection systems.
+//   T = (Lambda + (1 - rho) / lambda) / rho       (1-group approximation)
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "reactor_period_inverse_proportional_to_reactivity")
+fn reactor_period(
+    reactivity: Real,
+    prompt_lifetime: Real,
+    decay_const: Real,
+) -> Real
+    where chain_order <= 0
+    requires (reactivity >= 1.0e-6)
+    requires (reactivity <= RHO_MAX)
+    requires (prompt_lifetime >= LIFETIME_MIN)
+    requires (prompt_lifetime <= LIFETIME_MAX)
+    requires (decay_const >= LAMBDA_MIN)
+    requires (decay_const <= LAMBDA_MAX)
+{
+    (prompt_lifetime + (1.0 - reactivity) / decay_const) / reactivity
+}

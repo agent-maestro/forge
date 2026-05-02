@@ -1,0 +1,108 @@
+// hodgkin_huxley_step.eml -- HH neuron membrane voltage update.
+//
+// The 1952 Hodgkin-Huxley equation for the squid giant axon
+// membrane voltage V (mV):
+//
+//   C_m * dV/dt = -g_Na * m^3 * h * (V - E_Na)
+//                 -g_K  * n^4     * (V - E_K)
+//                 -g_L            * (V - E_L)
+//                 + I_ext
+//
+// where m, h, n are the gating-variable activations (each
+// satisfies its own first-order ODE in the host loop), and
+// g_*, E_* are channel conductances and reversal potentials.
+//
+// This kernel is the explicit-Euler step for V; the gating
+// variables update in companion gates (not yet shipped).
+//
+// Chain order 0 -- pure polynomial in the gating activations.
+// Used in computational neuroscience, neuromorphic-chip
+// simulators, and in retinal-implant control loops.
+
+module hodgkin_huxley_step;
+
+const V_MIN:        Real = -200.0
+const V_MAX:        Real =  200.0
+const G_MAX:        Real =  1000.0
+const I_MAX:        Real =  1000.0
+const CM_MIN:       Real =  0.01
+const CM_MAX:       Real =  10.0
+const DT_MAX:       Real =  0.1
+
+type MembraneVoltage = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 400, precision = float64)
+@verify(lean, theorem = "hh_voltage_bounded_under_step")
+fn voltage_step(
+    voltage: Real,
+    m_gate: Real,
+    h_gate: Real,
+    n_gate: Real,
+    g_na: Real,
+    g_k: Real,
+    g_l: Real,
+    e_na: Real,
+    e_k: Real,
+    e_l: Real,
+    i_ext: Real,
+    cm: Real,
+    dt: Real,
+) -> MembraneVoltage
+    where chain_order <= 0
+    requires (voltage >= V_MIN)
+    requires (voltage <= V_MAX)
+    requires (m_gate >= 0.0)
+    requires (m_gate <= 1.0)
+    requires (h_gate >= 0.0)
+    requires (h_gate <= 1.0)
+    requires (n_gate >= 0.0)
+    requires (n_gate <= 1.0)
+    requires (g_na >= 0.0)
+    requires (g_na <= G_MAX)
+    requires (g_k >= 0.0)
+    requires (g_k <= G_MAX)
+    requires (g_l >= 0.0)
+    requires (g_l <= G_MAX)
+    requires (abs(e_na) <= V_MAX)
+    requires (abs(e_k) <= V_MAX)
+    requires (abs(e_l) <= V_MAX)
+    requires (abs(i_ext) <= I_MAX)
+    requires (cm >= CM_MIN)
+    requires (cm <= CM_MAX)
+    requires (dt > 0.0)
+    requires (dt <= DT_MAX)
+{
+    let m3 = m_gate * m_gate * m_gate;
+    let n4 = n_gate * n_gate * n_gate * n_gate;
+    let i_na = g_na * m3 * h_gate * (voltage - e_na);
+    let i_k  = g_k  * n4         * (voltage - e_k);
+    let i_l  = g_l               * (voltage - e_l);
+    voltage + dt * (i_ext - i_na - i_k - i_l) / cm
+}
+
+// Single gating-variable step (m, h, or n). All three follow
+//   dx/dt = alpha * (1 - x) - beta * x
+// with channel-specific alpha, beta supplied by the host
+// (typically lookup tables of voltage). Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "gating_step_bounded_in_unit_interval")
+fn gating_step(
+    gate: Real,
+    alpha: Real,
+    beta: Real,
+    dt: Real,
+) -> Real
+    where chain_order <= 0
+    requires (gate >= 0.0)
+    requires (gate <= 1.0)
+    requires (alpha >= 0.0)
+    requires (alpha <= 1.0e3)
+    requires (beta >= 0.0)
+    requires (beta <= 1.0e3)
+    requires (dt > 0.0)
+    requires (dt <= DT_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= 1.0)
+{
+    clamp(gate + dt * (alpha * (1.0 - gate) - beta * gate), 0.0, 1.0)
+}

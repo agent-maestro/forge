@@ -1,0 +1,94 @@
+// inertia_emulation.eml -- synthetic inertia for inverter-
+// dominated grids.
+//
+// As legacy synchronous generators retire and battery / wind /
+// PV inverters take their place, the grid loses physical
+// rotating-mass inertia. Synthetic inertia emulates the swing-
+// equation response in the inverter control loop:
+//
+//   delta_p_emul = K_inertia * df/dt + K_droop * (f_meas - f_nominal)
+//
+// The first term is the inertial (df/dt) component, the second
+// is the steady-state droop. The inverter modulates its real-
+// power output by delta_p_emul.
+//
+// Chain order 0. Companion of swing_equation.eml + load_flow.eml.
+// IEC 61508 SIL-2 in grid-scale storage applications.
+
+module inertia_emulation;
+
+const K_INERTIA_MIN: Real = 0.0
+const K_INERTIA_MAX: Real = 50.0          // s, equivalent inertia const
+const K_DROOP_MIN:   Real = 0.0
+const K_DROOP_MAX:   Real = 100.0
+const F_NOM:         Real = 50.0
+const F_MIN:         Real = 45.0
+const F_MAX:         Real = 55.0
+const DF_DT_MAX:     Real = 5.0           // Hz/s
+const POWER_MAX:     Real = 1.0e3         // pu
+
+type EmulatedPower = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "synthetic_inertia_response_signed")
+fn synthetic_power_command(
+    df_dt: Real,
+    frequency_meas: Real,
+    frequency_nominal: Real,
+    k_inertia: Real,
+    k_droop: Real,
+) -> EmulatedPower
+    where chain_order <= 0
+    requires (abs(df_dt) <= DF_DT_MAX)
+    requires (frequency_meas >= F_MIN)
+    requires (frequency_meas <= F_MAX)
+    requires (frequency_nominal >= F_MIN)
+    requires (frequency_nominal <= F_MAX)
+    requires (k_inertia >= K_INERTIA_MIN)
+    requires (k_inertia <= K_INERTIA_MAX)
+    requires (k_droop >= K_DROOP_MIN)
+    requires (k_droop <= K_DROOP_MAX)
+{
+    -k_inertia * df_dt - k_droop * (frequency_meas - frequency_nominal)
+}
+
+// ROCOF (rate of change of frequency) computed from a finite-
+// difference window. Used both as an input to synthetic
+// inertia and as a tripping criterion for protection relays.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "rocof_zero_at_constant_frequency")
+fn rocof_estimate(
+    frequency_now: Real,
+    frequency_prev: Real,
+    dt: Real,
+) -> Real
+    where chain_order <= 0
+    requires (frequency_now >= F_MIN)
+    requires (frequency_now <= F_MAX)
+    requires (frequency_prev >= F_MIN)
+    requires (frequency_prev <= F_MAX)
+    requires (dt > 0.0)
+    requires (dt <= 1.0)
+{
+    (frequency_now - frequency_prev) / dt
+}
+
+// Power-headroom limited inertia response: the emulated power
+// command cannot exceed the inverter's available headroom in
+// either direction. Branch-free clamp.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "headroom_limited_within_inverter_capability")
+fn headroom_limited_response(
+    desired_power: Real,
+    headroom_up: Real,
+    headroom_down: Real,
+) -> EmulatedPower
+    where chain_order <= 0
+    requires (abs(desired_power) <= POWER_MAX)
+    requires (headroom_up >= 0.0)
+    requires (headroom_up <= POWER_MAX)
+    requires (headroom_down >= 0.0)
+    requires (headroom_down <= POWER_MAX)
+{
+    clamp(desired_power, -headroom_down, headroom_up)
+}

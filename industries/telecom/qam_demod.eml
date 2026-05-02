@@ -1,0 +1,90 @@
+// qam_demod.eml -- per-symbol QAM demodulation gates.
+//
+// The single-symbol soft-demap for square QAM constellations.
+// EML's scalar surface ships the I/Q -> bit-LLR pipeline as
+// three pure gates that the host's symbol loop chains:
+//
+//   carrier_phase_correct    derotate I/Q by phase estimate
+//   nearest_qam_amplitude    map an I or Q sample to the
+//                            nearest constellation amplitude
+//   bit_llr                  log-likelihood-ratio per bit from
+//                            sample distance to the boundary
+//
+// Chain order 0 throughout (the eventual ln in soft-demap
+// is delivered by the LSE accumulator on the host -- this
+// file ships the scalar-distance gate). Sibling of
+// pulse_compression.eml in the telecom vertical.
+
+module qam_demod;
+
+const COMPONENT_MAX: Real = 1.0e4
+const SIGMA_MIN:     Real = 1.0e-6
+const SIGMA_MAX:     Real = 1.0e3
+const AMP_MAX:       Real = 16.0          // up to 16-QAM amplitude
+
+type IqSample      = Real where chain_order <= 0
+type LogLikelihood = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "phase_correct_preserves_magnitude")
+fn carrier_phase_correct_i(
+    i_in: Real,
+    q_in: Real,
+    cos_phi: Real,
+    sin_phi: Real,
+) -> IqSample
+    where chain_order <= 0
+    requires (abs(i_in) <= COMPONENT_MAX)
+    requires (abs(q_in) <= COMPONENT_MAX)
+    requires (abs(cos_phi) <= 1.0)
+    requires (abs(sin_phi) <= 1.0)
+{
+    i_in * cos_phi + q_in * sin_phi
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "phase_correct_q_preserves_magnitude")
+fn carrier_phase_correct_q(
+    i_in: Real,
+    q_in: Real,
+    cos_phi: Real,
+    sin_phi: Real,
+) -> IqSample
+    where chain_order <= 0
+    requires (abs(i_in) <= COMPONENT_MAX)
+    requires (abs(q_in) <= COMPONENT_MAX)
+    requires (abs(cos_phi) <= 1.0)
+    requires (abs(sin_phi) <= 1.0)
+{
+    -i_in * sin_phi + q_in * cos_phi
+}
+
+// Nearest-constellation amplitude clamp -- maps a noisy
+// per-axis sample to its in-range integer amplitude (used
+// in the hard-decision demap).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "amplitude_clamp_in_range")
+fn nearest_qam_amplitude(sample: Real, max_amplitude: Real) -> IqSample
+    where chain_order <= 0
+    requires (abs(sample) <= COMPONENT_MAX)
+    requires (max_amplitude >= 1.0)
+    requires (max_amplitude <= AMP_MAX)
+{
+    clamp(sample, -max_amplitude, max_amplitude)
+}
+
+// Bit log-likelihood ratio (max-log approximation): the
+// distance from the sample to the bit-decision boundary
+// scaled by 2 / sigma^2. Used as the soft-input to a
+// downstream LDPC / turbo decoder.
+@target(fpga, clock_mhz = 400, precision = float32)
+@verify(lean, theorem = "bit_llr_zero_on_boundary")
+fn bit_llr(sample: Real, boundary: Real, sigma: Real) -> LogLikelihood
+    where chain_order <= 0
+    requires (abs(sample) <= COMPONENT_MAX)
+    requires (abs(boundary) <= AMP_MAX)
+    requires (sigma >= SIGMA_MIN)
+    requires (sigma <= SIGMA_MAX)
+{
+    2.0 * (sample - boundary) / (sigma * sigma)
+}

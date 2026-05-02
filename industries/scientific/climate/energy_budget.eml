@@ -1,0 +1,95 @@
+// energy_budget.eml -- planetary equilibrium temperature kernel.
+//
+// The simplest 0-D climate model: balance absorbed shortwave
+// solar radiation against emitted longwave radiation.
+//
+//   absorbed = (1 - albedo) * S0 / 4
+//   emitted  = epsilon * sigma * T_e^4
+//   T_e      = ((1 - albedo) * S0 / (4 * epsilon * sigma))^(1/4)
+//
+// where S0 ~ 1361 W/m^2 is the solar constant. The factor of 4
+// converts the solar disk's intercepted flux to the planetary
+// area-averaged flux.
+//
+// The greenhouse-effect parametrisation lifts T_e to a surface
+// temperature T_s by choosing epsilon < 1 (an effective
+// emissivity). Modern climate textbooks use epsilon ≈ 0.6 to
+// recover Earth's 288 K surface temperature.
+//
+// Chain order 1 (single pow). Sufficient for back-of-envelope
+// undergraduate exercises and as the boundary condition
+// in atmospheric column models.
+
+module energy_budget;
+
+const SOLAR_CONSTANT: Real = 1361.0
+const SIGMA_SB:       Real = 5.670374419e-8
+const QUARTER:        Real = 0.25
+const ALBEDO_MIN:     Real = 0.0
+const ALBEDO_MAX:     Real = 1.0
+const EPS_MIN:        Real = 0.05
+const EPS_MAX:        Real = 1.0
+
+type EquilibriumTemperature = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "equilibrium_temperature_decreasing_in_albedo")
+fn equilibrium_temperature(
+    solar_flux: Real,
+    albedo: Real,
+    emissivity: Real,
+) -> EquilibriumTemperature
+    where chain_order <= 1
+    requires (solar_flux > 0.0)
+    requires (solar_flux <= 4.0 * SOLAR_CONSTANT)
+    requires (albedo >= ALBEDO_MIN)
+    requires (albedo <= ALBEDO_MAX)
+    requires (emissivity >= EPS_MIN)
+    requires (emissivity <= EPS_MAX)
+    ensures  (result > 0.0)
+{
+    let absorbed = (1.0 - albedo) * solar_flux * QUARTER;
+    pow(absorbed / (emissivity * SIGMA_SB), QUARTER)
+}
+
+// Climate sensitivity (linearised): dT / dF, the gain
+// from radiative forcing F (W/m^2) to surface temperature
+// (K). Chain order 0 because the linearisation has already
+// been done; lambda is the feedback parameter (W m^-2 K^-1)
+// supplied by the caller.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "climate_response_linear_in_forcing")
+fn climate_response(forcing: Real, lambda: Real) -> Real
+    where chain_order <= 0
+    requires (abs(forcing) <= 100.0)
+    requires (lambda > 0.05)
+    requires (lambda <= 5.0)
+{
+    forcing / lambda
+}
+
+// Top-of-atmosphere radiative imbalance -- absorbed minus
+// emitted. The driver of climate change in 0-D models. Chain
+// order 1 (pow on T).
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "toa_imbalance_zero_at_equilibrium")
+fn toa_imbalance(
+    solar_flux: Real,
+    albedo: Real,
+    emissivity: Real,
+    surface_t: Real,
+) -> Real
+    where chain_order <= 1
+    requires (solar_flux > 0.0)
+    requires (solar_flux <= 4.0 * SOLAR_CONSTANT)
+    requires (albedo >= ALBEDO_MIN)
+    requires (albedo <= ALBEDO_MAX)
+    requires (emissivity >= EPS_MIN)
+    requires (emissivity <= EPS_MAX)
+    requires (surface_t > 0.0)
+    requires (surface_t <= 1000.0)
+{
+    let absorbed = (1.0 - albedo) * solar_flux * QUARTER;
+    let emitted  = emissivity * SIGMA_SB * pow(surface_t, 4.0);
+    absorbed - emitted
+}

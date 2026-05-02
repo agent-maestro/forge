@@ -1,0 +1,91 @@
+// abs_slip.eml -- anti-lock braking slip-ratio control.
+//
+// Wheel slip ratio is the canonical state variable for ABS:
+//
+//   s = (v_vehicle - omega * r) / v_vehicle      (braking)
+//
+// where v_vehicle is longitudinal vehicle speed, omega is
+// wheel angular speed (rad/s), and r is the wheel rolling
+// radius. Slip is dimensionless; physically valid in [0, 1]
+// during braking (s = 0 free rolling, s = 1 fully locked).
+//
+// Production ABS targets s_target ~ 0.15 (peak of the
+// mu-slip curve on dry asphalt). The host loop modulates
+// brake pressure to drive measured slip toward s_target.
+//
+// Chain order 0. ISO 26262 ASIL-D (ABS deactivation is a
+// hazardous event in any OEM HARA).
+
+module abs_slip;
+
+const V_MIN:        Real = 0.5
+const V_MAX:        Real = 80.0
+const OMEGA_MAX:    Real = 250.0
+const R_MIN:        Real = 0.15
+const R_MAX:        Real = 0.6
+const SLIP_TARGET:  Real = 0.15
+const SLIP_MAX:     Real = 1.0
+
+type SlipRatio = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "slip_in_unit_interval_under_braking")
+fn slip_ratio(
+    vehicle_speed: Real,
+    wheel_omega: Real,
+    wheel_radius: Real,
+) -> SlipRatio
+    where chain_order <= 0
+    requires (vehicle_speed >= V_MIN)
+    requires (vehicle_speed <= V_MAX)
+    requires (wheel_omega >= 0.0)
+    requires (wheel_omega <= OMEGA_MAX)
+    requires (wheel_radius >= R_MIN)
+    requires (wheel_radius <= R_MAX)
+    ensures  (result >= 0.0)
+    ensures  (result <= SLIP_MAX)
+{
+    let v_wheel = wheel_omega * wheel_radius;
+    let raw = (vehicle_speed - v_wheel) / vehicle_speed;
+    clamp(raw, 0.0, SLIP_MAX)
+}
+
+// Burckhardt friction-coefficient model: mu(s) = c1*(1-exp(-c2*s)) - c3*s.
+// Chain order 1 (single exp). The peak of mu(s) defines the
+// optimal slip target; (c1,c2,c3) are surface-dependent
+// (dry asphalt, wet asphalt, snow, ice).
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "burckhardt_mu_zero_at_zero_slip")
+fn burckhardt_mu(slip: Real, c1: Real, c2: Real, c3: Real) -> Real
+    where chain_order <= 1
+    requires (slip >= 0.0)
+    requires (slip <= SLIP_MAX)
+    requires (c1 >= 0.0)
+    requires (c1 <= 2.0)
+    requires (c2 >= 0.0)
+    requires (c2 <= 50.0)
+    requires (c3 >= 0.0)
+    requires (c3 <= 1.0)
+{
+    c1 * (1.0 - exp(-c2 * slip)) - c3 * slip
+}
+
+// Brake pressure correction toward target slip: a simple P
+// controller producing a delta-pressure (kPa) that the
+// host pump-modulator integrates. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn slip_pressure_correction(
+    measured_slip: Real,
+    target_slip: Real,
+    kp: Real,
+) -> Real
+    where chain_order <= 0
+    requires (measured_slip >= 0.0)
+    requires (measured_slip <= SLIP_MAX)
+    requires (target_slip >= 0.0)
+    requires (target_slip <= SLIP_MAX)
+    requires (kp >= 0.0)
+    requires (kp <= 1.0e4)
+{
+    kp * (target_slip - measured_slip)
+}

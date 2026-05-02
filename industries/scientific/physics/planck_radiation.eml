@@ -1,0 +1,77 @@
+// planck_radiation.eml -- Planck blackbody spectral radiance.
+//
+// Planck's law for the spectral radiance of a blackbody at
+// temperature T:
+//
+//   B(lambda, T) = (2*h*c^2 / lambda^5) * 1 / (exp(h*c/(lambda*k*T)) - 1)
+//
+// where h is Planck's constant, c is the speed of light, k is
+// Boltzmann's constant. Used in radiometry, IR remote sensing,
+// astrophysics, and thermal-imaging calibration.
+//
+// Chain order 1 (single exp). Companion of stefan_boltzmann.eml
+// (which is the integral of B over all wavelengths).
+
+module planck_radiation;
+
+const HC:           Real = 1.986445857e-25     // h*c, J*m
+const HC_OVER_K:    Real = 0.014387768775039337 // h*c/k, m*K
+const TWO_HC2:      Real = 1.191042869e-16     // 2*h*c^2, W*m^4*sr^-1
+const LAMBDA_MIN:   Real = 1.0e-9              // 1 nm UV
+const LAMBDA_MAX:   Real = 1.0e-3              // 1 mm far-IR
+const T_MIN:        Real = 1.0
+const T_MAX:        Real = 1.0e5
+
+type SpectralRadiance = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 100, precision = float64)
+@verify(lean, theorem = "planck_radiance_increases_with_temperature")
+fn spectral_radiance(wavelength_m: Real, temperature_k: Real) -> SpectralRadiance
+    where chain_order <= 1
+    requires (wavelength_m >= LAMBDA_MIN)
+    requires (wavelength_m <= LAMBDA_MAX)
+    requires (temperature_k >= T_MIN)
+    requires (temperature_k <= T_MAX)
+    ensures  (result >= 0.0)
+{
+    let lambda5 = wavelength_m * wavelength_m * wavelength_m
+                * wavelength_m * wavelength_m;
+    let prefactor = TWO_HC2 / lambda5;
+    let exponent = HC_OVER_K / (wavelength_m * temperature_k);
+    prefactor / (exp(exponent) - 1.0)
+}
+
+// Wien displacement: lambda_max * T = b. Reused from
+// stefan_boltzmann; here for completeness in this physics
+// kernel pair.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "wien_constant_inversely_proportional_to_T")
+fn wien_lambda_max(temperature_k: Real) -> Real
+    where chain_order <= 0
+    requires (temperature_k >= T_MIN)
+    requires (temperature_k <= T_MAX)
+    ensures  (result >= 0.0)
+{
+    0.002897771955 / temperature_k
+}
+
+// Rayleigh-Jeans long-wavelength approximation:
+//   B(lambda, T) ~ 2*c*k*T / lambda^4
+// Valid when h*c << lambda*k*T (radio / mm-wave radiometry).
+// Chain order 0 (no exp).
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "rayleigh_jeans_underestimates_at_short_wavelength")
+fn rayleigh_jeans_radiance(
+    wavelength_m: Real,
+    temperature_k: Real,
+) -> SpectralRadiance
+    where chain_order <= 0
+    requires (wavelength_m >= LAMBDA_MIN)
+    requires (wavelength_m <= LAMBDA_MAX)
+    requires (temperature_k >= T_MIN)
+    requires (temperature_k <= T_MAX)
+    ensures  (result >= 0.0)
+{
+    let lambda4 = wavelength_m * wavelength_m * wavelength_m * wavelength_m;
+    2.0 * 299792458.0 * 1.380649e-23 * temperature_k / lambda4
+}

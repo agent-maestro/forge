@@ -1,0 +1,94 @@
+// ackermann_steering.eml -- bicycle-model Ackermann kinematics.
+//
+// The standard car-like kinematic model:
+//
+//   theta_dot = v * tan(steer) / wheelbase
+//
+// where v is the rear-axle linear speed, steer is the
+// front-wheel angle (rad), and wheelbase is the axle distance.
+// True Ackermann geometry adjusts the inner and outer wheel
+// angles separately so all wheels trace concentric circles.
+//
+// Chain order 1 (single tan). Used in autonomous-vehicle
+// control loops (path-following, parking) and in tractor /
+// agricultural-robot platforms.
+
+module ackermann_steering;
+
+const WHEELBASE_MIN: Real = 0.5
+const WHEELBASE_MAX: Real = 5.0
+const TRACK_MAX:     Real = 3.0
+const SPEED_MAX:     Real = 80.0
+const STEER_MAX:     Real = 0.7        // ~40 deg
+
+type YawRate = Real where chain_order <= 1
+type SteerAngle = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "bicycle_yaw_rate_zero_when_steer_zero")
+fn bicycle_yaw_rate(speed: Real, steer: Real, wheelbase: Real) -> YawRate
+    where chain_order <= 1
+    requires (abs(speed) <= SPEED_MAX)
+    requires (abs(steer) <= STEER_MAX)
+    requires (wheelbase >= WHEELBASE_MIN)
+    requires (wheelbase <= WHEELBASE_MAX)
+{
+    speed * tan(steer) / wheelbase
+}
+
+// True-Ackermann inner-wheel angle. Given the centre-line
+// steer angle (the bicycle-model `steer`) and the track width,
+// compute the inner-wheel angle:
+//   tan(steer_inner) = wheelbase * tan(steer) / (wheelbase - 0.5*track*tan(steer))
+// EML's scalar surface ships the tangent expansion; the host
+// computes the arctan if it needs the angle directly.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "ackermann_inner_steeper_than_outer")
+fn ackermann_inner_tan(
+    centerline_steer: Real,
+    wheelbase: Real,
+    track: Real,
+) -> SteerAngle
+    where chain_order <= 1
+    requires (abs(centerline_steer) <= STEER_MAX)
+    requires (wheelbase >= WHEELBASE_MIN)
+    requires (wheelbase <= WHEELBASE_MAX)
+    requires (track >= 0.5)
+    requires (track <= TRACK_MAX)
+{
+    let t = tan(centerline_steer);
+    wheelbase * t / (wheelbase - 0.5 * track * t)
+}
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "ackermann_outer_shallower_than_inner")
+fn ackermann_outer_tan(
+    centerline_steer: Real,
+    wheelbase: Real,
+    track: Real,
+) -> SteerAngle
+    where chain_order <= 1
+    requires (abs(centerline_steer) <= STEER_MAX)
+    requires (wheelbase >= WHEELBASE_MIN)
+    requires (wheelbase <= WHEELBASE_MAX)
+    requires (track >= 0.5)
+    requires (track <= TRACK_MAX)
+{
+    let t = tan(centerline_steer);
+    wheelbase * t / (wheelbase + 0.5 * track * t)
+}
+
+// Turn radius = wheelbase / tan(steer). Chain order 1 (single
+// tan, division). Useful for path-curvature checks against the
+// minimum-turn-radius constraint.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "turn_radius_inverse_to_steer")
+fn turn_radius(steer: Real, wheelbase: Real) -> Real
+    where chain_order <= 1
+    requires (abs(steer) >= 0.001)
+    requires (abs(steer) <= STEER_MAX)
+    requires (wheelbase >= WHEELBASE_MIN)
+    requires (wheelbase <= WHEELBASE_MAX)
+{
+    wheelbase / tan(steer)
+}

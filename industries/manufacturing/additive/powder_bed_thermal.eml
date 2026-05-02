@@ -1,0 +1,113 @@
+// powder_bed_thermal.eml -- laser-powder-bed-fusion thermal
+// step.
+//
+// Selective laser melting (SLM) / direct metal laser sintering
+// (DMLS) builds parts by sweeping a laser across a powder bed.
+// The peak temperature under the spot is governed by the
+// Rosenthal moving-source solution:
+//
+//   delta_T = P / (2*pi*k*r) * exp(-v*(r + xi)/(2*alpha))
+//
+// where P is the absorbed laser power, k is the conductivity,
+// alpha is the thermal diffusivity, v is the scan speed,
+// r is the radial distance from the spot, and xi is the
+// distance behind the spot in the scan direction.
+//
+// EML ships the per-point evaluation; the host loop sweeps
+// over a build-plate grid. Chain order 1 (single exp). Used
+// in process-window optimisation -- avoiding lack-of-fusion at
+// low energy density and keyholing at high energy density.
+
+module powder_bed_thermal;
+
+const P_MIN:        Real = 1.0
+const P_MAX:        Real = 1.0e4         // 10 kW upper bound
+const K_MIN:        Real = 1.0
+const K_MAX:        Real = 500.0
+const ALPHA_MIN:    Real = 1.0e-7
+const ALPHA_MAX:    Real = 1.0e-3
+const V_MIN:        Real = 0.001
+const V_MAX:        Real = 10.0          // 10 m/s scan speed
+const R_MIN:        Real = 1.0e-6        // 1 micron resolution
+const R_MAX:        Real = 0.1
+const TWO_PI:       Real = 6.283185307179586
+
+type TemperatureRise = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "rosenthal_decreases_with_radius")
+fn rosenthal_delta_t(
+    laser_power: Real,
+    conductivity: Real,
+    diffusivity: Real,
+    scan_velocity: Real,
+    radial_distance: Real,
+    streamwise_offset: Real,
+) -> TemperatureRise
+    where chain_order <= 1
+    requires (laser_power >= P_MIN)
+    requires (laser_power <= P_MAX)
+    requires (conductivity >= K_MIN)
+    requires (conductivity <= K_MAX)
+    requires (diffusivity >= ALPHA_MIN)
+    requires (diffusivity <= ALPHA_MAX)
+    requires (scan_velocity >= V_MIN)
+    requires (scan_velocity <= V_MAX)
+    requires (radial_distance >= R_MIN)
+    requires (radial_distance <= R_MAX)
+    requires (abs(streamwise_offset) <= R_MAX)
+    ensures  (result >= 0.0)
+{
+    let prefactor = laser_power / (TWO_PI * conductivity * radial_distance);
+    let exponent = -scan_velocity * (radial_distance + streamwise_offset)
+                  / (2.0 * diffusivity);
+    prefactor * exp(exponent)
+}
+
+// Linear energy density E_v = P / (v * h * t), where h is the
+// hatch spacing and t is the layer thickness. The
+// process-window axis along which lack-of-fusion / keyhole
+// trade off. Chain order 0.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "energy_density_inverse_to_velocity")
+fn linear_energy_density(
+    laser_power: Real,
+    scan_velocity: Real,
+    hatch_spacing: Real,
+    layer_thickness: Real,
+) -> Real
+    where chain_order <= 0
+    requires (laser_power >= P_MIN)
+    requires (laser_power <= P_MAX)
+    requires (scan_velocity >= V_MIN)
+    requires (scan_velocity <= V_MAX)
+    requires (hatch_spacing >= 1.0e-6)
+    requires (hatch_spacing <= 1.0e-3)
+    requires (layer_thickness >= 1.0e-6)
+    requires (layer_thickness <= 1.0e-3)
+    ensures  (result >= 0.0)
+{
+    laser_power / (scan_velocity * hatch_spacing * layer_thickness)
+}
+
+// Critical-cooling-rate gate: dT/dt at the rear of the melt
+// pool, used to decide whether a microstructure transition
+// (martensitic / cellular / dendritic) occurs.
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "cooling_rate_proportional_to_speed_squared")
+fn critical_cooling_rate(
+    scan_velocity: Real,
+    delta_t_peak: Real,
+    diffusivity: Real,
+) -> Real
+    where chain_order <= 0
+    requires (scan_velocity >= V_MIN)
+    requires (scan_velocity <= V_MAX)
+    requires (delta_t_peak >= 0.0)
+    requires (delta_t_peak <= 5.0e3)
+    requires (diffusivity >= ALPHA_MIN)
+    requires (diffusivity <= ALPHA_MAX)
+    ensures  (result >= 0.0)
+{
+    scan_velocity * scan_velocity * delta_t_peak / diffusivity
+}

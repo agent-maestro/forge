@@ -1,0 +1,101 @@
+// sgd.eml -- stochastic gradient descent per-parameter step.
+//
+// The simplest first-order optimiser: theta -> theta - lr*g.
+// Variants ship momentum and Nesterov in companion gates.
+//
+// Chain order 0. The host loop iterates over the parameter
+// vector and applies this gate per element; the FPGA
+// allocator maps it to SIMD lanes for parallel-element
+// updates.
+//
+// Companion of the loss + gradient gates in industries/ml/loss/.
+// Together they close the train -> backward -> optimise loop
+// inside the same .eml-only stack.
+
+module sgd_optimizer;
+
+const LR_MIN:   Real = 1.0e-9
+const LR_MAX:   Real = 1.0
+const MOM_MAX:  Real = 1.0
+const VAL_MAX:  Real = 1.0e6
+
+type ParameterValue = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "sgd_step_descent_when_grad_signed")
+fn sgd_step(theta: Real, gradient: Real, lr: Real) -> ParameterValue
+    where chain_order <= 0
+    requires (abs(theta) <= VAL_MAX)
+    requires (abs(gradient) <= VAL_MAX)
+    requires (lr >= LR_MIN)
+    requires (lr <= LR_MAX)
+{
+    theta - lr * gradient
+}
+
+// SGD with classical momentum (Polyak heavy-ball):
+//   v[k+1] = beta*v[k] + grad
+//   theta[k+1] = theta[k] - lr*v[k+1]
+// Returns the new (theta, v) pair as theta_new -- the host
+// stores v separately in a parallel state buffer.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "momentum_velocity_decays_with_beta")
+fn momentum_velocity_step(
+    velocity: Real,
+    gradient: Real,
+    beta: Real,
+) -> ParameterValue
+    where chain_order <= 0
+    requires (abs(velocity) <= VAL_MAX)
+    requires (abs(gradient) <= VAL_MAX)
+    requires (beta >= 0.0)
+    requires (beta <= MOM_MAX)
+{
+    beta * velocity + gradient
+}
+
+// Nesterov-accelerated gradient: lookahead-then-correct form.
+// The "correction" is applied after the velocity update; the
+// host evaluates the gradient at theta + beta*v rather than
+// theta. This gate is the post-velocity parameter update.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "nesterov_step_consistent_with_lookahead")
+fn nesterov_step(
+    theta: Real,
+    velocity: Real,
+    gradient: Real,
+    beta: Real,
+    lr: Real,
+) -> ParameterValue
+    where chain_order <= 0
+    requires (abs(theta) <= VAL_MAX)
+    requires (abs(velocity) <= VAL_MAX)
+    requires (abs(gradient) <= VAL_MAX)
+    requires (beta >= 0.0)
+    requires (beta <= MOM_MAX)
+    requires (lr >= LR_MIN)
+    requires (lr <= LR_MAX)
+{
+    theta - lr * (beta * velocity + gradient)
+}
+
+// L2 weight-decay version: theta -> theta - lr*(grad + wd*theta)
+// (the AdamW / SGDW family decouples weight decay from the
+// gradient -- this gate is the SGDW step).
+@target(fpga, clock_mhz = 500, precision = float32)
+fn sgdw_step(
+    theta: Real,
+    gradient: Real,
+    lr: Real,
+    weight_decay: Real,
+) -> ParameterValue
+    where chain_order <= 0
+    requires (abs(theta) <= VAL_MAX)
+    requires (abs(gradient) <= VAL_MAX)
+    requires (lr >= LR_MIN)
+    requires (lr <= LR_MAX)
+    requires (weight_decay >= 0.0)
+    requires (weight_decay <= 1.0)
+{
+    theta - lr * (gradient + weight_decay * theta)
+}

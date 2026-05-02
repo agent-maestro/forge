@@ -1,0 +1,69 @@
+// mse.eml -- mean squared error loss kernels.
+//
+// MSE is the workhorse regression loss: smooth, convex,
+// differentiable everywhere, gradient grows linearly with the
+// residual. The downside (oversensitivity to outliers) is what
+// motivates Huber loss, shipped in huber.eml.
+//
+// EML's scalar surface ships the per-sample gate; the host
+// loop accumulates over the batch. Chain order 0 -- pure
+// arithmetic, no transcendentals.
+
+module mse_loss;
+
+const MAX_RESIDUAL: Real = 1.0e6
+const HALF: Real = 0.5
+
+type LossSignal = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "mse_loss_nonnegative")
+fn mse_loss(prediction: Real, target: Real) -> LossSignal
+    where chain_order <= 0
+    requires (abs(prediction) < MAX_RESIDUAL)
+    requires (abs(target) < MAX_RESIDUAL)
+    ensures  (result >= 0.0)
+{
+    let r = prediction - target;
+    r * r
+}
+
+// Gradient of MSE w.r.t. prediction. Used inside the backward
+// pass (the host loop scales by 2/N for the mean reduction).
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "mse_grad_sign_matches_residual")
+fn mse_grad(prediction: Real, target: Real) -> LossSignal
+    where chain_order <= 0
+    requires (abs(prediction) < MAX_RESIDUAL)
+    requires (abs(target) < MAX_RESIDUAL)
+{
+    2.0 * (prediction - target)
+}
+
+// Half-MSE -- the variant whose gradient is just (pred - target),
+// shipped as a separate function so SuperBEST can hoist out the
+// common factor when MSE is composed with a regulariser.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn half_mse(prediction: Real, target: Real) -> LossSignal
+    where chain_order <= 0
+    requires (abs(prediction) < MAX_RESIDUAL)
+    requires (abs(target) < MAX_RESIDUAL)
+    ensures  (result >= 0.0)
+{
+    let r = prediction - target;
+    HALF * r * r
+}
+
+// Root-mean-square error -- per-sample contribution. Chain
+// order 0 because the sqrt is moved to the post-reduce step on
+// the host (SuperBEST detects sqrt(sum(x^2)) and fuses).
+@target(fpga, clock_mhz = 500, precision = float32)
+fn squared_residual(prediction: Real, target: Real) -> LossSignal
+    where chain_order <= 0
+    requires (abs(prediction) < MAX_RESIDUAL)
+    requires (abs(target) < MAX_RESIDUAL)
+    ensures  (result >= 0.0)
+{
+    let r = prediction - target;
+    r * r
+}

@@ -1,0 +1,63 @@
+// relu.eml -- rectified linear unit family.
+//
+// All four entries in this module are chain order 0 -- ReLU is
+// branch-free in EML because we lower max(0, x) to clamp(x, 0, +inf)
+// which a backend can either emit as a CMOV / select or as a
+// single MAX instruction. No transcendental.
+//
+// On FPGA this is the cheapest activation per layer and the
+// reason quantised inference cores (Patent #14 allocator) bias
+// toward ReLU + variants over sigmoid / tanh.
+
+module relu;
+
+const RELU_UPPER:  Real = 1.0e30
+const ALPHA_LEAKY: Real = 0.01
+
+type RectifiedSignal = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "relu_nonnegative")
+fn relu(x: Real) -> RectifiedSignal
+    where chain_order <= 0
+    ensures  (result >= 0.0)
+    ensures  (result >= x)
+{
+    clamp(x, 0.0, RELU_UPPER)
+}
+
+// Leaky ReLU -- non-zero gradient for negative inputs, helps
+// dead-neuron problem. `alpha` is typically 0.01.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "leaky_relu_monotone_in_x")
+fn leaky_relu(x: Real, alpha: Real) -> RectifiedSignal
+    where chain_order <= 0
+    requires (alpha >= 0.0)
+    requires (alpha <= 1.0)
+{
+    clamp(x, alpha * x, RELU_UPPER)
+}
+
+// ReLU6 (mobile inference favourite). Clamped to [0, 6]
+// so int8 quantisation has a sane fixed range.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "relu6_bounded")
+fn relu6(x: Real) -> RectifiedSignal
+    where chain_order <= 0
+    ensures  (result >= 0.0)
+    ensures  (result <= 6.0)
+{
+    clamp(x, 0.0, 6.0)
+}
+
+// Parametric ReLU with a fixed-but-loaded slope -- here `alpha`
+// is the per-channel learned slope shipped as a kernel argument
+// (the surface form a quantised PReLU layer takes).
+@target(fpga, clock_mhz = 500, precision = float32)
+fn prelu(x: Real, alpha: Real) -> RectifiedSignal
+    where chain_order <= 0
+    requires (alpha >= 0.0)
+    requires (alpha <= 2.0)
+{
+    clamp(x, alpha * x, RELU_UPPER)
+}

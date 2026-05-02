@@ -1,0 +1,68 @@
+// q8_dequantize.eml -- int8 -> float32 inverse quantisation.
+//
+// The inference-time companion of q8_quantize.eml. After an int8
+// matmul we have an int32 accumulator that must come back to
+// float32 before the next layer. The standard pattern:
+//
+//   x_f32 = q_i32 * scale_a * scale_b
+//
+// where scale_a and scale_b are the input/weight quantisation
+// scales. SuperBEST recognises the constant fold scale_a*scale_b
+// at compile time when both come from .const tensors.
+//
+// Chain order 0 throughout -- pure multiplications.
+
+module q8_dequantize;
+
+const SCALE_MIN: Real = 1.0e-9
+const SCALE_MAX: Real = 1.0e9
+const ACC_MIN:   Real = -2.147483648e9
+const ACC_MAX:   Real = 2.147483647e9
+
+type DequantizedSignal = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "q8_dequantize_inverse_of_quantize")
+fn q8_dequantize(q: Real, scale: Real) -> DequantizedSignal
+    where chain_order <= 0
+    requires (scale >= SCALE_MIN)
+    requires (scale <= SCALE_MAX)
+{
+    q * scale
+}
+
+// Asymmetric dequantise: `(q - zero_point) * scale`. SuperBEST
+// can fuse the `- zero_point` with the previous matmul's bias
+// term, making this a free op at the boundary.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "q8_dequantize_asym_inverse")
+fn q8_dequantize_asym(q: Real, scale: Real, zero_point: Real) -> DequantizedSignal
+    where chain_order <= 0
+    requires (scale >= SCALE_MIN)
+    requires (scale <= SCALE_MAX)
+    requires (zero_point >= -128.0)
+    requires (zero_point <= 127.0)
+{
+    (q - zero_point) * scale
+}
+
+// Int8 matmul accumulator-rescale gate -- consumes the int32
+// dot product and applies the combined input*weight scale.
+// `accum` here is the int32 dot product cast to Real.
+@target(fpga, clock_mhz = 400, precision = float32)
+@verify(lean, theorem = "matmul_rescale_preserves_sign")
+fn matmul_rescale(
+    accum: Real,
+    input_scale: Real,
+    weight_scale: Real,
+) -> DequantizedSignal
+    where chain_order <= 0
+    requires (input_scale >= SCALE_MIN)
+    requires (input_scale <= SCALE_MAX)
+    requires (weight_scale >= SCALE_MIN)
+    requires (weight_scale <= SCALE_MAX)
+    requires (accum >= ACC_MIN)
+    requires (accum <= ACC_MAX)
+{
+    accum * input_scale * weight_scale
+}

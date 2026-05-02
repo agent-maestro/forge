@@ -1,0 +1,103 @@
+// icp_iteration.eml -- iterative closest point per-correspondence
+// gate.
+//
+// ICP aligns two point clouds by alternating (a) pairing each
+// source point to its nearest target point and (b) solving for
+// the rigid transform that minimises the squared residual sum.
+// EML's scalar surface ships the per-correspondence pieces:
+//
+//   point_to_point_residual_sq    squared L2 between paired pts
+//   weighted_residual             Huber-weighted residual term
+//   centroid_accumulator          per-point centroid contribution
+//
+// Chain order 0 throughout -- pure arithmetic. The KD-tree
+// nearest-neighbour search and the SVD-based pose solve live on
+// the host; this file is the inner-loop kernel that the FPGA
+// allocator runs at 1M correspondences / second.
+
+module icp_iteration;
+
+const COORD_MAX: Real = 1.0e6
+const HALF: Real = 0.5
+
+type Residual = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "icp_residual_sq_nonnegative")
+fn point_to_point_residual_sq(
+    src_x: Real,
+    src_y: Real,
+    src_z: Real,
+    tgt_x: Real,
+    tgt_y: Real,
+    tgt_z: Real,
+) -> Residual
+    where chain_order <= 0
+    requires (abs(src_x) <= COORD_MAX)
+    requires (abs(src_y) <= COORD_MAX)
+    requires (abs(src_z) <= COORD_MAX)
+    requires (abs(tgt_x) <= COORD_MAX)
+    requires (abs(tgt_y) <= COORD_MAX)
+    requires (abs(tgt_z) <= COORD_MAX)
+    ensures  (result >= 0.0)
+{
+    let dx = src_x - tgt_x;
+    let dy = src_y - tgt_y;
+    let dz = src_z - tgt_z;
+    dx * dx + dy * dy + dz * dz
+}
+
+// Huber-weighted contribution -- robust ICP variant. Reduces the
+// influence of outlier correspondences. `delta` is the
+// kink point; identical to the Huber loss `delta` in
+// industries/ml/loss/huber.eml.
+@target(fpga, clock_mhz = 400, precision = float32)
+@verify(lean, theorem = "huber_weighted_residual_bounded")
+fn weighted_residual(residual: Real, delta: Real) -> Residual
+    where chain_order <= 0
+    requires (abs(residual) <= COORD_MAX)
+    requires (delta > 0.0)
+    requires (delta <= COORD_MAX)
+    ensures  (result >= 0.0)
+{
+    let abs_r = abs(residual);
+    let q = clamp(abs_r, 0.0, delta);
+    HALF * q * q + delta * (abs_r - q)
+}
+
+// Centroid accumulator -- one source/target pair contributes
+// (src_i, tgt_i) to the running mean; the host divides by N
+// after the reduce. This gate is pure pass-through but it gates
+// the FPGA pipeline (gives the allocator a per-pair handle).
+@target(fpga, clock_mhz = 500, precision = float32)
+fn centroid_pair(coord: Real) -> Real
+    where chain_order <= 0
+    requires (abs(coord) <= COORD_MAX)
+{
+    coord
+}
+
+// Point-to-plane residual -- the scalar dot product between the
+// source-target offset vector and the target normal. This is the
+// inner kernel of point-to-plane ICP (faster convergence than
+// point-to-point on flat surfaces).
+@target(fpga, clock_mhz = 400, precision = float32)
+@verify(lean, theorem = "point_to_plane_residual_signed")
+fn point_to_plane_residual(
+    src_x: Real, src_y: Real, src_z: Real,
+    tgt_x: Real, tgt_y: Real, tgt_z: Real,
+    n_x: Real, n_y: Real, n_z: Real,
+) -> Residual
+    where chain_order <= 0
+    requires (abs(src_x) <= COORD_MAX)
+    requires (abs(src_y) <= COORD_MAX)
+    requires (abs(src_z) <= COORD_MAX)
+    requires (abs(tgt_x) <= COORD_MAX)
+    requires (abs(tgt_y) <= COORD_MAX)
+    requires (abs(tgt_z) <= COORD_MAX)
+    requires (abs(n_x) <= 1.0)
+    requires (abs(n_y) <= 1.0)
+    requires (abs(n_z) <= 1.0)
+{
+    (src_x - tgt_x) * n_x + (src_y - tgt_y) * n_y + (src_z - tgt_z) * n_z
+}

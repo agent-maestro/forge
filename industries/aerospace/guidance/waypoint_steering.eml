@@ -1,0 +1,89 @@
+// waypoint_steering.eml -- cross-track + along-track guidance.
+//
+// The classical L1 / pure-pursuit guidance law for waypoint
+// following:
+//
+//   eta            = atan2(cross_track, along_track) - heading
+//   lateral_accel  = 2 * v^2 * sin(eta) / L1_distance
+//
+// where L1_distance is the lookahead distance, v is the
+// vehicle speed, and (cross_track, along_track) are the
+// waypoint-relative offsets in the body frame.
+//
+// Companion of proportional_navigation.eml in the same
+// guidance subfolder; PN handles intercept against a moving
+// target, this file handles waypoint following against a fixed
+// terrain reference.
+//
+// Chain order 2 (atan2 + sin in the same expression).
+// DO-178C Tool Qualification Level B.
+
+module waypoint_steering;
+
+const RANGE_MAX:    Real = 1.0e5
+const SPEED_MAX:    Real = 300.0
+const L1_MIN:       Real = 5.0
+const L1_MAX:       Real = 5.0e3
+const ETA_MAX:      Real = 1.5708
+const LAT_ACCEL_MAX: Real = 100.0
+
+type LateralAccel = Real where chain_order <= 2
+type EtaAngle     = Real where chain_order <= 2
+
+@target(fpga, clock_mhz = 100, precision = float32)
+@verify(lean, theorem = "eta_zero_when_aligned")
+fn eta_angle(
+    cross_track: Real,
+    along_track: Real,
+    heading: Real,
+) -> EtaAngle
+    where chain_order <= 2
+    requires (abs(cross_track) <= RANGE_MAX)
+    requires (abs(along_track) <= RANGE_MAX)
+    requires (abs(heading) <= 6.2832)
+{
+    atan2(cross_track, along_track) - heading
+}
+
+@target(fpga, clock_mhz = 100, precision = float32)
+@verify(lean, theorem = "l1_lateral_accel_zero_at_eta_zero")
+fn l1_lateral_accel(
+    speed: Real,
+    eta: Real,
+    l1_distance: Real,
+) -> LateralAccel
+    where chain_order <= 2
+    requires (speed >= 0.0)
+    requires (speed <= SPEED_MAX)
+    requires (abs(eta) <= ETA_MAX)
+    requires (l1_distance >= L1_MIN)
+    requires (l1_distance <= L1_MAX)
+{
+    2.0 * speed * speed * sin(eta) / l1_distance
+}
+
+// Cross-track distance from a 2-D point to a line segment
+// defined by (x1, y1) -> (x2, y2). The host supplies the
+// segment endpoints; this gate produces the signed
+// perpendicular distance.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "cross_track_zero_on_line")
+fn cross_track_distance(
+    px: Real, py: Real,
+    x1: Real, y1: Real,
+    x2: Real, y2: Real,
+) -> Real
+    where chain_order <= 1
+    requires (abs(px) <= RANGE_MAX)
+    requires (abs(py) <= RANGE_MAX)
+    requires (abs(x1) <= RANGE_MAX)
+    requires (abs(y1) <= RANGE_MAX)
+    requires (abs(x2) <= RANGE_MAX)
+    requires (abs(y2) <= RANGE_MAX)
+{
+    let dx = x2 - x1;
+    let dy = y2 - y1;
+    let len = sqrt(dx * dx + dy * dy);
+    let denom = clamp(len, 1.0e-6, 2.0 * RANGE_MAX);
+    ((px - x1) * dy - (py - y1) * dx) / denom
+}

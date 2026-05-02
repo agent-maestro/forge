@@ -1,0 +1,80 @@
+// parametric_eq.eml -- biquad coefficients for a peaking EQ.
+//
+// The Robert Bristow-Johnson "Audio EQ Cookbook" formulas for a
+// peaking parametric-EQ filter at centre frequency f0, gain dB,
+// and Q. The output coefficients (b0, b1, b2, a1, a2) plug into
+// the canonical biquad in audio/dsp/biquad_lowpass.eml.
+//
+// EML ships the per-coefficient gates so the host can compute
+// the full filter section per parameter update. Chain order 1
+// (the cos in the alpha helper).
+
+module parametric_eq;
+
+const SAMPLE_RATE_MIN: Real = 8000.0
+const SAMPLE_RATE_MAX: Real = 384000.0
+const F0_MIN:          Real = 20.0
+const F0_MAX:          Real = 20000.0
+const Q_MIN:           Real = 0.1
+const Q_MAX:           Real = 100.0
+const GAIN_DB_MIN:     Real = -24.0
+const GAIN_DB_MAX:     Real = 24.0
+const TWO_PI:          Real = 6.283185307179586
+
+type BiquadCoeff = Real where chain_order <= 1
+
+// Helper: omega = 2*pi*f0/fs. Chain order 0 (no trig yet).
+@target(fpga, clock_mhz = 500, precision = float64)
+fn normalised_freq(f0: Real, sample_rate: Real) -> Real
+    where chain_order <= 0
+    requires (f0 >= F0_MIN)
+    requires (f0 <= F0_MAX)
+    requires (sample_rate >= SAMPLE_RATE_MIN)
+    requires (sample_rate <= SAMPLE_RATE_MAX)
+{
+    TWO_PI * f0 / sample_rate
+}
+
+// alpha = sin(omega) / (2 * Q) -- the bandwidth helper used
+// by every cookbook EQ filter. Chain order 1.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "alpha_inverse_proportional_to_q")
+fn cookbook_alpha(omega: Real, q: Real) -> BiquadCoeff
+    where chain_order <= 1
+    requires (omega >= 0.0)
+    requires (omega <= 6.2832)
+    requires (q >= Q_MIN)
+    requires (q <= Q_MAX)
+{
+    sin(omega) / (2.0 * q)
+}
+
+// b0 / a0 -- peaking-EQ numerator gain at DC. Pre-normalised
+// by the a0 coefficient. Chain order 1.
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "peaking_b0_unity_at_zero_gain")
+fn peaking_b0(omega: Real, alpha: Real, gain_amp: Real) -> BiquadCoeff
+    where chain_order <= 1
+    requires (omega >= 0.0)
+    requires (omega <= 6.2832)
+    requires (alpha >= 0.0)
+    requires (alpha <= 100.0)
+    requires (gain_amp >= 0.05)
+    requires (gain_amp <= 20.0)
+{
+    let a0 = 1.0 + alpha / gain_amp;
+    (1.0 + alpha * gain_amp) / a0
+}
+
+// dB-to-amplitude gain for biquad EQ filters. The cookbook uses
+// A = 10^(gain_dB / 40); chain order 1.
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "gain_amp_unity_at_zero_db")
+fn gain_amplitude(gain_db: Real) -> BiquadCoeff
+    where chain_order <= 1
+    requires (gain_db >= GAIN_DB_MIN)
+    requires (gain_db <= GAIN_DB_MAX)
+    ensures  (result > 0.0)
+{
+    pow(10.0, gain_db / 40.0)
+}

@@ -1,0 +1,105 @@
+// adam.eml -- Adam (Kingma & Ba 2014) per-parameter step.
+//
+// The 3-state update:
+//
+//   m[k] = beta1*m[k-1] + (1-beta1)*g
+//   v[k] = beta2*v[k-1] + (1-beta2)*g*g
+//   m_hat = m[k] / (1 - beta1^t)
+//   v_hat = v[k] / (1 - beta2^t)
+//   theta[k] = theta[k-1] - lr * m_hat / (sqrt(v_hat) + eps)
+//
+// Forge ships this as 4 scalar gates so the FPGA allocator
+// can pipeline the per-element update at maximum parallelism.
+// The bias-correction factor is supplied by the host
+// (precomputed once per step from t).
+//
+// Chain order 1 (sqrt). AdamW (decoupled weight decay) is
+// shipped as a separate gate.
+
+module adam_optimizer;
+
+const LR_MIN:    Real = 1.0e-9
+const LR_MAX:    Real = 1.0
+const BETA_MAX:  Real = 0.9999999
+const VAL_MAX:   Real = 1.0e6
+const EPS_MIN:   Real = 1.0e-12
+const EPS_MAX:   Real = 1.0e-3
+
+type ParameterValue = Real where chain_order <= 1
+type MomentValue    = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "first_moment_convex_combination")
+fn first_moment_update(prev_m: Real, gradient: Real, beta1: Real) -> MomentValue
+    where chain_order <= 0
+    requires (abs(prev_m) <= VAL_MAX)
+    requires (abs(gradient) <= VAL_MAX)
+    requires (beta1 >= 0.0)
+    requires (beta1 <= BETA_MAX)
+{
+    beta1 * prev_m + (1.0 - beta1) * gradient
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "second_moment_nonneg")
+fn second_moment_update(prev_v: Real, gradient: Real, beta2: Real) -> MomentValue
+    where chain_order <= 0
+    requires (prev_v >= 0.0)
+    requires (prev_v <= VAL_MAX)
+    requires (abs(gradient) <= VAL_MAX)
+    requires (beta2 >= 0.0)
+    requires (beta2 <= BETA_MAX)
+    ensures  (result >= 0.0)
+{
+    beta2 * prev_v + (1.0 - beta2) * gradient * gradient
+}
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "adam_param_step_descent_when_aligned")
+fn adam_param_step(
+    theta: Real,
+    m_hat: Real,
+    v_hat: Real,
+    lr: Real,
+    eps: Real,
+) -> ParameterValue
+    where chain_order <= 1
+    requires (abs(theta) <= VAL_MAX)
+    requires (abs(m_hat) <= VAL_MAX)
+    requires (v_hat >= 0.0)
+    requires (v_hat <= VAL_MAX)
+    requires (lr >= LR_MIN)
+    requires (lr <= LR_MAX)
+    requires (eps >= EPS_MIN)
+    requires (eps <= EPS_MAX)
+{
+    theta - lr * m_hat / (sqrt(v_hat) + eps)
+}
+
+// AdamW step -- decoupled weight decay added to the parameter
+// update directly (Loshchilov & Hutter 2019). Generalises
+// better than L2 for transformers.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "adamw_decoupled_decay_independent_of_grad")
+fn adamw_param_step(
+    theta: Real,
+    m_hat: Real,
+    v_hat: Real,
+    lr: Real,
+    eps: Real,
+    weight_decay: Real,
+) -> ParameterValue
+    where chain_order <= 1
+    requires (abs(theta) <= VAL_MAX)
+    requires (abs(m_hat) <= VAL_MAX)
+    requires (v_hat >= 0.0)
+    requires (v_hat <= VAL_MAX)
+    requires (lr >= LR_MIN)
+    requires (lr <= LR_MAX)
+    requires (eps >= EPS_MIN)
+    requires (eps <= EPS_MAX)
+    requires (weight_decay >= 0.0)
+    requires (weight_decay <= 1.0)
+{
+    theta - lr * (m_hat / (sqrt(v_hat) + eps) + weight_decay * theta)
+}

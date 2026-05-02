@@ -1,0 +1,116 @@
+// solar_pv_iv.eml -- solar PV cell I-V characteristic.
+//
+// The single-diode photovoltaic cell model:
+//
+//   I = I_ph - I_s * (exp((V + I*R_s) / (n*V_T)) - 1) - (V + I*R_s)/R_sh
+//
+// where:
+//   I_ph    photocurrent (proportional to irradiance)
+//   I_s     reverse-saturation current of the diode
+//   R_s     series resistance (small)
+//   R_sh    shunt resistance (large)
+//   n       diode ideality factor (1.0 - 2.0)
+//   V_T     thermal voltage = kT/q ~ 0.02585 V at 300 K
+//
+// EML ships the explicit-V approximation (the canonical form
+// for MPPT controllers, where R_s is small enough that the
+// implicit term contributes < 1% error):
+//
+//   I(V) ~ I_ph - I_s * (exp(V / (n*V_T)) - 1)
+//
+// Chain order 1 (single exp). Companion of mppt.eml in the
+// renewable subfolder.
+
+module solar_pv_iv;
+
+const VT_300K:   Real = 0.025852
+const IPH_MAX:   Real = 50.0
+const IS_MIN:    Real = 1.0e-15
+const IS_MAX:    Real = 1.0e-3
+const N_MIN:     Real = 1.0
+const N_MAX:     Real = 2.0
+const V_MAX:     Real = 100.0
+const T_MIN:     Real = 233.0          // -40 C
+const T_MAX:     Real = 358.0          // +85 C
+const G_MAX:     Real = 1500.0         // W/m^2 irradiance
+const G_REF:     Real = 1000.0
+
+type SolarCurrent = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "pv_current_decreases_with_voltage")
+fn cell_current(
+    v: Real,
+    photocurrent: Real,
+    saturation_current: Real,
+    ideality: Real,
+    thermal_voltage: Real,
+) -> SolarCurrent
+    where chain_order <= 1
+    requires (v >= 0.0)
+    requires (v <= V_MAX)
+    requires (photocurrent >= 0.0)
+    requires (photocurrent <= IPH_MAX)
+    requires (saturation_current >= IS_MIN)
+    requires (saturation_current <= IS_MAX)
+    requires (ideality >= N_MIN)
+    requires (ideality <= N_MAX)
+    requires (thermal_voltage > 0.0)
+    requires (thermal_voltage <= 0.1)
+{
+    photocurrent - saturation_current * (exp(v / (ideality * thermal_voltage)) - 1.0)
+}
+
+// Photocurrent under irradiance G and temperature T:
+//   I_ph(G, T) = (G / G_ref) * (I_ph_ref + alpha * (T - T_ref))
+// where alpha is the temperature coefficient of I_ph (typ.
+// 0.05 %/K).
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "photocurrent_proportional_to_irradiance")
+fn photocurrent_under_conditions(
+    irradiance: Real,
+    iph_ref: Real,
+    temperature_k: Real,
+    temperature_ref: Real,
+    alpha_temp_coeff: Real,
+) -> SolarCurrent
+    where chain_order <= 0
+    requires (irradiance >= 0.0)
+    requires (irradiance <= G_MAX)
+    requires (iph_ref >= 0.0)
+    requires (iph_ref <= IPH_MAX)
+    requires (temperature_k >= T_MIN)
+    requires (temperature_k <= T_MAX)
+    requires (temperature_ref >= T_MIN)
+    requires (temperature_ref <= T_MAX)
+    requires (abs(alpha_temp_coeff) <= 0.1)
+    ensures  (result >= 0.0)
+{
+    let temp_correction = iph_ref + alpha_temp_coeff * (temperature_k - temperature_ref);
+    let g_factor = irradiance / G_REF;
+    clamp(g_factor * temp_correction, 0.0, IPH_MAX)
+}
+
+// Open-circuit voltage: V_oc = n*V_T * ln(I_ph / I_s + 1).
+// Chain order 1 (ln).
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "voc_increases_with_photocurrent")
+fn open_circuit_voltage(
+    photocurrent: Real,
+    saturation_current: Real,
+    ideality: Real,
+    thermal_voltage: Real,
+) -> Real
+    where chain_order <= 1
+    requires (photocurrent >= IS_MIN)
+    requires (photocurrent <= IPH_MAX)
+    requires (saturation_current >= IS_MIN)
+    requires (saturation_current <= IS_MAX)
+    requires (ideality >= N_MIN)
+    requires (ideality <= N_MAX)
+    requires (thermal_voltage > 0.0)
+    requires (thermal_voltage <= 0.1)
+    ensures  (result >= 0.0)
+{
+    ideality * thermal_voltage * ln(photocurrent / saturation_current + 1.0)
+}

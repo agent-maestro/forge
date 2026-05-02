@@ -1,0 +1,85 @@
+// magnetometer_heading.eml -- 3-axis magnetometer heading
+// extraction.
+//
+// Given a tilt-compensated 3-axis magnetic-field reading
+// (m_x, m_y) and pitch / roll, the magnetic heading (angle
+// from north, increasing east) is:
+//
+//   m_x_h =  m_x * cos(pitch) + m_z * sin(pitch)
+//   m_y_h =  m_x * sin(roll) * sin(pitch)
+//          + m_y * cos(roll)
+//          - m_z * sin(roll) * cos(pitch)
+//   heading = atan2(-m_y_h, m_x_h)
+//
+// The host supplies pitch / roll from the IMU complementary
+// filter (industries/aerospace/sensors/imu_complementary_filter).
+// EML ships the tilt-compensation gates plus the atan2 pull.
+//
+// Chain order 2 (sin/cos compose into atan2).
+// DO-178C Tool Qualification Level C.
+
+module magnetometer_heading;
+
+const MAG_COMPONENT_MAX: Real = 1.0e3        // gauss * 1000
+const ANGLE_MAX:         Real = 6.2832
+const PITCH_ROLL_MAX:    Real = 1.5708
+
+type TiltCompensated = Real where chain_order <= 1
+type Heading         = Real where chain_order <= 2
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "tilt_x_unchanged_at_level")
+fn tilt_compensated_x(
+    mag_x: Real, mag_z: Real,
+    pitch: Real,
+) -> TiltCompensated
+    where chain_order <= 1
+    requires (abs(mag_x) <= MAG_COMPONENT_MAX)
+    requires (abs(mag_z) <= MAG_COMPONENT_MAX)
+    requires (abs(pitch) <= PITCH_ROLL_MAX)
+{
+    mag_x * cos(pitch) + mag_z * sin(pitch)
+}
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "tilt_y_unchanged_at_level")
+fn tilt_compensated_y(
+    mag_x: Real, mag_y: Real, mag_z: Real,
+    pitch: Real, roll: Real,
+) -> TiltCompensated
+    where chain_order <= 1
+    requires (abs(mag_x) <= MAG_COMPONENT_MAX)
+    requires (abs(mag_y) <= MAG_COMPONENT_MAX)
+    requires (abs(mag_z) <= MAG_COMPONENT_MAX)
+    requires (abs(pitch) <= PITCH_ROLL_MAX)
+    requires (abs(roll) <= PITCH_ROLL_MAX)
+{
+    mag_x * sin(roll) * sin(pitch)
+    + mag_y * cos(roll)
+    - mag_z * sin(roll) * cos(pitch)
+}
+
+@target(fpga, clock_mhz = 100, precision = float32)
+@verify(lean, theorem = "heading_zero_due_north")
+fn magnetic_heading(mag_x_h: Real, mag_y_h: Real) -> Heading
+    where chain_order <= 1
+    requires (abs(mag_x_h) <= MAG_COMPONENT_MAX)
+    requires (abs(mag_y_h) <= MAG_COMPONENT_MAX)
+    ensures  (result >= -3.1416)
+    ensures  (result <= 3.1416)
+{
+    atan2(-mag_y_h, mag_x_h)
+}
+
+// Magnetic-deviation correction: subtract the local declination
+// to convert from magnetic to true heading. Chain order 0;
+// the host pulls declination from a WMM table per latitude /
+// longitude.
+@target(fpga, clock_mhz = 500, precision = float32)
+fn true_heading(magnetic_heading: Real, declination: Real) -> Heading
+    where chain_order <= 0
+    requires (abs(magnetic_heading) <= ANGLE_MAX)
+    requires (abs(declination) <= 0.5)
+{
+    magnetic_heading + declination
+}

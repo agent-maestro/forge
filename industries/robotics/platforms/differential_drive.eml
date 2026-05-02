@@ -1,0 +1,116 @@
+// differential_drive.eml -- 2-wheel differential drive kinematics.
+//
+// The simplest mobile-base kinematic model: two wheels share a
+// common axle, each driven independently. Body linear and
+// angular velocities are
+//
+//   v   = (v_l + v_r) / 2
+//   omega = (v_r - v_l) / track_width
+//
+// where v_l, v_r are the per-wheel linear velocities and
+// track_width is the axle distance. Inverse kinematics maps
+// a desired (v, omega) back to wheel commands:
+//
+//   v_l = v - omega * track_width / 2
+//   v_r = v + omega * track_width / 2
+//
+// Chain order 0 throughout. Used in every educational mobile
+// robot (Roomba, TurtleBot, Khepera) and as the canonical
+// teaching example for non-holonomic constraints.
+
+module differential_drive;
+
+const TRACK_MIN: Real = 0.05
+const TRACK_MAX: Real = 5.0
+const WHEEL_VEL_MAX: Real = 20.0
+const OMEGA_MAX: Real = 50.0
+
+type BodyVelocity = Real where chain_order <= 0
+type WheelVelocity = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "diff_drive_linear_velocity_average")
+fn body_linear_velocity(left_wheel: Real, right_wheel: Real) -> BodyVelocity
+    where chain_order <= 0
+    requires (abs(left_wheel) <= WHEEL_VEL_MAX)
+    requires (abs(right_wheel) <= WHEEL_VEL_MAX)
+{
+    0.5 * (left_wheel + right_wheel)
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "diff_drive_angular_velocity_difference")
+fn body_angular_velocity(
+    left_wheel: Real,
+    right_wheel: Real,
+    track_width: Real,
+) -> BodyVelocity
+    where chain_order <= 0
+    requires (abs(left_wheel) <= WHEEL_VEL_MAX)
+    requires (abs(right_wheel) <= WHEEL_VEL_MAX)
+    requires (track_width >= TRACK_MIN)
+    requires (track_width <= TRACK_MAX)
+{
+    (right_wheel - left_wheel) / track_width
+}
+
+// Inverse kinematics: command (v, omega) -> per-wheel velocity.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "diff_drive_inverse_consistent_with_forward")
+fn left_wheel_command(
+    body_v: Real,
+    body_omega: Real,
+    track_width: Real,
+) -> WheelVelocity
+    where chain_order <= 0
+    requires (abs(body_v) <= WHEEL_VEL_MAX)
+    requires (abs(body_omega) <= OMEGA_MAX)
+    requires (track_width >= TRACK_MIN)
+    requires (track_width <= TRACK_MAX)
+{
+    body_v - body_omega * track_width * 0.5
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "diff_drive_right_inverse_consistent")
+fn right_wheel_command(
+    body_v: Real,
+    body_omega: Real,
+    track_width: Real,
+) -> WheelVelocity
+    where chain_order <= 0
+    requires (abs(body_v) <= WHEEL_VEL_MAX)
+    requires (abs(body_omega) <= OMEGA_MAX)
+    requires (track_width >= TRACK_MIN)
+    requires (track_width <= TRACK_MAX)
+{
+    body_v + body_omega * track_width * 0.5
+}
+
+// Pose dead-reckoning: integrate (v, omega) one step into
+// (x, y, theta). Chain order 1 (single cos and sin per axis).
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "pose_x_integration_step_linear_in_dt")
+fn pose_x_step(x_prev: Real, body_v: Real, theta: Real, dt: Real) -> Real
+    where chain_order <= 1
+    requires (abs(x_prev) <= 1.0e6)
+    requires (abs(body_v) <= WHEEL_VEL_MAX)
+    requires (abs(theta) <= 6.2832)
+    requires (dt >= 0.0)
+    requires (dt <= 1.0)
+{
+    x_prev + body_v * cos(theta) * dt
+}
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "pose_y_integration_step_linear_in_dt")
+fn pose_y_step(y_prev: Real, body_v: Real, theta: Real, dt: Real) -> Real
+    where chain_order <= 1
+    requires (abs(y_prev) <= 1.0e6)
+    requires (abs(body_v) <= WHEEL_VEL_MAX)
+    requires (abs(theta) <= 6.2832)
+    requires (dt >= 0.0)
+    requires (dt <= 1.0)
+{
+    y_prev + body_v * sin(theta) * dt
+}

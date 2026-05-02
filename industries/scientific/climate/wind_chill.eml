@@ -1,0 +1,96 @@
+// wind_chill.eml -- wind-chill / heat-index human-comfort
+// kernels.
+//
+// Two NWS-standard human-comfort indices:
+//
+//   Wind Chill (Environment Canada / NWS 2001):
+//     T_wc = 13.12 + 0.6215*T - 11.37*v^0.16 + 0.3965*T*v^0.16
+//   (T in C, v in km/h, valid for T <= 10 C, v >= 4.8 km/h)
+//
+//   Heat Index (Rothfusz / NWS 1990):
+//     HI = -42.379 + 2.04901523*T + 10.14333127*RH
+//          - 0.22475541*T*RH - 6.83783e-3*T^2
+//          - 5.481717e-2*RH^2 + 1.22874e-3*T^2*RH
+//          + 8.5282e-4*T*RH^2 - 1.99e-6*T^2*RH^2
+//   (T in F, RH in %, valid for T >= 80 F)
+//
+// Chain order 1 (wind-chill: pow). The heat index is chain 0
+// (pure polynomial in (T, RH)).
+//
+// Used in HVAC + meteorology dashboards + wearable heat-stress
+// monitors. Companion of humidity.eml in the climate subfolder.
+
+module wind_chill;
+
+const T_MIN_C:    Real = -50.0
+const T_MAX_C:    Real = 50.0
+const V_MIN_KMH:  Real = 0.0
+const V_MAX_KMH:  Real = 200.0
+const T_MIN_F:    Real = 0.0
+const T_MAX_F:    Real = 200.0
+const RH_MIN:     Real = 0.0
+const RH_MAX:     Real = 100.0
+
+type ComfortIndex = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "wind_chill_below_air_temperature")
+fn wind_chill_celsius(temperature_c: Real, wind_speed_kmh: Real) -> ComfortIndex
+    where chain_order <= 1
+    requires (temperature_c >= T_MIN_C)
+    requires (temperature_c <= T_MAX_C)
+    requires (wind_speed_kmh >= V_MIN_KMH)
+    requires (wind_speed_kmh <= V_MAX_KMH)
+{
+    let v_pow = pow(wind_speed_kmh, 0.16);
+    13.12 + 0.6215 * temperature_c
+    - 11.37 * v_pow + 0.3965 * temperature_c * v_pow
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "heat_index_above_air_temperature")
+fn heat_index_fahrenheit(
+    temperature_f: Real,
+    relative_humidity_pct: Real,
+) -> ComfortIndex
+    where chain_order <= 0
+    requires (temperature_f >= T_MIN_F)
+    requires (temperature_f <= T_MAX_F)
+    requires (relative_humidity_pct >= RH_MIN)
+    requires (relative_humidity_pct <= RH_MAX)
+{
+    let t  = temperature_f;
+    let rh = relative_humidity_pct;
+    let t2 = t * t;
+    let rh2 = rh * rh;
+    -42.379
+    + 2.04901523 * t
+    + 10.14333127 * rh
+    - 0.22475541 * t * rh
+    - 6.83783e-3 * t2
+    - 5.481717e-2 * rh2
+    + 1.22874e-3 * t2 * rh
+    + 8.5282e-4 * t * rh2
+    - 1.99e-6 * t2 * rh2
+}
+
+// Apparent temperature (Steadman, the underlying model behind
+// the Australian Bureau of Meteorology's "feels-like"). Linear
+// in T, e (vapor pressure), and v.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "apparent_temperature_linear")
+fn steadman_apparent_temp(
+    temperature_c: Real,
+    vapor_pressure_hpa: Real,
+    wind_speed_ms: Real,
+) -> ComfortIndex
+    where chain_order <= 0
+    requires (temperature_c >= T_MIN_C)
+    requires (temperature_c <= T_MAX_C)
+    requires (vapor_pressure_hpa >= 0.0)
+    requires (vapor_pressure_hpa <= 60.0)
+    requires (wind_speed_ms >= 0.0)
+    requires (wind_speed_ms <= 60.0)
+{
+    temperature_c + 0.33 * vapor_pressure_hpa - 0.7 * wind_speed_ms - 4.0
+}

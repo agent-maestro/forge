@@ -1,0 +1,84 @@
+// shannon_capacity.eml -- Shannon-Hartley channel capacity.
+//
+// Shannon's theorem for a band-limited AWGN channel:
+//
+//   C = B * log2(1 + SNR)
+//
+// where B is the bandwidth (Hz), SNR is the linear
+// signal-to-noise ratio, and C is the capacity in bits/s.
+//
+// EML ships:
+//   shannon_capacity        the linear-SNR form
+//   shannon_capacity_db     the SNR-in-dB form (single conversion)
+//   spectral_efficiency     C / B = log2(1 + SNR)
+//
+// Chain order 1 (log2 expressed via ln). The information-
+// theoretic upper bound modern systems chase via LDPC / turbo
+// / polar codes.
+
+module shannon_capacity;
+
+const B_MIN:      Real = 1.0
+const B_MAX:      Real = 1.0e12
+const SNR_MIN:    Real = 1.0e-6
+const SNR_MAX:    Real = 1.0e9
+const SNR_DB_MIN: Real = -60.0
+const SNR_DB_MAX: Real = 90.0
+const LN2_INV:    Real = 1.4426950408889634
+
+type Capacity            = Real where chain_order <= 1
+type SpectralEfficiency  = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "capacity_zero_at_zero_snr")
+fn shannon_capacity(bandwidth_hz: Real, snr_linear: Real) -> Capacity
+    where chain_order <= 1
+    requires (bandwidth_hz >= B_MIN)
+    requires (bandwidth_hz <= B_MAX)
+    requires (snr_linear >= SNR_MIN)
+    requires (snr_linear <= SNR_MAX)
+    ensures  (result >= 0.0)
+{
+    bandwidth_hz * LN2_INV * ln(1.0 + snr_linear)
+}
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "capacity_db_consistent_with_linear")
+fn shannon_capacity_db(bandwidth_hz: Real, snr_db: Real) -> Capacity
+    where chain_order <= 1
+    requires (bandwidth_hz >= B_MIN)
+    requires (bandwidth_hz <= B_MAX)
+    requires (snr_db >= SNR_DB_MIN)
+    requires (snr_db <= SNR_DB_MAX)
+    ensures  (result >= 0.0)
+{
+    let snr_linear = exp(snr_db / (10.0 * LN2_INV * 0.6931471805599453));
+    bandwidth_hz * LN2_INV * ln(1.0 + snr_linear)
+}
+
+@target(fpga, clock_mhz = 250, precision = float64)
+@verify(lean, theorem = "spectral_efficiency_equals_log2_of_one_plus_snr")
+fn spectral_efficiency(snr_linear: Real) -> SpectralEfficiency
+    where chain_order <= 1
+    requires (snr_linear >= SNR_MIN)
+    requires (snr_linear <= SNR_MAX)
+    ensures  (result >= 0.0)
+{
+    LN2_INV * ln(1.0 + snr_linear)
+}
+
+// Asymptotic high-SNR form: C ~= B * log2(SNR). Chain order 1.
+// The slope of capacity in SNR (in dB) at high SNR; the famous
+// "3 dB per bit" rule.
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "high_snr_asymptotic_capacity")
+fn high_snr_capacity(bandwidth_hz: Real, snr_linear: Real) -> Capacity
+    where chain_order <= 1
+    requires (bandwidth_hz >= B_MIN)
+    requires (bandwidth_hz <= B_MAX)
+    requires (snr_linear >= 1.0)
+    requires (snr_linear <= SNR_MAX)
+    ensures  (result >= 0.0)
+{
+    bandwidth_hz * LN2_INV * ln(snr_linear)
+}

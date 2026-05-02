@@ -1,0 +1,126 @@
+// mecanum_wheel.eml -- omnidirectional Mecanum kinematics.
+//
+// Mecanum (Ilon) wheels have rollers angled at +/- 45 deg on
+// the rim, so each wheel's traction has both a longitudinal
+// and lateral component. Four wheels in the canonical X-pattern
+// give a holonomic platform: independent (vx, vy, omega)
+// command via the inverse map
+//
+//   omega_fl =  (vx - vy - (lx + ly)*omega) / r
+//   omega_fr =  (vx + vy + (lx + ly)*omega) / r
+//   omega_rl =  (vx + vy - (lx + ly)*omega) / r
+//   omega_rr =  (vx - vy + (lx + ly)*omega) / r
+//
+// where (lx, ly) is the half-base and half-track and r is the
+// wheel radius. EML ships the per-wheel gate so the FPGA
+// allocator can SIMD-lane the four motors.
+//
+// Chain order 0. Forge ships this in the robotics platforms
+// vertical alongside differential_drive and ackermann_steering.
+
+module mecanum_wheel;
+
+const WHEEL_R_MIN:  Real = 0.02
+const WHEEL_R_MAX:  Real = 0.5
+const HALF_BASE_MAX: Real = 1.5
+const VEL_MAX:      Real = 5.0
+const OMEGA_MAX:    Real = 10.0
+const WHEEL_OMEGA_MAX: Real = 200.0
+
+type WheelOmega = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "mecanum_fl_zero_at_zero_command")
+fn front_left_omega(
+    vx: Real,
+    vy: Real,
+    omega: Real,
+    half_base: Real,
+    half_track: Real,
+    wheel_radius: Real,
+) -> WheelOmega
+    where chain_order <= 0
+    requires (abs(vx) <= VEL_MAX)
+    requires (abs(vy) <= VEL_MAX)
+    requires (abs(omega) <= OMEGA_MAX)
+    requires (half_base >= 0.0)
+    requires (half_base <= HALF_BASE_MAX)
+    requires (half_track >= 0.0)
+    requires (half_track <= HALF_BASE_MAX)
+    requires (wheel_radius >= WHEEL_R_MIN)
+    requires (wheel_radius <= WHEEL_R_MAX)
+{
+    (vx - vy - (half_base + half_track) * omega) / wheel_radius
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "mecanum_fr_signed_in_yaw")
+fn front_right_omega(
+    vx: Real,
+    vy: Real,
+    omega: Real,
+    half_base: Real,
+    half_track: Real,
+    wheel_radius: Real,
+) -> WheelOmega
+    where chain_order <= 0
+    requires (abs(vx) <= VEL_MAX)
+    requires (abs(vy) <= VEL_MAX)
+    requires (abs(omega) <= OMEGA_MAX)
+    requires (half_base >= 0.0)
+    requires (half_base <= HALF_BASE_MAX)
+    requires (half_track >= 0.0)
+    requires (half_track <= HALF_BASE_MAX)
+    requires (wheel_radius >= WHEEL_R_MIN)
+    requires (wheel_radius <= WHEEL_R_MAX)
+{
+    (vx + vy + (half_base + half_track) * omega) / wheel_radius
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "mecanum_rl_swap_pattern")
+fn rear_left_omega(
+    vx: Real,
+    vy: Real,
+    omega: Real,
+    half_base: Real,
+    half_track: Real,
+    wheel_radius: Real,
+) -> WheelOmega
+    where chain_order <= 0
+    requires (abs(vx) <= VEL_MAX)
+    requires (abs(vy) <= VEL_MAX)
+    requires (abs(omega) <= OMEGA_MAX)
+    requires (half_base >= 0.0)
+    requires (half_base <= HALF_BASE_MAX)
+    requires (half_track >= 0.0)
+    requires (half_track <= HALF_BASE_MAX)
+    requires (wheel_radius >= WHEEL_R_MIN)
+    requires (wheel_radius <= WHEEL_R_MAX)
+{
+    (vx + vy - (half_base + half_track) * omega) / wheel_radius
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "mecanum_rr_diagonal_to_fl")
+fn rear_right_omega(
+    vx: Real,
+    vy: Real,
+    omega: Real,
+    half_base: Real,
+    half_track: Real,
+    wheel_radius: Real,
+) -> WheelOmega
+    where chain_order <= 0
+    requires (abs(vx) <= VEL_MAX)
+    requires (abs(vy) <= VEL_MAX)
+    requires (abs(omega) <= OMEGA_MAX)
+    requires (half_base >= 0.0)
+    requires (half_base <= HALF_BASE_MAX)
+    requires (half_track >= 0.0)
+    requires (half_track <= HALF_BASE_MAX)
+    requires (wheel_radius >= WHEEL_R_MIN)
+    requires (wheel_radius <= WHEEL_R_MAX)
+{
+    (vx - vy + (half_base + half_track) * omega) / wheel_radius
+}

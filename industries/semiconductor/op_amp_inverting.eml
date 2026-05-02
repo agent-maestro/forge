@@ -1,0 +1,111 @@
+// op_amp_inverting.eml -- ideal op-amp inverting amplifier.
+//
+// The classical inverting-amp topology with feedback resistor
+// R_f and input resistor R_in:
+//
+//   V_out = -(R_f / R_in) * V_in
+//
+// Frequency-dependent: with the GBW (gain-bandwidth product),
+// the closed-loop bandwidth is GBW / (1 + R_f/R_in).
+//
+// EML ships ideal-and-clipped + 1-pole-rolloff variants. Chain
+// order 0 for the ideal form, chain 1 for the rolloff-aware
+// transfer.
+
+module op_amp_inverting;
+
+const RES_MIN:    Real = 1.0
+const RES_MAX:    Real = 1.0e9
+const V_RAIL_MIN: Real = 1.0
+const V_RAIL_MAX: Real = 50.0
+const V_IN_MAX:   Real = 50.0
+const FREQ_MIN:   Real = 0.0
+const FREQ_MAX:   Real = 1.0e9
+const GBW_MIN:    Real = 1.0e3
+const GBW_MAX:    Real = 1.0e10
+
+type Voltage = Real where chain_order <= 0
+type ClippedVoltage = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "inverting_gain_negative_proportional")
+fn inverting_output(
+    v_in: Real,
+    r_feedback: Real,
+    r_input: Real,
+) -> Voltage
+    where chain_order <= 0
+    requires (abs(v_in) <= V_IN_MAX)
+    requires (r_feedback >= RES_MIN)
+    requires (r_feedback <= RES_MAX)
+    requires (r_input >= RES_MIN)
+    requires (r_input <= RES_MAX)
+{
+    -(r_feedback / r_input) * v_in
+}
+
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "rail_clipped_within_supplies")
+fn inverting_output_with_rails(
+    v_in: Real,
+    r_feedback: Real,
+    r_input: Real,
+    v_pos_rail: Real,
+    v_neg_rail: Real,
+) -> ClippedVoltage
+    where chain_order <= 0
+    requires (abs(v_in) <= V_IN_MAX)
+    requires (r_feedback >= RES_MIN)
+    requires (r_feedback <= RES_MAX)
+    requires (r_input >= RES_MIN)
+    requires (r_input <= RES_MAX)
+    requires (v_pos_rail >= V_RAIL_MIN)
+    requires (v_pos_rail <= V_RAIL_MAX)
+    requires (v_neg_rail >= -V_RAIL_MAX)
+    requires (v_neg_rail <= -V_RAIL_MIN)
+{
+    let raw = -(r_feedback / r_input) * v_in;
+    clamp(raw, v_neg_rail, v_pos_rail)
+}
+
+// Closed-loop bandwidth: BW = GBW / (1 + R_f/R_in). Chain 0.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "bandwidth_decreases_with_gain")
+fn closed_loop_bandwidth(
+    gbw: Real,
+    r_feedback: Real,
+    r_input: Real,
+) -> Real
+    where chain_order <= 0
+    requires (gbw >= GBW_MIN)
+    requires (gbw <= GBW_MAX)
+    requires (r_feedback >= RES_MIN)
+    requires (r_feedback <= RES_MAX)
+    requires (r_input >= RES_MIN)
+    requires (r_input <= RES_MAX)
+    ensures  (result >= 0.0)
+{
+    gbw / (1.0 + r_feedback / r_input)
+}
+
+// Frequency-dependent magnitude: |H(f)| = |G_dc| / sqrt(1 + (f/BW)^2).
+// Used for SPICE-compatible AC analysis. Chain order 1 (sqrt).
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "magnitude_rolloff_minus3db_at_bw")
+fn magnitude_at_freq(
+    g_dc_magnitude: Real,
+    frequency: Real,
+    bandwidth: Real,
+) -> Real
+    where chain_order <= 1
+    requires (g_dc_magnitude >= 0.0)
+    requires (g_dc_magnitude <= 1.0e6)
+    requires (frequency >= FREQ_MIN)
+    requires (frequency <= FREQ_MAX)
+    requires (bandwidth >= 1.0)
+    requires (bandwidth <= FREQ_MAX)
+    ensures  (result >= 0.0)
+{
+    let ratio = frequency / bandwidth;
+    g_dc_magnitude / sqrt(1.0 + ratio * ratio)
+}

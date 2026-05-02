@@ -1,0 +1,89 @@
+// bjt_collector_current.eml -- bipolar junction transistor
+// Ebers-Moll forward-active collector current.
+//
+// The classical Ebers-Moll forward-active model:
+//
+//   I_C = I_S * (exp(V_BE / V_T) - 1)
+//
+// with the Shockley diode equation hidden inside. Companion
+// to shockley_diode.eml in the same vertical; this file
+// adds the BJT-specific surface (collector current under
+// V_BE drive, transconductance, and small-signal gain).
+//
+// Chain order 1. Used in every bipolar-process design kit
+// and as the canonical-test gate for SuperBEST's exp/diode
+// optimisation rules.
+
+module bjt_collector_current;
+
+const VT_300K: Real = 0.025852
+const IS_MIN:  Real = 1.0e-18
+const IS_MAX:  Real = 1.0e-9
+const VBE_MIN: Real = -0.5
+const VBE_MAX: Real = 1.5
+const VA_MIN:  Real = 10.0           // Early voltage floor
+const VA_MAX:  Real = 1000.0
+
+type CollectorCurrent = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "ic_monotone_in_vbe")
+fn collector_current(
+    saturation_current: Real,
+    base_emitter_voltage: Real,
+    thermal_voltage: Real,
+) -> CollectorCurrent
+    where chain_order <= 1
+    requires (saturation_current >= IS_MIN)
+    requires (saturation_current <= IS_MAX)
+    requires (base_emitter_voltage >= VBE_MIN)
+    requires (base_emitter_voltage <= VBE_MAX)
+    requires (thermal_voltage > 0.0)
+    requires (thermal_voltage <= 0.1)
+{
+    saturation_current * (exp(base_emitter_voltage / thermal_voltage) - 1.0)
+}
+
+// Early-effect correction: I_C scaled by (1 + V_CE / V_A).
+// Chain order 1 (the inner exp dominates).
+@target(fpga, clock_mhz = 200, precision = float64)
+@verify(lean, theorem = "ic_with_early_increases_with_vce")
+fn collector_current_with_early(
+    saturation_current: Real,
+    base_emitter_voltage: Real,
+    collector_emitter_voltage: Real,
+    thermal_voltage: Real,
+    early_voltage: Real,
+) -> CollectorCurrent
+    where chain_order <= 1
+    requires (saturation_current >= IS_MIN)
+    requires (saturation_current <= IS_MAX)
+    requires (base_emitter_voltage >= VBE_MIN)
+    requires (base_emitter_voltage <= VBE_MAX)
+    requires (collector_emitter_voltage >= 0.0)
+    requires (collector_emitter_voltage <= 50.0)
+    requires (thermal_voltage > 0.0)
+    requires (thermal_voltage <= 0.1)
+    requires (early_voltage >= VA_MIN)
+    requires (early_voltage <= VA_MAX)
+{
+    saturation_current
+    * (exp(base_emitter_voltage / thermal_voltage) - 1.0)
+    * (1.0 + collector_emitter_voltage / early_voltage)
+}
+
+// Small-signal transconductance g_m = I_C / V_T -- the
+// linearised gain coefficient at the operating point.
+// Chain order 0 (the I_C is supplied by the caller).
+@target(fpga, clock_mhz = 500, precision = float64)
+@verify(lean, theorem = "transconductance_proportional_to_ic")
+fn transconductance(collector_current: Real, thermal_voltage: Real) -> Real
+    where chain_order <= 0
+    requires (collector_current >= 0.0)
+    requires (collector_current <= 1.0)
+    requires (thermal_voltage > 0.0)
+    requires (thermal_voltage <= 0.1)
+    ensures  (result >= 0.0)
+{
+    collector_current / thermal_voltage
+}

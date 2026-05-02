@@ -1,0 +1,54 @@
+// tanh.eml -- hyperbolic-tangent activation.
+//
+// Canonical bipolar squashing function. Range (-1, 1), zero
+// mean for symmetric input distributions, smooth and analytic
+// everywhere. Chain order 1 (single transcendental).
+//
+// We also expose `hard_tanh` (a piecewise-linear
+// FPGA-friendly approximation) and `tanh_from_sigmoid` -- the
+// 2*sigmoid(2x) - 1 identity that SuperBEST canonicalises to a
+// single tanh call (saving one extra exp under the hood).
+
+module tanh_activation;
+
+const TANH_X_MAX: Real = 30.0
+
+type BipolarSignal = Real where chain_order <= 1
+
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "tanh_monotone_in_x")
+fn tanh_activation(x: Real) -> BipolarSignal
+    where chain_order <= 1
+    requires (abs(x) < TANH_X_MAX)
+    ensures  (result >= -1.0)
+    ensures  (result <= 1.0)
+{
+    tanh(x)
+}
+
+// Sigmoid-form identity: tanh(x) = 2*sigmoid(2x) - 1. SuperBEST
+// rewrites this exact pattern back to the single tanh call above,
+// recovering the chain-1 cost despite the surface chain-2 form.
+@target(fpga, clock_mhz = 250, precision = float32)
+@verify(lean, theorem = "tanh_from_sigmoid_equals_canonical")
+fn tanh_from_sigmoid(x: Real) -> BipolarSignal
+    where chain_order <= 2
+    requires (abs(x) < TANH_X_MAX)
+    ensures  (result >= -1.0)
+    ensures  (result <= 1.0)
+{
+    2.0 / (1.0 + exp(-2.0 * x)) - 1.0
+}
+
+// Hard tanh -- piecewise linear, chain order 0. Used in
+// quantised inference (int8 / int16) where the saturation
+// nonlinearity is a single clamp instead of a transcendental.
+@target(fpga, clock_mhz = 400, precision = float32)
+@verify(lean, theorem = "hard_tanh_bounded")
+fn hard_tanh(x: Real) -> BipolarSignal
+    where chain_order <= 0
+    ensures  (result >= -1.0)
+    ensures  (result <= 1.0)
+{
+    clamp(x, -1.0, 1.0)
+}

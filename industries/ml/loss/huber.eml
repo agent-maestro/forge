@@ -1,0 +1,73 @@
+// huber.eml -- Huber loss (smooth-L1).
+//
+// Huber blends MSE near zero with L1 in the tail:
+//
+//   L(r) = (1/2)*r^2                    if |r| <= delta
+//        = delta*(|r| - delta/2)        if |r| >  delta
+//
+// This is what robust regression uses when the residual
+// distribution has heavier tails than Gaussian. PyTorch's
+// `SmoothL1Loss` is the same shape with delta=1.
+//
+// EML's scalar surface ships a branch-free form via clamp:
+//
+//   q = clamp(|r|, 0, delta)            -- MSE region magnitude
+//   L = (1/2)*q^2 + delta*(|r| - q)
+//
+// The first term is the quadratic piece (capped at delta^2/2);
+// the second term is the linear extension. Chain order 0.
+
+module huber_loss;
+
+const MAX_RESIDUAL: Real = 1.0e6
+const HALF: Real = 0.5
+
+type LossSignal = Real where chain_order <= 0
+
+@target(fpga, clock_mhz = 400, precision = float32)
+@verify(lean, theorem = "huber_loss_nonnegative")
+fn huber_loss(prediction: Real, target: Real, delta: Real) -> LossSignal
+    where chain_order <= 0
+    requires (abs(prediction) < MAX_RESIDUAL)
+    requires (abs(target) < MAX_RESIDUAL)
+    requires (delta > 0.0)
+    requires (delta <= MAX_RESIDUAL)
+    ensures  (result >= 0.0)
+{
+    let r = prediction - target;
+    let abs_r = abs(r);
+    let q = clamp(abs_r, 0.0, delta);
+    HALF * q * q + delta * (abs_r - q)
+}
+
+// Gradient of Huber loss w.r.t. prediction. Equals `r` when
+// |r| <= delta and `delta * sign(r)` otherwise. Branch-free:
+// clamp the residual to +/- delta.
+@target(fpga, clock_mhz = 500, precision = float32)
+@verify(lean, theorem = "huber_grad_bounded_by_delta")
+fn huber_grad(prediction: Real, target: Real, delta: Real) -> LossSignal
+    where chain_order <= 0
+    requires (abs(prediction) < MAX_RESIDUAL)
+    requires (abs(target) < MAX_RESIDUAL)
+    requires (delta > 0.0)
+    requires (delta <= MAX_RESIDUAL)
+{
+    let r = prediction - target;
+    clamp(r, -delta, delta)
+}
+
+// Smooth-L1 (PyTorch's `SmoothL1Loss`) -- Huber with delta = 1
+// hardcoded. The most common Huber instantiation in vision
+// detection (Fast R-CNN's bounding-box regression).
+@target(fpga, clock_mhz = 400, precision = float32)
+fn smooth_l1(prediction: Real, target: Real) -> LossSignal
+    where chain_order <= 0
+    requires (abs(prediction) < MAX_RESIDUAL)
+    requires (abs(target) < MAX_RESIDUAL)
+    ensures  (result >= 0.0)
+{
+    let r = prediction - target;
+    let abs_r = abs(r);
+    let q = clamp(abs_r, 0.0, 1.0);
+    HALF * q * q + (abs_r - q)
+}
