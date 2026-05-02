@@ -188,6 +188,29 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 1
 
+    # ── Resolve license (open core; missing license = Free tier) ──
+    try:
+        from tools.license import load_license, target_allowed
+        license_ = load_license()
+    except Exception as e:
+        print(f"license error: {e}", file=sys.stderr)
+        return 2
+    tier_label = "Pro" if (license_ and license_.tier == "pro") else "Free"
+
+    # Single-target dispatch is gated here. --target all is gated
+    # per-iteration in the loop below so a Free user gets Free
+    # backends emitted and a one-line skip notice for Pro ones.
+    if args.target and args.target != "all" and not target_allowed(
+        args.target, license_,
+    ):
+        print(
+            f"error: --target {args.target} requires a Pro license "
+            f"(current tier: {tier_label}).\n"
+            f"  Get Pro at https://monogateforge.com/get-started",
+            file=sys.stderr,
+        )
+        return 2
+
     # ── --fmt -> canonical formatter (no profile needed) ──────
     if args.fmt:
         from tools.fmt import format_file
@@ -270,6 +293,17 @@ def main(argv: list[str] | None = None) -> int:
         stem = args.source.stem
         results: list[tuple[str, Path, int]] = []  # (target, path, bytes)
 
+        # Per-iteration license gate. Pro backends short-circuit
+        # by raising _ProTierRequired, which is caught explicitly
+        # before each block's generic `except Exception` so the
+        # skip lands in `skipped_pro` instead of being mis-labeled
+        # as a runtime error.
+        is_pro = license_ is not None and license_.tier == "pro"
+        skipped_pro: list[str] = []
+
+        class _ProTierRequired(Exception):
+            pass
+
         # C
         from software.backends.c_backend import CBackend
         c_path = out_dir / f"{stem}.c"
@@ -288,8 +322,9 @@ def main(argv: list[str] | None = None) -> int:
             results.append(("cpp", Path("<skipped>"), 0))
             print(f"  cpp skipped: {e}", file=sys.stderr)
 
-        # Ada / SPARK (writes .ads + .adb)
+        # Ada / SPARK (writes .ads + .adb) — Pro tier
         try:
+            if not is_pro: skipped_pro.append("ada"); raise _ProTierRequired
             from software.backends.ada_backend import AdaBackend
             ada_art = AdaBackend(optimize=not args.no_optimize).compile_full(mod)
             ads_path = out_dir / f"{stem}.ads"
@@ -298,6 +333,8 @@ def main(argv: list[str] | None = None) -> int:
             adb_path.write_text(ada_art.body, encoding="utf-8")
             results.append(("ada-spec", ads_path, len(ada_art.spec)))
             results.append(("ada-body", adb_path, len(ada_art.body)))
+        except _ProTierRequired:
+            pass  # already recorded in skipped_pro
         except Exception as e:  # noqa: BLE001
             results.append(("ada", Path("<skipped>"), 0))
             print(f"  ada skipped: {e}", file=sys.stderr)
@@ -313,20 +350,24 @@ def main(argv: list[str] | None = None) -> int:
             results.append(("matlab", Path("<skipped>"), 0))
             print(f"  matlab skipped: {e}", file=sys.stderr)
 
-        # Coq (only if any @verify block)
+        # Coq (only if any @verify block) — Pro tier
         try:
+            if not is_pro: skipped_pro.append("coq"); raise _ProTierRequired
             from software.verification.coq.coq_backend import CoqBackend
             coq_src = CoqBackend(optimize=not args.no_optimize).compile(mod)
             if coq_src:
                 coq_path = out_dir / f"{stem}.v"
                 coq_path.write_text(coq_src, encoding="utf-8")
                 results.append(("coq", coq_path, len(coq_src)))
+        except _ProTierRequired:
+            pass
         except Exception as e:  # noqa: BLE001
             results.append(("coq", Path("<skipped>"), 0))
             print(f"  coq skipped: {e}", file=sys.stderr)
 
-        # Isabelle/HOL (only if any @verify block)
+        # Isabelle/HOL (only if any @verify block) — Pro tier
         try:
+            if not is_pro: skipped_pro.append("isabelle"); raise _ProTierRequired
             from software.verification.isabelle.isabelle_backend import (
                 IsabelleBackend,
             )
@@ -337,6 +378,8 @@ def main(argv: list[str] | None = None) -> int:
                 isa_path = out_dir / f"{stem}.thy"
                 isa_path.write_text(isa_src, encoding="utf-8")
                 results.append(("isabelle", isa_path, len(isa_src)))
+        except _ProTierRequired:
+            pass
         except Exception as e:  # noqa: BLE001
             results.append(("isabelle", Path("<skipped>"), 0))
             print(f"  isabelle skipped: {e}", file=sys.stderr)
@@ -374,19 +417,23 @@ def main(argv: list[str] | None = None) -> int:
             results.append(("go", Path("<skipped>"), 0))
             print(f"  go skipped: {e}", file=sys.stderr)
 
-        # Solidity
+        # Solidity — Pro tier
         try:
+            if not is_pro: skipped_pro.append("solidity"); raise _ProTierRequired
             from software.backends.solidity_backend import SolidityBackend
             sol_path = out_dir / f"{stem}.sol"
             sol_src = SolidityBackend(optimize=not args.no_optimize).compile(mod)
             sol_path.write_text(sol_src, encoding="utf-8")
             results.append(("solidity", sol_path, len(sol_src)))
+        except _ProTierRequired:
+            pass
         except Exception as e:  # noqa: BLE001
             results.append(("solidity", Path("<skipped>"), 0))
             print(f"  solidity skipped: {e}", file=sys.stderr)
 
-        # AUTOSAR (writes .arxml + .c)
+        # AUTOSAR (writes .arxml + .c) — Pro tier
         try:
+            if not is_pro: skipped_pro.append("autosar"); raise _ProTierRequired
             from software.backends.autosar_backend import AutosarBackend
             au = AutosarBackend(
                 optimize=not args.no_optimize,
@@ -397,12 +444,15 @@ def main(argv: list[str] | None = None) -> int:
             au_c_path.write_text(au.c_source, encoding="utf-8")
             results.append(("autosar-arxml", arxml_path, len(au.arxml)))
             results.append(("autosar-c", au_c_path, len(au.c_source)))
+        except _ProTierRequired:
+            pass
         except Exception as e:  # noqa: BLE001
             results.append(("autosar", Path("<skipped>"), 0))
             print(f"  autosar skipped: {e}", file=sys.stderr)
 
-        # AADL
+        # AADL — Pro tier
         try:
+            if not is_pro: skipped_pro.append("aadl"); raise _ProTierRequired
             from software.backends.aadl_backend import AadlBackend
             aadl_path = out_dir / f"{stem}.aadl"
             aadl_src = AadlBackend(
@@ -410,12 +460,15 @@ def main(argv: list[str] | None = None) -> int:
             ).compile(mod)
             aadl_path.write_text(aadl_src, encoding="utf-8")
             results.append(("aadl", aadl_path, len(aadl_src)))
+        except _ProTierRequired:
+            pass
         except Exception as e:  # noqa: BLE001
             results.append(("aadl", Path("<skipped>"), 0))
             print(f"  aadl skipped: {e}", file=sys.stderr)
 
-        # ROS2 package (CMakeLists.txt + package.xml + node)
+        # ROS2 package (CMakeLists.txt + package.xml + node) — Pro tier
         try:
+            if not is_pro: skipped_pro.append("ros2"); raise _ProTierRequired
             from software.backends.ros2_backend import Ros2Backend
             ros = Ros2Backend(optimize=not args.no_optimize).compile_full(mod)
             ros_dir = out_dir / ros.package_name
@@ -432,6 +485,8 @@ def main(argv: list[str] | None = None) -> int:
                  len(ros.cmakelists) + len(ros.package_xml)
                  + len(ros.node_source))
             )
+        except _ProTierRequired:
+            pass
         except Exception as e:  # noqa: BLE001
             results.append(("ros2", Path("<skipped>"), 0))
             print(f"  ros2 skipped: {e}", file=sys.stderr)
@@ -450,26 +505,32 @@ def main(argv: list[str] | None = None) -> int:
         py_path.write_text(py_src, encoding="utf-8")
         results.append(("python", py_path, len(py_src)))
 
-        # LLVM IR
-        from software.backends.llvm_backend import LLVMBackend
-        ll_path = out_dir / f"{stem}.ll"
-        ll_src = LLVMBackend(optimize=not args.no_optimize).compile(mod)
-        ll_path.write_text(ll_src, encoding="utf-8")
-        results.append(("llvm", ll_path, len(ll_src)))
-
-        # WASM (or LLVM-IR fallback when no llc/clang on PATH)
-        from software.backends.wasm_backend import WASMBackend
-        wasm_result = WASMBackend(
-            optimize=not args.no_optimize,
-        ).compile_full(mod)
-        if wasm_result.toolchain == "none":
-            wasm_path = out_dir / f"{stem}.wasm.ll"
-            wasm_path.write_text(wasm_result.ir, encoding="utf-8")
-            results.append(("wasm-ir", wasm_path, len(wasm_result.ir)))
+        # LLVM IR — Pro tier
+        if not is_pro:
+            skipped_pro.append("llvm")
         else:
-            wasm_path = out_dir / f"{stem}.wasm"
-            wasm_path.write_bytes(wasm_result.wasm)
-            results.append(("wasm", wasm_path, len(wasm_result.wasm)))
+            from software.backends.llvm_backend import LLVMBackend
+            ll_path = out_dir / f"{stem}.ll"
+            ll_src = LLVMBackend(optimize=not args.no_optimize).compile(mod)
+            ll_path.write_text(ll_src, encoding="utf-8")
+            results.append(("llvm", ll_path, len(ll_src)))
+
+        # WASM (or LLVM-IR fallback when no llc/clang on PATH) — Pro tier
+        if not is_pro:
+            skipped_pro.append("wasm")
+        else:
+            from software.backends.wasm_backend import WASMBackend
+            wasm_result = WASMBackend(
+                optimize=not args.no_optimize,
+            ).compile_full(mod)
+            if wasm_result.toolchain == "none":
+                wasm_path = out_dir / f"{stem}.wasm.ll"
+                wasm_path.write_text(wasm_result.ir, encoding="utf-8")
+                results.append(("wasm-ir", wasm_path, len(wasm_result.ir)))
+            else:
+                wasm_path = out_dir / f"{stem}.wasm"
+                wasm_path.write_bytes(wasm_result.wasm)
+                results.append(("wasm", wasm_path, len(wasm_result.wasm)))
 
         # Lean (only if any @verify(lean) blocks)
         from software.verification.lean.LeanBackend import LeanBackend
@@ -479,8 +540,12 @@ def main(argv: list[str] | None = None) -> int:
             lean_path.write_text(lean_src, encoding="utf-8")
             results.append(("lean", lean_path, len(lean_src)))
 
-        # HDL backends (only if any @target(fpga) functions)
+        # HDL backends (only if any @target(fpga) functions) — Pro tier
         try:
+            if not is_pro:
+                skipped_pro.extend(["verilog", "systemverilog",
+                                    "vhdl", "chisel"])
+                raise _ProTierRequired
             from hardware.allocator import FPGAAllocator
             from hardware.hdl_gen.verilog_backend import VerilogBackend
             from hardware.hdl_gen.vhdl_backend import VHDLBackend
@@ -515,18 +580,31 @@ def main(argv: list[str] | None = None) -> int:
             ch_path = out_dir / f"{stem_camel}.scala"
             ch_path.write_text(ch_src, encoding="utf-8")
             results.append(("chisel", ch_path, len(ch_src)))
+        except _ProTierRequired:
+            pass  # already recorded in skipped_pro
         except Exception as e:  # noqa: BLE001 -- best-effort
             results.append(("verilog", Path("<skipped>"), 0))
             results.append(("vhdl",    Path("<skipped>"), 0))
             results.append(("chisel",  Path("<skipped>"), 0))
             print(f"  hdl skipped: {e}", file=sys.stderr)
 
-        print(f"# eml-compile --target all -> {out_dir}")
+        print(f"# eml-compile --target all  ->  {out_dir}  "
+              f"(tier: {tier_label})")
         for target, path, nbytes in results:
             if path.name == "<skipped>":
                 print(f"  [skip] {target}")
             else:
                 print(f"  [ok]   {target:8s} {path}  ({nbytes:,} bytes)")
+        if skipped_pro:
+            print(
+                f"  [pro]  {len(skipped_pro)} backends skipped "
+                f"(Pro tier): {', '.join(sorted(set(skipped_pro)))}",
+                file=sys.stderr,
+            )
+            print(
+                f"         Get Pro at https://monogateforge.com/get-started",
+                file=sys.stderr,
+            )
         return 0
 
     # ── Live targets ──────────────────────────────────────────
