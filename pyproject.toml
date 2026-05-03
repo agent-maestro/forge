@@ -85,6 +85,7 @@ lsp = [
 [project.scripts]
 eml-compile = "tools.cli.main:main"
 eml-lsp     = "tools.ide.lsp.server:main"
+eml-repl    = "tools.cli.repl:main"
 
 [tool.setuptools.packages.find]
 # Auto-discover every Python package (any dir with __init__.py or
