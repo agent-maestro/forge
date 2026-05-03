@@ -231,6 +231,30 @@ def main(argv: list[str] | None = None) -> int:
                              "new ones. Defaults to the MACHLIB_ROOT "
                              "env var, then to the sibling-repo "
                              "`~/monogate/machlib`.")
+    parser.add_argument("--generate-tests", action="store_true",
+                        help="Auto-generate input vectors for every "
+                             "Real-typed function in the source, run "
+                             "the existing cross-target equivalence "
+                             "harness (Python ref vs Rust + C by "
+                             "default), and print pass/fail per "
+                             "function. No files written -- the "
+                             "compile/run lands in a temp dir per "
+                             "backend. Exits non-zero if any function "
+                             "disagrees on an available backend.")
+    parser.add_argument("--gen-tests-vectors", type=int, default=32,
+                        help="(--generate-tests) Random input vectors "
+                             "per function. Default 32.")
+    parser.add_argument("--gen-tests-targets", default="rust,c",
+                        help="(--generate-tests) Comma-separated "
+                             "targets to compare against the Python "
+                             "reference. Default `rust,c`. `python` "
+                             "is always the reference and is implicit.")
+    parser.add_argument("--gen-tests-tolerance", type=float, default=1e-9,
+                        help="(--generate-tests) Max absolute error "
+                             "for a per-vector pass. Default 1e-9.")
+    parser.add_argument("--gen-tests-seed", type=int, default=0,
+                        help="(--generate-tests) RNG seed for "
+                             "reproducible vector generation.")
     parser.add_argument("--auto-theorems", action="store_true",
                         help="After compiling, also emit Lean "
                              "theorem scaffolding for any "
@@ -338,6 +362,25 @@ def main(argv: list[str] | None = None) -> int:
 
     profiler = Profiler()
     profiler.profile_module(mod)
+
+    if args.generate_tests:
+        from tools.cli.generate_tests import (
+            format_report,
+            generate_and_run,
+        )
+        targets = tuple(
+            t.strip() for t in args.gen_tests_targets.split(",")
+            if t.strip()
+        )
+        report = generate_and_run(
+            args.source,
+            n_vectors=args.gen_tests_vectors,
+            targets=targets,
+            tolerance=args.gen_tests_tolerance,
+            seed=args.gen_tests_seed,
+        )
+        print(format_report(report))
+        return 0 if report.all_pass else 1
 
     if args.auto_theorems:
         from software.verification.lean.discovered_emit import (
