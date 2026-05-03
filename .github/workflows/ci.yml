@@ -84,8 +84,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Pytest (HW-simulation paths only)
+      - name: Pytest (HW-simulation + external-lint paths)
         run: |
           pytest -q --tb=short \
             hardware/modules/transcendental/tests/ \
-            hardware/simulation/tests/
+            hardware/simulation/tests/ \
+            tools/external_lint/tests/
