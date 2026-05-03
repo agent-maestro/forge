@@ -1,0 +1,20 @@
+// clamp_bounded.eml -- clamp a real to a fixed interval and
+// prove the output lives there. The simplest non-trivial
+// `@verify` example: a precondition-free contract whose
+// postcondition follows from the body's structure.
+//
+// Chain order 0 -- `clamp` is a builtin rational primitive.
+
+module clamp_bounded;
+
+const LO: Real = -1.0
+const HI: Real =  1.0
+
+@verify(lean, theorem = "clamp_in_unit_interval")
+fn clamp_unit(x: Real) -> Real
+    where chain_order <= 0
+    ensures  (result >= LO)
+    ensures  (result <= HI)
+{
+    clamp(x, LO, HI)
+}

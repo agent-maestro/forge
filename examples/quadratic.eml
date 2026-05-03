@@ -1,0 +1,16 @@
+// quadratic.eml -- a quadratic polynomial.
+//
+//   q(x) = a*x^2 + b*x + c
+//
+// Pure rational, chain order 0. The compiler will pick this
+// up and emit identical structure across every backend
+// (Python `a*x**2 + b*x + c`, Rust `a*x*x + b*x + c`, Verilog
+// pipeline of two MACs, etc.).
+
+module quadratic;
+
+fn q(a: Real, b: Real, c: Real, x: Real) -> Real
+    where chain_order <= 0
+{
+    a * x * x + b * x + c
+}

@@ -697,8 +697,10 @@ PROFILE READING
 AFTER THIS COURSE:
 
   1. Browse the examples:
-     monogate-forge/industries/
-     18 verticals with real .eml files you can study.
+     monogate-forge/examples/
+     12 short teaching files. Pre-verified domain kernels
+     (aerospace, automotive, medical, robotics, ...) ship
+     with Forge Pro at monogateforge.com/get-started.
 
   2. Read the language guide:
      monogate-forge/docs/language_guide.md

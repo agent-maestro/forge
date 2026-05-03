@@ -1,0 +1,24 @@
+// smoothstep.eml -- Hermite interpolation between 0 and 1.
+//
+//   smoothstep(t) = t^2 * (3 - 2t)    for t in [0, 1]
+//
+// The standard "ease in/ease out" curve: starts and ends with
+// zero slope, monotonically rising in between. Chain order 0
+// (it's a polynomial); a `@verify` contract guarantees the
+// output stays in the unit interval.
+
+module smoothstep;
+
+const ZERO: Real = 0.0
+const ONE:  Real = 1.0
+
+@verify(lean, theorem = "smoothstep_in_unit_interval")
+fn smoothstep(t: Real) -> Real
+    where chain_order <= 0
+    requires (t >= ZERO)
+    requires (t <= ONE)
+    ensures  (result >= ZERO)
+    ensures  (result <= ONE)
+{
+    t * t * (3.0 - 2.0 * t)
+}

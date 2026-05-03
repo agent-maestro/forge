@@ -1,0 +1,17 @@
+// hello.eml -- the smallest possible Forge program.
+//
+// One module, one function, no inputs, returns a constant.
+// Chain order 0 because the body is a literal.
+//
+// Compile this to anything:
+//   eml-compile examples/hello.eml --target python
+//   eml-compile examples/hello.eml --target rust
+//   eml-compile examples/hello.eml --target verilog
+
+module hello;
+
+fn answer() -> Real
+    where chain_order <= 0
+{
+    42.0
+}

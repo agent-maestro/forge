@@ -1,0 +1,124 @@
+// controller.eml -- PID gap controller for magnetic levitation.
+//
+// Closed-loop architecture:
+//
+//   gap_measured ──> [ sensor.eml: V_H -> z ] ──┐
+//                                               │
+//   gap_target ──> ( - ) ──> error ──> PID ──> command ──> coil current
+//                                               ▲
+//                                               │
+//                                            integral
+//                                            (state)
+//
+// The PID runs at the loop rate (1 kHz on a small MCU; 10 kHz on
+// the Arty FPGA). Anti-windup clamps the integrator so a saturated
+// command can't accumulate phantom error during a transient.
+//
+// Stability: linearised about the operating point, the plant has
+// a real unstable pole at sqrt(2 g / z_op). The PID gains here are
+// tuned for Z_OPERATING = 15 mm with a 1 g target object on a
+// hobby-scale solenoid; retune for your hardware before flying.
+// The certification claim is *bounded* output (controller never
+// exceeds I_MAX), not stability for arbitrary plants -- that's a
+// gain-tuning problem, not a code-correctness one.
+//
+// Chain order 0 (pure rational on inputs).
+
+module controller;
+
+use stdlib::control::{pid_anti_windup};
+
+const ZERO:        Real = 0.0
+
+// Plant constraints (mirror levitation.eml).
+const I_MAX:       Real =   3.00     // coil current cap
+const Z_MIN:       Real =   0.001
+const Z_MAX:       Real =   0.050
+const Z_TARGET_MIN:Real =   0.005
+const Z_TARGET_MAX:Real =   0.040
+
+// Hand-tuned PID gains for the reference plant. Kd dominates --
+// magnetic levitation is a velocity-feedback problem, not a
+// position-feedback one. Kp is ~10x smaller than a typical
+// position loop because the plant is open-loop unstable.
+const Kp:          Real =   3.0      // proportional
+const Ki:          Real =   1.5      // integral
+const Kd:          Real =   0.05     // derivative (velocity feedback)
+
+// Anti-windup limit on the integrator. Sized so a 1-second
+// saturation can't drive the integrator past the controller's
+// linear range (Ki * I_LIMIT ~= 1.5 A of authority).
+const I_LIMIT:     Real =   1.0
+const U_LIMIT:     Real =   3.00     // saturation threshold (= I_MAX)
+
+const ERR_MAX:     Real =   0.050    // largest plausible gap error (m)
+const DERIV_MAX:   Real =  10.0      // gap rate of change (m/s)
+
+// PID step. Returns the commanded coil current, clamped to the
+// physical [0, I_MAX] range. Output is non-negative because the
+// solenoid is always attractive -- there is no "negative current"
+// in a single-coil maglev (a bipolar driver is a hardware change,
+// not a controller change).
+//
+// Chain order 0.
+@target(fpga, clock_mhz = 100, precision = float32)
+@verify(lean, theorem = "maglev_command_within_coil_limits")
+fn pid_command(
+    gap_target: Real, gap_measured: Real,
+    integral: Real, derivative: Real,
+) -> Real
+    where chain_order <= 0
+    requires (gap_target   >= Z_TARGET_MIN)
+    requires (gap_target   <= Z_TARGET_MAX)
+    requires (gap_measured >= Z_MIN)
+    requires (gap_measured <= Z_MAX)
+    requires (abs(integral)   <= I_LIMIT)
+    requires (abs(derivative) <= DERIV_MAX)
+    ensures  (result >= ZERO)
+    ensures  (result <= I_MAX)
+{
+    let error = gap_target - gap_measured;
+    let raw = pid_anti_windup(
+        error, integral, derivative, Kp, Ki, Kd, I_LIMIT, U_LIMIT,
+    );
+    clamp(raw, ZERO, I_MAX)
+}
+
+// Integrator update. The caller is responsible for feeding the
+// returned value back as `integral` on the next tick. Anti-windup
+// clamps inside [-I_LIMIT, +I_LIMIT] so we don't accumulate while
+// the command is saturated.
+//
+// Chain order 0.
+@target(fpga, clock_mhz = 100, precision = float32)
+@verify(lean, theorem = "maglev_integrator_bounded")
+fn integrator_step(integral: Real, error: Real, dt: Real) -> Real
+    where chain_order <= 0
+    requires (abs(integral) <= I_LIMIT)
+    requires (abs(error)    <= ERR_MAX)
+    requires (dt >= 1.0e-5)
+    requires (dt <= 0.01)
+    ensures  (abs(result) <= I_LIMIT)
+{
+    clamp(integral + error * dt, -I_LIMIT, I_LIMIT)
+}
+
+// First-difference derivative on the gap signal. Caller stores
+// gap_prev between ticks and supplies dt. No filtering here --
+// the digital filter belongs in sensor.eml so the derivative
+// stays a clean dx/dt of the conditioned signal.
+//
+// Chain order 0.
+@target(fpga, clock_mhz = 100, precision = float32)
+fn derivative_step(gap_now: Real, gap_prev: Real, dt: Real) -> Real
+    where chain_order <= 0
+    requires (gap_now  >= Z_MIN)
+    requires (gap_now  <= Z_MAX)
+    requires (gap_prev >= Z_MIN)
+    requires (gap_prev <= Z_MAX)
+    requires (dt >= 1.0e-5)
+    requires (dt <= 0.01)
+    ensures  (abs(result) <= DERIV_MAX)
+{
+    clamp((gap_now - gap_prev) / dt, -DERIV_MAX, DERIV_MAX)
+}

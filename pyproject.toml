@@ -92,8 +92,14 @@ eml-lsp     = "tools.ide.lsp.server:main"
 # lang.loader, tools.benchmarks, tools.fmt all got dropped from
 # the previous wheel. Excludes test directories so installs stay
 # slim and tests don't get importable as `lang.parser.tests`.
-include = ["lang*", "software*", "hardware*", "tools*"]
-exclude = ["*.tests*", "tests*"]
+#
+# `industries*` is explicitly excluded as a belt-and-suspenders
+# guard: the include list above already filters it out, but the
+# directory holds proprietary kernel IP that must never enter the
+# Free-tier wheel. Keep this exclusion until the open/closed split
+# changes (and update CHANGELOG.md when it does).
+include = ["lang*", "software*", "hardware*", "tools*", "examples*"]
+exclude = ["*.tests*", "tests*", "industries*", "industries.*"]
 
 [tool.setuptools.package-data]
 # Ship the stdlib .eml modules + spec markdown alongside the
@@ -112,6 +118,11 @@ exclude = ["*.tests*", "tests*"]
                        "**/*.md"]
 "software.verification" = ["**/*.lean", "**/*.v", "**/*.thy",
                             "**/*.smt2", "**/*.md", "**/*.toml"]
+# Public teaching examples — non-proprietary .eml files that
+# demonstrate language features. Reference these from the README,
+# docs, and live demos. The proprietary kernel library (industries/)
+# is gated behind Pro tier and never enters the wheel.
+"examples" = ["*.eml", "*.md"]
 
 [tool.pytest.ini_options]
 # Tests live in:

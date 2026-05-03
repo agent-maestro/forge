@@ -1,0 +1,21 @@
+// sine_oscillator.eml -- single-frequency oscillator, chain 1.
+//
+//   y(t) = amplitude * sin(omega * t)
+//
+// One transcendental (sin) wrapping a polynomial argument.
+// The Lean target proves the output is bounded by amplitude.
+
+module sine_oscillator;
+
+@verify(lean, theorem = "sine_oscillator_amplitude_bound")
+fn oscillate(amplitude: Real, omega: Real, t: Real) -> Real
+    where chain_order <= 1
+    requires (amplitude >= 0.0)
+    requires (amplitude <= 1.0)
+    requires (omega >= 0.0)
+    requires (omega <= 1.0e4)
+    requires (t >= 0.0)
+    ensures  (abs(result) <= amplitude)
+{
+    amplitude * sin(omega * t)
+}

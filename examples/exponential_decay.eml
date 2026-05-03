@@ -1,0 +1,18 @@
+// exponential_decay.eml -- the canonical chain-1 example.
+//
+//   y(t) = exp(-k * t)
+//
+// One transcendental (exp) wrapped around a polynomial argument:
+// chain order 1. The same shape governs RC discharge, radioactive
+// decay, lossy reverb tails, and Adam's first-moment bias term --
+// the structural class is the same across every domain.
+
+module exponential_decay;
+
+fn decay(k: Real, t: Real) -> Real
+    where chain_order <= 1
+    requires (k >= 0.0)
+    requires (t >= 0.0)
+{
+    exp(-k * t)
+}

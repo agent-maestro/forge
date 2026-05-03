@@ -154,13 +154,15 @@ When MachLib has a lemma matching your kernel's shape, Forge inserts a direct `a
 
 ## End-to-end example
 
-For a complete safety-critical example with a working Lean proof, see `industries/aerospace/flight_control/autothrottle.eml` and the corresponding `industries/aerospace/flight_control/autothrottle.lean`. The kernel is a DO-178C-style autothrottle controller with:
+For a complete public example with a working Lean proof, see `examples/pid_controller.eml`. The kernel is a textbook PID controller with:
 
-- Three `requires` clauses bounding throttle, airspeed, and target.
-- Two `ensures` clauses bounding the output and the integral state.
+- Three `requires` clauses bounding the error, integral, and derivative inputs.
+- Two `ensures` clauses bounding the output to `[OUT_MIN, OUT_MAX]`.
 - A chain-order-0 body that `eml_auto` discharges automatically.
 
-`lake build` on the bundled Lean project completes in under 30 seconds with no `sorry`.
+`lake build` on the emitted Lean file completes in seconds with no `sorry`.
+
+Pre-verified domain kernels (DO-178C avionics, ISO 26262 powertrain, IEC 62304 medical, etc.) ship with Forge Pro — see <https://monogateforge.com/get-started>.
 
 ---
 

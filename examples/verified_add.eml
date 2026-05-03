@@ -1,0 +1,19 @@
+// verified_add.eml -- the smallest possible @verify example.
+//
+// Add two non-negative reals; the result is non-negative.
+// Two precondition lines, one postcondition line, one body
+// line. This is the minimum surface for showing how
+// `requires` / `ensures` becomes a Lean theorem after
+// `--target lean`.
+
+module verified_add;
+
+@verify(lean, theorem = "add_nonneg_is_nonneg")
+fn add_nonneg(a: Real, b: Real) -> Real
+    where chain_order <= 0
+    requires (a >= 0.0)
+    requires (b >= 0.0)
+    ensures  (result >= 0.0)
+{
+    a + b
+}

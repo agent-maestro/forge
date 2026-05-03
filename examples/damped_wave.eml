@@ -1,0 +1,20 @@
+// damped_wave.eml -- exp * sin, the chain-2 archetype.
+//
+//   y(t) = exp(-zeta * t) * sin(omega * t)
+//
+// The bedrock damped oscillation. Two transcendentals nested
+// over polynomial arguments -- chain order 2. This shape
+// describes a settling spring, a reverb tail, a relaxation
+// curve, and the impulse response of a second-order linear
+// system.
+
+module damped_wave;
+
+fn damped_wave(zeta: Real, omega: Real, t: Real) -> Real
+    where chain_order <= 2
+    requires (zeta  >= 0.0)
+    requires (omega >= 0.0)
+    requires (t     >= 0.0)
+{
+    exp(-zeta * t) * sin(omega * t)
+}
