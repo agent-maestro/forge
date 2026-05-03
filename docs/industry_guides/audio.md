@@ -1,119 +1,81 @@
 # Audio — DSP + synthesis
 
-> Biquad filters, additive synthesis, FFT-adjacent kernels —
-> compiled to native C, WASM (for browser playgrounds), and
-> FPGA Verilog.
+> Forge Pro vertical. Real-time audio kernels for filters,
+> synthesizers, reverb, FFT-adjacent transforms, and the
+> sample-accurate building blocks that ship inside professional
+> audio software.
 
 ---
 
-## Why audio lives in EML-lang
+## What audio needs from a compiler
 
-Pro-audio kernels are the canonical case where bit-exact
-agreement between the soft DSP path and the hardware path
-matters: a 1-LSB drift in a IIR filter coefficient turns
-into audible artifacts after a few seconds of accumulation.
+Audio DSP runs at sample rate (44.1 kHz to 192 kHz) with hard
+deadlines: miss one and the output clicks. Filters need to be
+provably stable. Synth voices need bounded amplitude. FFT-bin
+math has to round-trip across float32, float64, and fixed-point
+without drift. Forge delivers:
 
-Forge ships a CORDIC-backed transcendental library with
-ULP-level Verilog/C agreement (verified by Verilator on
-every PR). Same source compiles to:
-
-- **C** for VST / AU plugin distribution.
-- **WASM** for the 1op.io browser playground.
-- **Verilog** for hardware synth / pedalboard targets.
-
----
-
-## Shipping verticals
-
-| File                                                | What it does |
-|-----------------------------------------------------|--------------|
-| `industries/audio/dsp/biquad_lowpass.eml`           | Direct-Form-1 biquad filter step |
-| `industries/audio/synthesis/additive_voice.eml`     | 4-sin additive voice with single-exp envelope |
-
-`biquad_lowpass.eml` imports `stdlib::signal::biquad_step` —
-the canonical DF1 formulation that survives SuperBEST
-routing without rewrite.
-
-`additive_voice.eml` is the **Patent #14** demo. Four `sin`
-calls are flagged for the *shared* sharing strategy by the
-allocator (since count > 2), while the lone `exp` envelope
-gets a *dedicated* unit. The `--allocate` output makes the
-decision visible:
-
-```
-$ eml-compile additive_voice.eml --allocate --fpga-target xilinx.artix7
-Allocation plan for additive_voice
-  exp    count=1  sharing=dedicated  precision=32-bit  -> 1200 LUT  4 DSP
-  sin    count=4  sharing=shared     precision=32-bit  -> 1700 LUT  5 DSP
-Pipeline depth: 4 stages
-Throughput:     24.0 Msamples/s @ 96 MHz
-```
+- **Stability proofs** — biquad filter pole-radius checks and
+  amplitude bounds become Lean theorems.
+- **Float / fixed equivalence** — the same source compiles to
+  AVX2 / NEON intrinsics for desktop and to fixed-point Verilog
+  for FPGA-based outboard gear.
+- **WGSL + Metal targets** — render audio meters and visualizers
+  on the GPU from the same kernel as the audio thread.
 
 ---
 
-## Recommended `where` clauses
+## What ships in the Pro tier
 
-For biquad coefficients you trust to stay inside their
-stability region:
+The audio pack covers the DSP primitives every plugin author
+rewrites by hand. Typical chain orders run 0–2 (linear filters
+are chain 0; oscillators with `sin` are chain 1; reverb tails
+with `exp * sin` lift to chain 2). Every kernel ships with:
 
-```eml
-fn biquad_step(x: Real, x_z1: Real, x_z2: Real,
-               y_z1: Real, y_z2: Real,
-               b0: Real, b1: Real, b2: Real,
-               a1: Real, a2: Real) -> Real
-  where chain_order <= 0,
-        precision: 1e-9
-{
-    b0*x + b1*x_z1 + b2*x_z2 - a1*y_z1 - a2*y_z2
-}
-```
+- A `@verify(lean)` contract proving filter stability or output
+  amplitude bounds.
+- An `@target(fpga, ...)` profile for hardware-accelerated
+  variants (audio I/O cards, eurorack modules).
+- The full backend matrix (C, Rust, JavaScript, WASM, Verilog,
+  Lean) — same source compiles for AudioWorklet, JUCE plugin,
+  Eurorack FPGA module, or AVX/NEON DSP code.
 
-`chain_order <= 0` is the strongest stability promise — pure
-multiply-add. The optimizer's CSE pass will hoist `x_z1` /
-`y_z1` shared subexpressions when this function is called in
-a loop.
+Coverage areas include:
 
-For envelopes / waveshapers:
-
-```eml
-fn additive_voice(t: Real, freq: Real) -> Real
-  where chain_order <= 1
-{
-    let env = exp(-t * 5.0);
-    env * (sin(2.0*PI*freq*t)
-         + 0.5 * sin(4.0*PI*freq*t)
-         + 0.25 * sin(6.0*PI*freq*t)
-         + 0.125 * sin(8.0*PI*freq*t))
-}
-```
-
-`chain_order <= 1` lets the SuperBEST pass route through
-canonical `exp(-x)` and `sin(2πfx)` forms.
+- Direct-Form-I biquad family (lowpass, highpass, bandpass,
+  notch, peak, shelf)
+- Additive + subtractive synthesizer voices
+- Reverb networks (Schroeder, Freeverb, FDN)
+- Pitch shifting, time stretching, granular
+- Spectral kernels (FFT-bin scaling, mel filterbank)
 
 ---
 
-## WASM target for the browser
+## Working with the kernels
 
-```bash
-eml-compile additive_voice.eml --target wasm -o additive_voice.wasm
+Open a kernel and the LSP surfaces:
+
+- Chain order + cost class for the DSP body
+- Sample-rate budget on the status bar (cycles per sample at
+  the active clock)
+- Lean stability theorem next to `@verify(lean)` blocks
+- Cross-target equivalence harness output (float32 vs fixed)
+
+Compile to every backend in one command:
+
+```
+eml-compile <kernel>.eml --target all -o build/
 ```
 
-When `llc` or `clang` is on PATH the output is wasm32
-bytecode; otherwise Forge writes the LLVM IR text and tells
-you which toolchain is missing. Drop the bytecode into a Web
-Audio worklet and you have a browser-native synth voice that
-matches the FPGA hardware bit-for-bit.
+The C lands ready for a JUCE plugin; the WASM lands ready for
+an AudioWorklet; the Verilog drops into a Lattice ECP5 module.
 
 ---
 
-## Common gotchas
+## Get access
 
-- **Direct-Form-2 transposed** is worse than DF1 in fp32 —
-  the SuperBEST pass will rewrite a DF2T body to DF1 and
-  flag the change in `--explain`.
-- **Window functions** — `stdlib::signal::wave_*` provides
-  Hann / Hamming / Blackman with cost classes the optimizer
-  recognizes.
-- **Logarithmic gain** — use `stdlib::signal::db_to_linear`
-  rather than rolling `exp(0.05 * x * log(10))`. Same math,
-  but the canonical form survives SuperBEST.
+The audio kernel pack ships with **Forge Pro**. Visit
+<https://monogateforge.com/get-started> for the full library.
+
+Free tier covers the compiler and 12 software backends — write
+your own audio `.eml` from scratch today.

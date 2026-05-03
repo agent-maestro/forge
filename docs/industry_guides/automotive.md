@@ -1,97 +1,82 @@
 # Automotive — powertrain + ADAS
 
-> Field-oriented motor control compiled bit-equivalent to
-> AUTOSAR-style C, FPGA, and Rust from a single source.
+> Forge Pro vertical. ISO 26262 ASIL-D-aligned kernels for
+> field-oriented motor control, battery management, ABS / ESC,
+> ACC, AEB, and the rest of the safety-critical drive stack.
 
 ---
 
-## Why automotive lives in EML-lang
+## What automotive needs from a compiler
 
-Powertrain control is a hot loop running at tens of kHz on a
-mixed CPU + FPGA topology. The two halves of the loop need to
-agree exactly — a bit-different output between the soft loop
-and the hard loop is a debugging nightmare.
+Modern vehicles run hundreds of small math kernels at
+millisecond cadence: motor commutation, brake-by-wire, traction
+limits, regen-braking maps, sensor fusion. Each one needs
+bounded outputs, deterministic timing, and a paper trail when
+the regulator asks. Forge delivers:
 
-Forge guarantees that agreement structurally: the same
-`.eml` source produces the C running on the MCU and the
-Verilog running on the FPGA, with cross-target equivalence
-proven by `cross_target_check()` on every PR.
+- **ASIL-D-grade contracts** — `requires` / `ensures` clauses
+  become Lean theorem evidence the certifier can machine-check.
+- **Powertrain-aware FPGA profile** — the allocator knows what
+  Park-Clarke + PI looks like in DSP slices and produces a
+  cycle-exact estimate per ECU clock domain.
+- **Cross-target equivalence** — emit C for an MCU AUTOSAR
+  partition, Verilog for the FOC FPGA accelerator, and Lean for
+  the safety-case file, all from the same source. Patent #22's
+  equivalence harness asserts agreement to 1e-12.
 
 ---
 
-## Shipping verticals
+## What ships in the Pro tier
 
-| File                                                            | What it does |
-|-----------------------------------------------------------------|--------------|
-| `industries/automotive/powertrain/motor_foc.eml`                | FOC inner loop (Park + Clarke + PI) |
-| `industries/automotive/powertrain/three_phase.eml`              | Park / inverse-Park + Clarke / inverse-Clarke transforms |
+The automotive pack covers the math that runs at millisecond
+cadence on every modern vehicle. Typical chain orders run 0–2
+(controllers are chain 0; trig-laden transforms like Park /
+Clarke lift to chain 1–2). Every kernel ships with:
 
-`motor_foc.eml` imports `stdlib::control::pid` for the PI
-core and `local::three_phase` for the transforms. Total
-LOC: ~50.
+- A `@verify(lean)` contract proving torque / current / brake
+  bounds.
+- An `@target(fpga, ...)` profile sized for typical automotive
+  ECUs.
+- The full backend matrix (C, Rust, Verilog, VHDL, Chisel, AUTOSAR
+  C, Lean), plus an ISO 26262 cert template.
 
-```bash
-eml-compile industries/automotive/powertrain/motor_foc.eml \
-    --target all -o build/automotive/
+Coverage areas include:
+
+- Field-oriented motor control (Park-Clarke, inverse, PI inner
+  loop, SVPWM)
+- Battery state-of-charge + state-of-health estimators
+- ABS / ESC slip controllers + torque vectoring
+- ADAS: ACC, AEB, lane keeping (steering polynomial fits)
+- Energy management (regen / friction split, brake blending)
+
+---
+
+## Working with the kernels
+
+Open a kernel and the LSP surfaces:
+
+- Chain order + cost class above every fn header
+- FPGA + DSP estimate in the status bar
+- Lean proof status next to `@verify` annotations
+- AUTOSAR `arxml` skeleton in the right pane (Pro feature)
+
+Compile any kernel to every backend in one command:
+
+```
+eml-compile <kernel>.eml --target all -o build/
 ```
 
-Produces `motor_foc.c`, `motor_foc.rs`, `motor_foc.lean` (if
-the source has a `@verify` block), and `motor_foc.v`.
+The AUTOSAR C lands ready for ECU integration; the Verilog
+drops into the FOC accelerator's RTL slot.
 
 ---
 
-## Recommended `where` clauses
+## Get access
 
-The Park transform's outputs depend on a `theta` angle; the
-inverse Park transform's outputs are bounded by the input
-amplitude. For a stator-frame voltage cap:
+The automotive kernel pack ships with **Forge Pro**. Visit
+<https://monogateforge.com/get-started> for the full library.
 
-```eml
-fn apply_inverse_park(v_d: Real, v_q: Real, theta: Real)
-    -> (Real, Real, Real)
-  where chain_order <= 1,
-        domain: v_d * v_d + v_q * v_q < 200.0
-{
-    // body
-}
-```
-
-The `chain_order <= 1` clause keeps the function inside the
-fp32 safe band; the amplitude domain prevents the inverse
-Clarke from saturating the SVPWM modulator downstream.
-
----
-
-## FPGA target choice
-
-For automotive functional-safety ASIL-D loops, the canonical
-target today is `xilinx.artix7` (matches the Aurix +
-Zynq-7000 flow common in the industry). For lower-cost
-variants, `lattice.ecp5` fits a single-axis FOC loop in <30%
-of the device.
-
-The allocator's per-unit decision for FOC is typically:
-
-- 6–10 MACs per axis (one per Clarke matrix entry +
-  the PI term).
-- 2 sin + 2 cos units (shared, since both Park and
-  inverse-Park need the same angle pair).
-- 0 BRAM.
-
----
-
-## Common gotchas
-
-- **Per-axis chain-order budget** — running the integrator
-  on the rotor frame instead of the stator frame keeps the
-  chain order at 1 and avoids the fp16 drift that shows up
-  in stator-frame implementations.
-- **Antiwindup** — use
-  `stdlib::control::pid_anti_windup` rather than rolling your
-  own; the canonical form has a cost class the optimizer
-  recognizes and the `--explain` report flags drift if you
-  inadvertently use the unsafe variant.
-- **SuperBEST routing** — `sigmoid_alt` style parameterizations
-  trigger the SuperBEST pass automatically; the rewrite saves
-  a measurable amount of fp32 precision in the gain
-  scheduler.
+Free tier covers the compiler and 12 software backends — write
+your own automotive `.eml` from scratch and compile to C / Rust
+/ Lean today. The pre-verified safety-critical library is the
+proprietary product.

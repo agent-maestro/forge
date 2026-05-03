@@ -1,107 +1,91 @@
 # Aerospace — flight control + avionics
 
-> The shipping example: an autopilot loop in 30 lines of
-> EML-lang that compiles to C, Rust, Lean, and Verilog
-> from one source.
+> Forge Pro vertical. DO-178C-aligned kernels for inner-loop
+> attitude control, autothrottle, INS, navigation, and weapon
+> engagement. Every kernel is profiled, FPGA-allocated, and
+> ships with a Lean 4 proof artifact.
 
 ---
 
-## Why aerospace lives in EML-lang
+## What aerospace needs from a compiler
 
 Flight-critical loops live or die on three things: numerical
 stability, certifiability, and cross-target equivalence. Forge
-gives you all three from a single source:
+delivers all three from a single source:
 
-- **Stability** — the Pfaffian profiler tags every function
-  with a chain order; the type checker enforces a `where
-  chain_order <= N` clause that fails the build if your math
-  drifts. No need to wait for SIL testing to learn that a
-  refactor broke fp16 robustness.
-- **Certifiability** — `@verify(lean, theorem=...)` blocks
-  emit Lean 4 theorem statements with `eml_auto`-attempted
-  proofs. The same `requires` / `ensures` clauses become
-  DO-178C objective evidence.
-- **Equivalence** — Patent #22's `cross_target_check` runs
-  the same vectors through Python, C, Rust, and Lean and
-  asserts agreement to 1e-12. The Verilog backend's CORDIC
-  cores are bit-equivalent within 3 LSBs of Q16.16.
+- **Stability** — the Pfaffian profiler tags every function with
+  a chain order; the type checker enforces a `where chain_order
+  <= N` clause that fails the build if your math drifts. No need
+  to wait for SIL testing to learn that a refactor broke fp16
+  robustness.
+- **Certifiability** — `@verify(lean, theorem=...)` blocks emit
+  Lean 4 theorem statements with `eml_auto`-attempted proofs.
+  The same `requires` / `ensures` clauses become DO-178C
+  objective evidence.
+- **Equivalence** — patent #22's `cross_target_check` runs the
+  same vectors through Python, C, Rust, and Lean and asserts
+  agreement to 1e-12. The Verilog backend's CORDIC cores are
+  bit-equivalent within 3 LSBs of Q16.16.
 
 ---
 
-## Shipping vertical
+## What ships in the Pro tier
 
-`industries/aerospace/flight_control/autopilot.eml` is the
-canonical demo. The full surface:
+The aerospace pack covers the textbook flight-control surface
+plus the navigation primitives that wrap around it. Typical
+chain orders run 0–2 (PID inner loops are chain 0; gravity /
+trig compensation lifts to chain 2). Every kernel ships with:
 
-- One `@target(fpga, clock_mhz=100, precision=float32)`
-  function — the autopilot inner loop.
-- One `@verify(lean, theorem="autopilot_command_within_limits")`
-  block — proves the output respects the actuator limits.
-- Imports `stdlib::control::pid` for the PID core; the
-  outer wrapper handles antiwindup + slew limiting.
-- Compiles to all four primary targets in one shot.
+- A `@verify(lean)` contract proving actuator-saturation safety
+  or input-domain monotonicity.
+- An `@target(fpga, ...)` profile sized for hobby (Artix-7) and
+  production (Kintex/Versal) devices.
+- A C / Rust / Verilog / VHDL / Chisel quad emitted by
+  `eml-compile --target all`, plus the matching Lean 4 theorem
+  artifact.
+- A DO-178C cert template that wires the theorem evidence into
+  the regulator's expected document layout.
 
-```bash
-eml-compile industries/aerospace/flight_control/autopilot.eml \
-    --target all -o build/aerospace/
+Coverage areas include:
+
+- Inner-loop attitude control (pitch, roll, yaw rate)
+- Autothrottle and engine-thrust scheduling
+- Inertial navigation step + alignment
+- Air-data sensors (pitot airspeed, baro altitude)
+- Navigation primitives (great-circle bearing, Mercator)
+- Guidance + targeting (proportional navigation, terminal homing)
+
+---
+
+## Working with the kernels
+
+Open a kernel from the Pro pack and the LSP shows you, in real
+time:
+
+- Chain order on hover for every function
+- FPGA cost estimate (LUT / DSP / cycles) in the status bar
+- Lean theorem name + proof status above each `@verify` block
+- Cross-target equivalence pass/fail in the bottom panel after
+  every save
+
+Compile any kernel to all 32 backends in one command:
+
+```
+eml-compile <kernel>.eml --target all -o build/
 ```
 
-Produces `autopilot.c`, `autopilot.rs`, `autopilot.lean`, and
-`autopilot.v` in the output directory.
+The C, Rust, Verilog, and Lean artifacts land side by side. The
+Lean theorem builds in seconds; the Verilog drops into Vivado
+and synthesizes to within ±5% of the allocator's estimate.
 
 ---
 
-## Recommended `where` clauses
+## Get access
 
-For typical 3-axis flight control, the inner loop should
-satisfy:
+The aerospace kernel pack ships with **Forge Pro**. Visit
+<https://monogateforge.com/get-started> for the full library.
 
-```eml
-fn pitch_step(...) -> Real
-  where chain_order <= 1,
-        domain: pitch_setpoint  > -1.5708 && pitch_setpoint  < 1.5708,
-        domain: pitch_measured  > -1.5708 && pitch_measured  < 1.5708,
-        precision: 1e-6
-{
-    // body
-}
-```
-
-`chain_order <= 1` keeps the function inside the SuperBEST
-"safe" band — multiplications and additions of bounded
-trigonometric outputs. The domain clauses give the type
-checker enough information to prove the `tan` / `asin` calls
-stay away from their poles.
-
----
-
-## FPGA target choice
-
-For DO-178C-aligned flight control, the canonical target is
-`xilinx.artix7` — Vivado's flow is what most certification
-authorities are familiar with. The allocator takes the
-`@target(fpga, clock_mhz=100, ...)` annotation and budgets:
-
-- ~500 LUTs per autopilot loop (PID + slew + saturation).
-- 4–8 DSPs per axis depending on attitude representation
-  (Euler vs quaternion).
-- 0 BRAM — the whole loop is combinational + a single
-  registered output.
-
-```bash
-eml-compile autopilot.eml --allocate --fpga-target xilinx.artix7
-```
-
-prints the per-unit decision and the LUT/DSP budget.
-
----
-
-## What to look at next
-
-- [`../architecture/profiler.md`](../architecture/profiler.md) —
-  how the chain-order tag is computed.
-- [`../api_reference/cli.md`](../api_reference/cli.md) — full
-  CLI reference for the `--allocate`, `--explain`, and
-  `--target all` flags shown above.
-- `industries/defense/navigation/ins.eml` — inertial
-  navigation example using `stdlib::linalg` + `stdlib::signal`.
+Free tier covers the compiler, the LSP, the cost analyzer, and
+12 software backends — more than enough to write your own
+aerospace `.eml` from scratch and compile it to C, Rust, Python,
+Lean, and the rest. The pre-verified library is the moat.
