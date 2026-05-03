@@ -1,95 +1,80 @@
 # Medical devices — IEC 62304 paths
 
-> Drug infusion + closed-loop physiologic control with
-> Lean-verified safety properties.
+> Forge Pro vertical. IEC 62304 software safety class C and
+> FDA 510(k) Class II / III aligned kernels for drug infusion,
+> closed-loop physiologic control, defibrillator energy delivery,
+> and pharmacokinetic modelling.
 
 ---
 
-## Why medical lives in EML-lang
+## What medical needs from a compiler
 
-IEC 62304 Class C devices (life-supporting / life-sustaining)
-require formal evidence that the control loop respects safety
-properties even under input fault. Forge's `@verify(lean, ...)`
-blocks emit Lean 4 theorems with `eml_auto`-attempted proofs;
-the resulting artifacts are accepted as objective evidence in
-the verification phase of the lifecycle.
+A drug-delivery rate, a defibrillator joule, a ventilator's
+pressure target — every one of these is a math kernel running
+inside a regulated device. The kernel has to provably stay
+inside its safe envelope, the device file has to show why, and
+the compile artifact has to come from a documented build chain.
+Forge delivers:
 
-Pair that with the cross-target equivalence guarantee
-(Patent #22) and you have a single source that produces the
-device firmware, the test harness, and the safety proof, all
-guaranteed identical.
+- **Bounded-output contracts** — `requires` / `ensures` clauses
+  become Lean theorems proving the kernel never escapes its
+  patient-safe range.
+- **Predictable runtime** — chain orders are fixed at compile
+  time; no allocator surprises on the device.
+- **Audit-ready outputs** — C for the device firmware, Lean for
+  the safety case, equivalence harness output for the V&V binder.
 
 ---
 
-## Shipping vertical
+## What ships in the Pro tier
 
-`industries/medical/devices/infusion_pump.eml` is the
-canonical demo. Imports `stdlib::control::pid` + the
-saturation primitives.
+The medical pack covers the math that touches a patient. Typical
+chain orders run 0–1 (most controllers are chain 0; PK / drug
+absorption models lift to chain 1). Every kernel ships with:
 
-The function carries:
+- A `@verify(lean)` contract proving the output stays inside the
+  device-safe range under all input combinations.
+- An `@target(fpga, ...)` profile for hardware-accelerated
+  kernels (defibrillator pulse shaping, ECG threshold detection).
+- The full backend matrix (C, Rust, Lean), plus an IEC 62304
+  cert template wired to the V&V evidence layout.
 
-- `@target(c, rust)` — the pump runs an MCU, no FPGA needed.
-- `@verify(lean, theorem="dose_within_envelope")` — proves
-  the commanded dose stays inside the prescribed window
-  regardless of sensor input.
+Coverage areas include:
 
-```bash
-eml-compile industries/medical/devices/infusion_pump.eml \
-    --target all -o build/medical/
+- IV infusion-pump rate controller + air-in-line guards
+- Defibrillator biphasic energy + dose calculation
+- One- and two-compartment pharmacokinetic models
+- Closed-loop physiologic control (insulin pump, ventilator)
+- Dose-response curves + drug clearance
+
+---
+
+## Working with the kernels
+
+Open a kernel and the LSP surfaces:
+
+- Chain order + cost class above every fn header
+- Lean proof status next to every `@verify` annotation
+- IEC 62304 risk class on the kernel header (Pro feature)
+- V&V evidence trail in the right pane (Pro feature)
+
+Compile any kernel to every backend in one command:
+
+```
+eml-compile <kernel>.eml --target all -o build/
 ```
 
-Produces `infusion_pump.c`, `infusion_pump.rs`, and
-`infusion_pump.lean`. The Lean output drops into the existing
-`monogate-lean` Lake project and can be checked offline as
-part of the regulatory submission.
+The C lands ready for embedding in firmware; the Lean theorem
+goes straight into the safety-case binder.
 
 ---
 
-## Recommended `where` clauses
+## Get access
 
-For dose control with a hard-stop ceiling:
+The medical kernel pack ships with **Forge Pro**. Visit
+<https://monogateforge.com/get-started> for the full library.
 
-```eml
-fn dose_step(setpoint: Real, measured: Real, integral: Real) -> Real
-  where chain_order <= 1,
-        domain: setpoint  > 0.0 && setpoint  < MAX_DOSE,
-        domain: measured  > 0.0 && measured  < 2.0 * MAX_DOSE,
-        precision: 1e-6
-{
-    saturate(pid(setpoint, measured, integral), 0.0, MAX_DOSE)
-}
-```
-
-The `domain` constraint plus the `saturate` call gives the
-Lean prover enough structure to close
-`dose_within_envelope` with `eml_auto` alone — no manual
-`sorry`-removal needed.
-
----
-
-## Equivalence guarantee
-
-Run
-
-```bash
-python -m pytest tests/equivalence/test_industry_verticals.py -k medical
-```
-
-to verify that the Python reference, the C output, the Rust
-output, and (when `lean` is on PATH) the Lean output all
-agree on a curated input vector grid covering both the
-nominal and the fault cases.
-
----
-
-## What to look at next
-
-- [`../architecture/profiler.md`](../architecture/profiler.md) —
-  what makes the chain-order tag suitable for verification
-  evidence.
-- `software/verification/lean/LeanBackend.py` — how `@verify`
-  blocks become Lean 4 source.
-- `lang/spec/stdlib/control.eml` — full list of saturation,
-  dead-zone, and rate-limit primitives the verification path
-  recognizes.
+Free tier covers the compiler and 12 software backends — write
+your own medical `.eml` from scratch and compile to C / Rust
+/ Lean today. The pre-verified life-supporting library is the
+proprietary product.
