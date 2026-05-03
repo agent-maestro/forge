@@ -818,6 +818,27 @@
     "node_count": 42,
     "trig_units": 0
   },
+  "controller::derivative_step": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "controller::integrator_step": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "controller::pid_command": {
+    "chain_order": 0,
+    "fpga_cycles": 10,
+    "mac_units": 5,
+    "node_count": 19,
+    "trig_units": 0
+  },
   "cook_torrance_ggx::ggx_distribution": {
     "chain_order": 0,
     "fpga_cycles": 18,
@@ -2372,6 +2393,27 @@
     "node_count": 4,
     "trig_units": 0
   },
+  "levitation::lift_margin": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 20,
+    "trig_units": 0
+  },
+  "levitation::magnetic_force": {
+    "chain_order": 0,
+    "fpga_cycles": 4,
+    "mac_units": 2,
+    "node_count": 10,
+    "trig_units": 0
+  },
+  "levitation::net_force": {
+    "chain_order": 0,
+    "fpga_cycles": 6,
+    "mac_units": 3,
+    "node_count": 14,
+    "trig_units": 0
+  },
   "load_flow::active_injection": {
     "chain_order": 2,
     "fpga_cycles": 12,
@@ -3742,6 +3784,20 @@
     "fpga_cycles": 6,
     "mac_units": 3,
     "node_count": 12,
+    "trig_units": 0
+  },
+  "sensor::filtered_gap": {
+    "chain_order": 0,
+    "fpga_cycles": 8,
+    "mac_units": 4,
+    "node_count": 38,
+    "trig_units": 0
+  },
+  "sensor::voltage_to_gap": {
+    "chain_order": 0,
+    "fpga_cycles": 18,
+    "mac_units": 9,
+    "node_count": 20,
     "trig_units": 0
   },
   "sgd_optimizer::momentum_velocity_step": {
