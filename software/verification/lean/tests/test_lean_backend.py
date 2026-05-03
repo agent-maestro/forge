@@ -87,7 +87,10 @@ def test_motor_control_safe_pid_renders(profiler, backend):
     # Two `requires` clauses -> two hypotheses
     assert "h1 :" in out
     assert "h2 :" in out
-    # `ensures abs(result) < 50000.0` survives substitution
+    # `ensures abs(result) < 50000.0` survives substitution.
+    # Only `0.0` and `1.0` are emitted as OfNat (MachLib core has
+    # only those two `OfNat Real` instances); 50000.0 stays
+    # OfScientific. C-239 root-cause fix.
     assert "(safe_pid error integral deriv)" in out
     assert "50000.0" in out
 

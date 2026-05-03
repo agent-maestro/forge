@@ -436,6 +436,20 @@ class LeanBackend:
             if isinstance(v, int):
                 return f"({v} : Real)"
             if isinstance(v, float):
+                # MachLib core only provides ``OfNat Real`` for 0 and 1
+                # (``MachLib/Basic.lean:38-39``); anything else must
+                # use the ``OfScientific Real`` instance (line 60).
+                # We bridge ``0.0`` / ``1.0`` to OfNat so the
+                # codegen-emitted goal `f x ≥ (0 : Real)` unifies
+                # directly with MachLib lemmas like `0 ≤ exp x` and
+                # `-1 < tanh x`. Other integer-valued floats (e.g.
+                # 200.0, 10000.0) and genuinely fractional floats
+                # (0.5, 0.398…) keep the OfScientific form.
+                # C-239 root-cause fix; see
+                # ``monogate-research/exploration/C239_bfs_proof_sweep/NOTES.md``
+                # §3.
+                if v == 0.0 or v == 1.0:
+                    return f"({int(v)} : Real)"
                 return f"({v} : Real)"
             raise _UnsupportedNode(f"literal {v!r}")
 
