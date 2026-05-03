@@ -227,9 +227,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--machlib-root", type=Path, default=None,
                         help="Override the MachLib search root used "
                              "by --audit-bundle to locate Lean proof "
-                             "files. Defaults to the MACHLIB_ROOT env "
-                             "var, then to the sibling-repo "
-                             "`../machlib/foundations/MachLib/Discovered`.")
+                             "files, and by --auto-theorems to write "
+                             "new ones. Defaults to the MACHLIB_ROOT "
+                             "env var, then to the sibling-repo "
+                             "`~/monogate/machlib`.")
+    parser.add_argument("--auto-theorems", action="store_true",
+                        help="After compiling, also emit Lean "
+                             "theorem scaffolding for any "
+                             "`@verify(lean, ...)` block to "
+                             "`<machlib-root>/foundations/MachLib/"
+                             "Discovered/<basename>.lean`. The "
+                             "source-path comment is redacted to "
+                             "`<private>/<basename>.eml` per the "
+                             "open-core IP rule. No-op when the "
+                             "source has no Lean verification "
+                             "blocks. Same emit logic as "
+                             "`tools/scripts/regen_discovered.py`, "
+                             "but per-file at compile time.")
     parser.add_argument("--explain", action="store_true",
                         help="Print a per-function diff showing which "
                              "optimizer passes fired, before/after "
@@ -324,6 +338,29 @@ def main(argv: list[str] | None = None) -> int:
 
     profiler = Profiler()
     profiler.profile_module(mod)
+
+    if args.auto_theorems:
+        from software.verification.lean.discovered_emit import (
+            resolve_machlib_root,
+            write_discovered_lean,
+        )
+        try:
+            dest = write_discovered_lean(
+                mod,
+                basename=args.source.stem,
+                machlib_root=resolve_machlib_root(args.machlib_root),
+            )
+        except FileNotFoundError as e:
+            print(f"--auto-theorems: {e}", file=sys.stderr)
+            return 2
+        if dest is None:
+            print(f"--auto-theorems: no `@verify(lean, ...)` blocks "
+                  f"in {args.source}; nothing emitted",
+                  file=sys.stderr)
+        else:
+            print(f"--auto-theorems: wrote {dest} "
+                  f"({dest.stat().st_size} bytes)",
+                  file=sys.stderr)
 
     # ── --explain -> per-function optimizer diff ─────────────
     if args.explain:
