@@ -416,5 +416,6 @@ prefer plain `int`.
   pipeline diagram + every layer.
 - [`api_reference/cli.md`](api_reference/cli.md) — every flag of the
   `eml-compile` CLI.
-- `lang/spec/grammar/examples/` — 10 short demos, all working.
-- `industries/<vertical>/*.eml` — 11 production-shape verticals.
+- [`examples/`](../examples/) — 12 short, public-domain teaching files.
+- `lang/spec/grammar/examples/` — 10 minimal grammar fixtures.
+- Pre-verified domain library — Forge Pro at <https://monogateforge.com/get-started>.

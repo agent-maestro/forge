@@ -1,0 +1,18 @@
+// gaussian.eml -- the bell curve.
+//
+//   p(x; mu, sigma) = (1/sigma) * exp(-((x-mu)^2 / (2*sigma^2)))
+//
+// Chain order 1 in EML's structural sense: one transcendental
+// (exp) wrapping a polynomial argument. Shows up in statistics,
+// ML loss landscapes, image filters, antenna patterns, and
+// quantum harmonic oscillators -- the same EML genome each time.
+
+module gaussian;
+
+fn gaussian(mu: Real, sigma: Real, x: Real) -> Real
+    where chain_order <= 1
+    requires (sigma > 0.0)
+{
+    let dx = x - mu;
+    exp(-dx * dx / (2.0 * sigma * sigma)) / sigma
+}

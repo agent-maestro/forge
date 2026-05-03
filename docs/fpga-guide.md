@@ -120,17 +120,33 @@ With the [Forge VS Code extension](https://marketplace.visualstudio.com/items?it
 
 Click it to switch the active device — the estimates re-compute live. The LSP queries the allocator on every save, so the numbers stay current as you edit.
 
-## End-to-end example: autopilot for Artix-7
+## End-to-end example: damped wave for Artix-7
 
-The kernel in `industries/aerospace/flight_control/autopilot.eml` is a complete safety-critical autopilot stage:
+The kernel in `examples/damped_wave.eml` is a small chain-2 design
+(one `exp` + one `sin` + a polynomial multiplier) that exercises
+the full FPGA flow:
 
-1. **Source** — single `.eml` with three functions: `inner_loop` (chain 0), `outer_loop` (chain 1, uses `arctan`), `step` (composes them).
-2. **Profile** — `eml-compile autopilot.eml --profile-only` reports chain orders 0, 1, 1.
-3. **Allocate** — `eml-compile autopilot.eml --allocate --fpga-target xilinx.artix7` plans 1.4k LUT, 8 DSP, 1 BRAM, latency 19 cycles at 100 MHz.
+1. **Source** — single `.eml` with one function: `damped_wave`
+   (chain 2, composes `exp` and `sin`).
+2. **Profile** — `eml-compile examples/damped_wave.eml --profile-only`
+   reports chain order 2.
+3. **Allocate** — `eml-compile examples/damped_wave.eml --allocate
+   --fpga-target xilinx.artix7` plans roughly 90 LUT, 2 DSP,
+   latency 4 cycles at 100 MHz.
 4. **Generate** — `--target verilog` emits the module hierarchy.
-5. **Simulate** — `--fpga-sim` runs Verilator against the C reference and confirms ULP-level agreement.
-6. **Verify** — `--target lean` produces the safety theorem; the bundled MachLib lemmas discharge it without `sorry`.
-7. **Synthesize** — drop the Verilog into Vivado, set the constraints from `hardware/targets/xilinx/artix7.xdc`, run synthesis. Resource usage matches the allocator estimate within ±5%.
+5. **Simulate** — `--fpga-sim` runs Verilator against the C reference
+   and confirms ULP-level agreement.
+6. **Verify** — `--target lean` produces a Lean 4 theory file (this
+   example doesn't carry a `@verify` contract; for a verified
+   example use `pid_controller.eml` or `smoothstep.eml`).
+7. **Synthesize** — drop the Verilog into Vivado, set the constraints
+   from `hardware/targets/xilinx/artix7.xdc`, run synthesis.
+   Resource usage matches the allocator estimate within ±5%.
+
+For full safety-critical kernels (autopilot, motor FOC, infusion
+pump, robotics arm, etc.), see Forge Pro at
+<https://monogateforge.com/get-started>. The pre-verified domain
+library is the proprietary product; the compiler shown here is open.
 
 ## Vendor-specific notes
 

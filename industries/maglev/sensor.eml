@@ -1,0 +1,118 @@
+// sensor.eml -- Hall-effect gap sensor signal conditioning.
+//
+// A Hall-effect sensor placed near the solenoid pole picks up the
+// stray field from the levitating target. Empirical near-field
+// model:
+//
+//   V_H(z) = V_offset + alpha / (z + z_offset)
+//
+// Where:
+//   V_H      = sensor output voltage  (V)
+//   z        = air gap                (m)
+//   V_offset = bias voltage at z = infty
+//   alpha    = sensitivity            (V * m)
+//   z_offset = small geometric offset preventing singularity at z = 0
+//
+// Inverting for gap:
+//
+//   z(V_H) = alpha / (V_H - V_offset) - z_offset
+//
+// Properties the controller depends on, encoded as @verify
+// theorems below:
+//
+//   bounded:     for V_H in the calibrated band, z stays inside
+//                [Z_MIN_OUT, Z_MAX_OUT]
+//   monotonic:   z is strictly decreasing in V_H -- larger Hall
+//                voltage means smaller gap. Encoded as the
+//                lemma `hall_to_gap_monotone` in the theorem
+//                contract; the function returns one point on
+//                that curve.
+//
+// Chain order 0 (pure rational).
+// drift_risk LOW -- output consumed each tick by the controller.
+
+module sensor;
+
+use stdlib::signal::{biquad_step};
+
+const ZERO:          Real = 0.0
+
+// Calibrated parameters for the reference solenoid + Hall sensor
+// pair. These would be measured in the lab during commissioning;
+// the values here are typical for a small breadboard maglev.
+const V_OFFSET:      Real =   0.50      // V -- bias at z = infty
+const ALPHA:         Real =   0.040     // V * m -- sensitivity
+const Z_OFFSET:      Real =   0.0005    // m -- small geometric offset
+
+// Calibrated voltage band. V_H_MIN corresponds to the largest
+// gap we can resolve; V_H_MAX corresponds to the smallest gap
+// before the target hits the pole face.
+const V_H_MIN:       Real =   0.55
+const V_H_MAX:       Real =   8.50
+
+// Output gap range (mirrors levitation.eml + controller.eml).
+const Z_MIN_OUT:     Real =   0.001     // 1 mm
+const Z_MAX_OUT:     Real =   0.050     // 5 cm
+
+// Tiny floor on (V_H - V_OFFSET) so the division stays well-defined
+// even at the very edge of the calibrated band. Saturation here is
+// a calibration error, not an arithmetic one.
+const V_DIFF_MIN:    Real =   0.05      // V -- below this, clamp
+
+// Inverse Hall map: voltage -> gap.
+//
+// The 1 / (V_H - V_OFFSET) form is monotonically decreasing in V_H
+// once we clamp the denominator away from zero, which makes the
+// composition with the controller's sign convention well-defined.
+// Chain order 0 (rational on the input).
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "hall_to_gap_monotone")
+fn voltage_to_gap(v_hall: Real) -> Real
+    where chain_order <= 0
+    requires (v_hall >= V_H_MIN)
+    requires (v_hall <= V_H_MAX)
+    ensures  (result >= Z_MIN_OUT)
+    ensures  (result <= Z_MAX_OUT)
+{
+    let v_diff = v_hall - V_OFFSET;
+    let v_safe = clamp(v_diff, V_DIFF_MIN, V_H_MAX);
+    let z_raw  = ALPHA / v_safe - Z_OFFSET;
+    clamp(z_raw, Z_MIN_OUT, Z_MAX_OUT)
+}
+
+// Two-pole Butterworth low-pass at 250 Hz / 1 kHz sample rate.
+// Hall sensors pick up coil-driver switching noise; this strips
+// the high-frequency component before the controller's derivative
+// step. The biquad coefficients come from stdlib::signal so the
+// numerical-stability proofs ride along.
+//
+// Chain order 1 (the biquad is itself chain 0; counting the
+// upstream voltage_to_gap call gives chain 0 -- but listing 1
+// gives a small headroom for callers that compose us with an
+// extra prefilter).
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "filtered_gap_within_envelope")
+fn filtered_gap(
+    v_hall: Real,
+    x1: Real, x2: Real, y1: Real, y2: Real,
+) -> Real
+    where chain_order <= 1
+    requires (v_hall >= V_H_MIN)
+    requires (v_hall <= V_H_MAX)
+    requires (abs(x1) <= 1.0)
+    requires (abs(x2) <= 1.0)
+    requires (abs(y1) <= 1.0)
+    requires (abs(y2) <= 1.0)
+    ensures  (result >= Z_MIN_OUT)
+    ensures  (result <= Z_MAX_OUT)
+{
+    let z = voltage_to_gap(v_hall);
+    // 250 Hz Butterworth at 1 kHz -- coefficients pre-rolled.
+    let b0 = 0.292893;
+    let b1 = 0.585786;
+    let b2 = 0.292893;
+    let a1 = 0.0;
+    let a2 = 0.171573;
+    let z_filtered = biquad_step(z, x1, x2, y1, y2, b0, b1, b2, a1, a2);
+    clamp(z_filtered, Z_MIN_OUT, Z_MAX_OUT)
+}

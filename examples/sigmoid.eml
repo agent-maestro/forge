@@ -1,0 +1,21 @@
+// sigmoid.eml -- the neural-network activation classic.
+//
+//   sigmoid(x) = 1 / (1 + exp(-x))
+//
+// Chain order 2 (rational of an exp). The bonus `silu` function
+// is x * sigmoid(x) -- same shape, same cost class.
+
+module sigmoid;
+
+fn sigmoid(x: Real) -> Real
+    where chain_order <= 2
+{
+    1.0 / (1.0 + exp(-x))
+}
+
+// SiLU / Swish activation.
+fn silu(x: Real) -> Real
+    where chain_order <= 2
+{
+    x / (1.0 + exp(-x))
+}

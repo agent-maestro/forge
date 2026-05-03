@@ -214,9 +214,9 @@ the design assurance requirement." For IEC 62304 Class C
 software development process. For ISO 26262 ASIL-D, it's a
 Methods Group 5 artifact (formal verification of detailed design).
 
-The verticals in `industries/<vertical>/` ship with a per-vertical
-cert template that wires the theorem evidence into the regulator's
-expected document layout.
+Forge Pro ships per-vertical cert templates that wire the theorem
+evidence into the regulator's expected document layout. See
+<https://monogateforge.com/get-started> for the full library.
 
 ---
 

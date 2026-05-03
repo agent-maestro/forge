@@ -1,0 +1,30 @@
+// pid_controller.eml -- the textbook PID controller.
+//
+//   output = Kp * error + Ki * integral + Kd * derivative
+//
+// Universal control loop: heating, motors, robots, drones,
+// rockets. Chain order 0 (a linear combination of the inputs).
+// The interesting part is the @verify contract: the output is
+// always clamped to the actuator's physical range.
+
+module pid_controller;
+
+const Kp: Real = 1.5
+const Ki: Real = 0.4
+const Kd: Real = 0.05
+
+const OUT_MIN: Real = -1.0
+const OUT_MAX: Real =  1.0
+
+@verify(lean, theorem = "pid_output_clamped")
+fn pid(error: Real, integral: Real, derivative: Real) -> Real
+    where chain_order <= 0
+    requires (abs(error)      <= 100.0)
+    requires (abs(integral)   <= 100.0)
+    requires (abs(derivative) <= 100.0)
+    ensures  (result >= OUT_MIN)
+    ensures  (result <= OUT_MAX)
+{
+    let raw = Kp * error + Ki * integral + Kd * derivative;
+    clamp(raw, OUT_MIN, OUT_MAX)
+}

@@ -104,3 +104,20 @@ industries/agriculture/greenhouse/vpd_control_pkg/
 # OS
 Thumbs.db
 desktop.ini
+
+# ──────────────────────────────────────────────────────────────────
+# Proprietary kernel library — never publish.
+#
+# Forge is the open-core compiler. The industries/ kernel library
+# is the proprietary product. This rule is a safety net: the
+# repo is PRIVATE today, so existing tracked files under
+# industries/ stay tracked (gitignore only blocks NEW untracked
+# files). When the forge repo flips public, every kernel file
+# already on disk will be invisible to git unless explicitly
+# force-added, and new contributors won't accidentally stage
+# proprietary content.
+#
+# To add a new industry kernel deliberately while the rule is in
+# place, use:  git add -f industries/<vertical>/<file>.eml
+# ──────────────────────────────────────────────────────────────────
+industries/

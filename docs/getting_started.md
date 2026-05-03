@@ -42,87 +42,65 @@ when verilator is on PATH).
 
 ### Step 1 — Look at a real example
 
-Open `industries/aerospace/flight_control/autopilot.eml`:
+Open `examples/pid_controller.eml`:
 
 ```eml
-@target(fpga, clock_mhz = 100, precision = float32)
-@verify(lean, theorem = "autopilot_command_within_limits")
-fn autopilot_step(
-    pitch_setpoint: Real,
-    pitch_measured: Real,
-    pitch_integral: Real,
-) -> Real
-    requires (abs(pitch_setpoint) < 1.5708)   // |pi/2|, +/- 90 deg
-    requires (abs(pitch_measured) < 1.5708)
-    requires (abs(pitch_integral) < INTEGRAL_LIMIT)
-    ensures  (abs(result) < ELEVATOR_MAX)
+@verify(lean, theorem = "pid_output_clamped")
+fn pid(error: Real, integral: Real, derivative: Real) -> Real
+    where chain_order <= 0
+    requires (abs(error)      <= 100.0)
+    requires (abs(integral)   <= 100.0)
+    requires (abs(derivative) <= 100.0)
+    ensures  (result >= OUT_MIN)
+    ensures  (result <= OUT_MAX)
 {
-    let pitch_error = pitch_setpoint - pitch_measured;
-    let rate_target = rate_controller(
-        pitch_error, pitch_integral, pitch_measured,
-    );
-    clamp(Kr * rate_target, ELEVATOR_MIN, ELEVATOR_MAX)
+    let raw = Kp * error + Ki * integral + Kd * derivative;
+    clamp(raw, OUT_MIN, OUT_MAX)
 }
 ```
 
 Three things to notice:
 
-1. **`@target(fpga, ...)`** — this function is destined for an
-   FPGA. The compiler will run the FPGA allocator on it.
+1. **`where chain_order <= 0`** — pure rational. The compiler
+   uses chain order across the toolchain to drive stability
+   bounds, FPGA cost estimates, and proof obligations.
 2. **`@verify(lean, theorem = "...")`** — emit a Lean 4 theorem
    the certifier can machine-check.
 3. **`requires` / `ensures`** clauses — the safety contract.
    The Lean theorem proves `requires → ensures` (specifically
-   that the elevator command stays within `ELEVATOR_MAX = 0.349
-   rad = ±20°` no matter what inputs come in, as long as the
-   inputs themselves stay in their declared domain).
+   that the output stays within `[OUT_MIN, OUT_MAX]` no matter
+   what inputs come in, as long as they stay in their declared
+   domain).
 
 ### Step 2 — Profile it
 
 ```
-$ python tools/cli/main.py \
-    industries/aerospace/flight_control/autopilot.eml \
-    --profile-only
+$ eml-compile examples/pid_controller.eml --profile-only
 
-# Module: autopilot  (3 fn, 8 const, 1 type)
-# Source: industries\aerospace\flight_control\autopilot.eml
+# Module: pid_controller  (1 fn, 5 const)
+# Source: examples/pid_controller.eml
 
-  gravity_compensation
-    status: ok    chain_order: 2    cost_class: p2-d4-w2-c0
-    dynamics: 1 osc, 0 decay  (predicted_r=2)
-    fpga: 4 MAC, 0 exp, 0 ln, 1 trig (8 cy @ 32-bit)
-
-  rate_controller
-    status: ok    chain_order: 0    cost_class: p0-d2-w0-c0
-    fpga: 2 MAC, 0 exp, 0 ln, 0 trig (4 cy @ 32-bit)
-
-  autopilot_step
-    status: ok    chain_order: 0    cost_class: p0-d6-w0-c0
-    fpga: 6 MAC, 0 exp, 0 ln, 0 trig (12 cy @ 32-bit)
+  pid
+    status: ok    chain_order: 0    cost_class: p0-d4-w0-c0
+    fpga: 3 MAC, 0 exp, 0 ln, 0 trig (6 cy @ 32-bit)
 ```
 
 Each function's profile shows up immediately. The
 **chain order** is the Pfaffian complexity bound — a number
 the rest of the toolchain uses for stability + FPGA
-estimates. For DO-178C work you constrain it via the
-type aliases (`StableSignal = Real where chain_order <= 2`).
+estimates.
 
 ### Step 3 — Compile to C and run it
 
 ```
-$ python tools/cli/main.py \
-    industries/aerospace/flight_control/autopilot.eml \
-    --target c -o autopilot.c
+$ eml-compile examples/pid_controller.eml --target c -o pid.c
 
-# wrote autopilot.c (1,875 bytes, 47 lines)
+# wrote pid.c (1,200 bytes, ~30 lines)
 
-$ gcc autopilot.c \
+$ gcc pid.c \
     software/runtime/c/libmonogate.c \
     -I software/runtime/c \
-    -lm -o autopilot.out
-
-# (Now autopilot.out is a real executable. Add a main() that
-#  calls autopilot_step() to actually run it.)
+    -lm -o pid.out
 ```
 
 The generated C is plain C99 with profile comments above each
@@ -131,41 +109,36 @@ cleanly with `-Wall -Werror`.
 
 ### Step 4 — Generate the FPGA allocation plan
 
+For functions tagged `@target(fpga, ...)`, the FPGA allocator
+emits a resource estimate against your chosen device:
+
 ```
-$ python tools/cli/main.py \
-    industries/aerospace/flight_control/autopilot.eml \
-    --allocate
+$ eml-compile examples/damped_wave.eml --allocate
 
   FPGA allocation plan for Arty A7-100
-  Pipeline depth: 6 stages
+  Pipeline depth: 4 stages
   Clock target:   100 MHz
-  Throughput:     16.7 Msamples/s
 
-  Resources:    300 LUTs     6 DSPs      0 KB BRAM
-  MAC units:  6
-  Transcendental units: none (pure-polynomial design)
+  Resources:     90 LUTs     2 DSPs      0 KB BRAM
+  MAC units:  2
+  Transcendental units: 1 exp, 1 sin
 ```
-
-300 LUTs out of the Arty A7-100's 63,400 — comfortable
-0.5% utilization. You could fit a hundred autopilots on
-one FPGA (and you might, for redundant
-voting-channel architectures).
 
 ### Step 5 — One command for everything
 
 ```
-$ python tools/cli/main.py \
-    industries/aerospace/flight_control/autopilot.eml \
-    --target all -o ./out
+$ eml-compile examples/pid_controller.eml --target all -o ./out
 
-  # eml-compile --target all -> ./out
-    [ok]   c        ./out/autopilot.c       (1,875 bytes)
-    [ok]   rust     ./out/autopilot.rs      (1,808 bytes)
-    [ok]   lean     ./out/autopilot.lean    (1,237 bytes)
-    [ok]   verilog  ./out/autopilot.v       (1,712 bytes)
+  # eml-compile --target all -> ./out  (tier: Free)
+    [ok]   c        ./out/pid_controller.c       (1,200 bytes)
+    [ok]   rust     ./out/pid_controller.rs      (1,150 bytes)
+    [ok]   lean     ./out/pid_controller.lean    (    900 bytes)
+    [ok]   python   ./out/pid_controller.py      (    400 bytes)
+    [ok]   javascript ./out/pid_controller.mjs   (    900 bytes)
+    ...
 ```
 
-Four artifacts. One source. Zero hand-translation.
+Many artifacts. One source. Zero hand-translation.
 
 You can also target any of the other five backends individually:
 `--target python`, `--target llvm`, `--target wasm`,
@@ -225,13 +198,14 @@ forge: parse + profile + type-check + 5-pass optimizer
     └──→ Lean theorem                    ← verifies via lake build
 ```
 
-That's the whole compiler. **Eleven verticals** already have
-working examples (`industries/aerospace`, `automotive`, `robotics`,
-`medical`, `defense`, `energy`, `audio/dsp`, `audio/synthesis`,
-`ml/inference`, `scientific/physics`, `manufacturing/process_control`);
-each ships its own cert template (DO-178C, ISO 26262, ROS 2,
-IEC 62304, MIL-STD-882, NRC, AES-67, MIDI, MLPerf-tiny, IEEE 754,
-ISA-95 respectively).
+That's the whole compiler. The Pro tier ships pre-verified domain
+kernels across **23 verticals** (aerospace, automotive, robotics,
+medical, defense, energy, audio DSP + synthesis, ML inference,
+scientific physics, manufacturing process control, gaming,
+crypto, and more), each with its own cert template
+(DO-178C, ISO 26262, ROS 2, IEC 62304, MIL-STD-882, NRC, AES-67,
+MIDI, MLPerf-tiny, IEEE 754, ISA-95, etc.). See
+<https://monogateforge.com/get-started> for access.
 
 If you want a head start, **`forge.blocks`** ships 34 pre-verified
 computation blocks (PID, sigmoid, Park, Kalman, biquad, …) where
@@ -253,9 +227,9 @@ for the tour.
 | CLI reference                           | [`api_reference/cli.md`](api_reference/cli.md) |
 | Backend reference                       | [`api_reference/backends.md`](api_reference/backends.md) |
 | FPGA / ASIC target catalogue            | [`api_reference/targets.md`](api_reference/targets.md) |
-| Industry walk-throughs                  | [`industry_guides/`](industry_guides/) |
-| Browse the demo examples                | `lang/spec/grammar/examples/` (10 short demos) |
-| Browse the industry examples            | `industries/<vertical>/` (11 verticals) |
+| Browse the public examples              | [`examples/`](../examples/) (12 short, public-domain teaching files) |
+| Browse the demo grammar fixtures        | `lang/spec/grammar/examples/` (10 short demos) |
+| Pre-verified domain library             | Forge Pro — see <https://monogateforge.com/get-started> |
 | Browse pre-verified blocks              | [`forge/blocks/README.md`](../forge/blocks/README.md) |
 | Read the language design                | `lang/spec/EML_LANG_DESIGN.md` |
 | Read the FPGA allocator design          | `hardware/allocator/allocator.py` |

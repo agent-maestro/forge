@@ -1,0 +1,14 @@
+// lerp.eml -- linear interpolation. The "hello world" of math
+// in graphics, animation, and signal processing.
+//
+//   lerp(a, b, t) = a + t * (b - a)
+//
+// Chain order 0: the body is a polynomial in the inputs.
+
+module lerp;
+
+fn lerp(a: Real, b: Real, t: Real) -> Real
+    where chain_order <= 0
+{
+    a + t * (b - a)
+}

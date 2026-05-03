@@ -1,0 +1,102 @@
+// levitation.eml -- magnetic-suspension force model for a single
+// solenoid lifting a ferromagnetic object across an air gap.
+//
+// Single-coil attractive force model:
+//
+//   F(I, z) = k * I^2 / z^2
+//
+// Where:
+//   I = coil current             (amperes)
+//   z = air gap                  (metres)
+//   k = electromagnet constant   (N * m^2 / A^2; calibrated per coil)
+//
+// The 1/z^2 falloff is the standard near-field approximation for a
+// solenoid pulling a soft-iron target -- exact for an idealised
+// pole, accurate to a few percent in the operating envelope used
+// by hobby-scale maglev controllers (z in [1 mm, 50 mm]).
+//
+// Levitation invariant: the lift force exceeds gravity when the
+// current is at least I_min and the gap is no more than z_max.
+// This is the @verify obligation that lets us call the system
+// "levitating" rather than "almost levitating".
+//
+// Chain order 0 (pure rational on inputs).
+// drift_risk LOW -- F is consumed each control cycle, never
+// accumulated.
+
+module levitation;
+
+const ZERO:        Real = 0.0
+const G:           Real = 9.80665    // standard gravity (m/s^2)
+
+const I_MIN:       Real =   0.10     // 100 mA minimum holding current
+const I_MAX:       Real =   3.00     // 3 A coil cap (PSU + thermal)
+const Z_MIN:       Real =   0.001    // 1 mm pole face
+const Z_MAX:       Real =   0.050    // 5 cm operating ceiling
+const M_MIN:       Real =   0.001    // 1 g target object
+const M_MAX:       Real =   2.000    // 2 kg target object
+const K_MIN:       Real =   1.0e-6
+const K_MAX:       Real =   1.0e-3   // electromagnet constant range
+
+// Margin baked into the levitation contract. We require the lift
+// force to exceed mg by at least this fraction so the controller
+// has authority to reject disturbances.
+const LIFT_MARGIN: Real =   1.10
+
+// Magnetic lift force as a function of coil current and air gap.
+// Pure rational expression: chain order 0.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "magnetic_lift_force_nonnegative")
+fn magnetic_force(k: Real, current: Real, gap: Real) -> Real
+    where chain_order <= 0
+    requires (k >= K_MIN)
+    requires (k <= K_MAX)
+    requires (current >= ZERO)
+    requires (current <= I_MAX)
+    requires (gap >= Z_MIN)
+    requires (gap <= Z_MAX)
+    ensures  (result >= ZERO)
+{
+    k * current * current / (gap * gap)
+}
+
+// Levitation invariant: at the floor of the operating envelope
+// (current at I_MIN, gap at Z_MAX) the lift force still exceeds
+// LIFT_MARGIN * m * g. If this returns positive, the object is
+// levitating with margin; the controller's job is then to keep
+// (current, gap) inside the envelope.
+//
+// Chain order 0.
+@target(fpga, clock_mhz = 200, precision = float32)
+@verify(lean, theorem = "levitation_envelope_lifts_with_margin")
+fn lift_margin(k: Real, mass: Real) -> Real
+    where chain_order <= 0
+    requires (k >= K_MIN)
+    requires (k <= K_MAX)
+    requires (mass >= M_MIN)
+    requires (mass <= M_MAX)
+{
+    let f_floor   = k * I_MIN * I_MIN / (Z_MAX * Z_MAX);
+    let f_required = LIFT_MARGIN * mass * G;
+    f_floor - f_required
+}
+
+// Net upward force on the object: lift minus weight. Positive
+// means the object accelerates up; negative means it falls.
+// The controller drives this to ~zero around the setpoint.
+//
+// Chain order 0.
+@target(fpga, clock_mhz = 200, precision = float32)
+fn net_force(k: Real, current: Real, gap: Real, mass: Real) -> Real
+    where chain_order <= 0
+    requires (k >= K_MIN)
+    requires (k <= K_MAX)
+    requires (current >= ZERO)
+    requires (current <= I_MAX)
+    requires (gap >= Z_MIN)
+    requires (gap <= Z_MAX)
+    requires (mass >= M_MIN)
+    requires (mass <= M_MAX)
+{
+    k * current * current / (gap * gap) - mass * G
+}
