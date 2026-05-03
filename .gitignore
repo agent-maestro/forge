@@ -119,5 +119,10 @@ desktop.ini
 #
 # To add a new industry kernel deliberately while the rule is in
 # place, use:  git add -f industries/<vertical>/<file>.eml
+#
+# Generated artifacts from `--target all` runs land under
+# industries/<vertical>/build/ — never commit these. They are
+# reproducible from source and bloat history.
 # ──────────────────────────────────────────────────────────────────
 industries/
+industries/**/build/
