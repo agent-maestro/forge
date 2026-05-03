@@ -231,6 +231,26 @@ def main(argv: list[str] | None = None) -> int:
                              "new ones. Defaults to the MACHLIB_ROOT "
                              "env var, then to the sibling-repo "
                              "`~/monogate/machlib`.")
+    parser.add_argument("--cost-aware", action="store_true",
+                        help="For each function, profile via "
+                             "eml_cost.analyze and (if EML-cost "
+                             "constraints are violated) brute-force "
+                             "search the SuperBEST corpus for cheaper "
+                             "siblings. Reports a recommendation "
+                             "table; never auto-rewrites. Pro-tier "
+                             "feature.")
+    parser.add_argument("--max-chain-order", type=int, default=None,
+                        help="(--cost-aware) Maximum allowed chain "
+                             "order (Pfaffian r). Functions exceeding "
+                             "this trigger a sibling search.")
+    parser.add_argument("--max-eml-depth", type=int, default=None,
+                        help="(--cost-aware) Maximum allowed eml_depth. "
+                             "Functions exceeding this trigger a "
+                             "sibling search.")
+    parser.add_argument("--cost-aware-k", type=int, default=10,
+                        help="(--cost-aware) Number of corpus "
+                             "siblings to consider per function. "
+                             "Default 10.")
     parser.add_argument("--generate-tests", action="store_true",
                         help="Auto-generate input vectors for every "
                              "Real-typed function in the source, run "
@@ -362,6 +382,20 @@ def main(argv: list[str] | None = None) -> int:
 
     profiler = Profiler()
     profiler.profile_module(mod)
+
+    if args.cost_aware:
+        from tools.cli.cost_aware import (
+            format_report as _format_cost_report,
+            run as _run_cost_aware,
+        )
+        cost_report = _run_cost_aware(
+            args.source,
+            max_chain_order=args.max_chain_order,
+            max_eml_depth=args.max_eml_depth,
+            k=args.cost_aware_k,
+        )
+        print(_format_cost_report(cost_report))
+        return 0 if cost_report.all_ok else 1
 
     if args.generate_tests:
         from tools.cli.generate_tests import (
