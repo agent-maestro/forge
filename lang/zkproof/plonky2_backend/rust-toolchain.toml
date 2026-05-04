@@ -1,0 +1,6 @@
+[toolchain]
+# plonky2_field uses `#![feature(specialization)]`, which requires
+# nightly. Pin the toolchain so contributors get a working build out
+# of the box (any reasonably recent nightly works; the language
+# feature is unstable but stable enough for this purpose).
+channel = "nightly"

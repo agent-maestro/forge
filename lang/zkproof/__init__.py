@@ -45,6 +45,7 @@ from .circuit import (
     compile_circuit,
 )
 from .prover import StubEvaluator, VerifyResult, ZkProof, prove, verify
+from . import plonky2_runner
 
 __all__ = [
     "GATE_PARAMS",
@@ -58,6 +59,7 @@ __all__ = [
     "canonical_circuit_hash",
     "circuit_to_dict",
     "compile_circuit",
+    "plonky2_runner",
     "prove",
     "verify",
 ]

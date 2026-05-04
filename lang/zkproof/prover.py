@@ -1,30 +1,37 @@
-"""Stub prover — Phase 1 scaffolding for the Verification Network.
+"""Prover — Phase 1 of the Verification Network.
 
-The real Phase 1 backend is a Plonky2 / Halo2 PLONK prover that
-emits a 100-byte zero-knowledge proof per computation. That ships
-later; what's wired today is a *transparent* prover that re-executes
-the circuit on the supplied inputs and binds the trace to the
-fingerprint with SHA-256.
+Two backends share a single prove/verify API:
 
-The prover surface is shaped to match what the real ZK backend will
-produce, so verifiers can compose against it now:
+  * **plonky2** (real ZK) — runs the EML circuit through the
+    `monogate-zk` Rust binary built from `lang/zkproof/plonky2_backend/`.
+    Produces a Goldilocks-field PLONK + FRI proof. Currently handles
+    arithmetic-only circuits (CONST/INPUT/ADD/SUB/MUL/NEG/OUTPUT);
+    transcendental gates fall back to the stub.
+  * **stub** (transparent) — re-executes the circuit on supplied
+    inputs and binds the trace to the fingerprint with SHA-256.
+    Tamper-evident and deterministic but **not** zero-knowledge:
+    inputs are in the clear.
 
-    proof = prove(circuit, fingerprint, inputs={"x": 1.5, "mu": 0, "sigma": 1})
-    assert verify(proof, circuit, fingerprint).is_valid
+Routing is automatic: :func:`prove` tries the Plonky2 binary first
+when it can prove the circuit, otherwise falls back to the stub. The
+proof artefact's ``spec`` field tells the verifier which path to
+take (``monogate-zkproof/v1`` for the real backend,
+``monogate-zkproof/v1-stub`` for the transparent one).
 
-The transparent prover does NOT hide inputs — that's the
-zero-knowledge property the real backend brings. What it does
-provide today:
+    proof = prove(circuit, inputs={"x": 1.5}, fingerprint_module_hash="sha256:...")
+    assert verify(proof, circuit=circuit,
+                  fingerprint_module_hash="sha256:...").is_valid
+
+What the stub still provides today, regardless of backend:
 
   * **Tamper-evidence**: any change to the circuit, fingerprint,
-    inputs, or output produces a different proof transcript hash.
-  * **Determinism**: re-proving the same (circuit, inputs) tuple
-    on any machine yields the same proof bytes.
-  * **Composability**: the proof artefact is JSON-serialisable, so
+    inputs, or output is detected by the verifier.
+  * **Determinism**: re-proving the same (circuit, inputs) tuple on
+    any machine yields the same proof bytes (true for stub; the
+    Plonky2 prover is deterministic but its bytes depend on the
+    crate version).
+  * **Composability**: the proof artefact is JSON-serialisable so
     the registry, M2M handshake, and dashboard can all carry it.
-
-When the real backend lands, the only callsites that change are
-:func:`prove` and :func:`verify` — every consumer keeps working.
 """
 
 from __future__ import annotations
@@ -41,7 +48,9 @@ from .circuit import (
     GateKind,
     ZkCircuit,
     canonical_circuit_hash,
+    circuit_to_dict,
 )
+from . import plonky2_runner
 
 
 # ── Public dataclass ──────────────────────────────────────────────
@@ -177,6 +186,7 @@ class StubEvaluator:
 
 
 _PROOF_SPEC_STUB = "monogate-zkproof/v1-stub"
+_PROOF_SPEC_PLONKY2 = "monogate-zkproof/v1"
 
 
 def prove(
@@ -184,9 +194,49 @@ def prove(
     *,
     inputs: Mapping[str, float],
     fingerprint_module_hash: str,
+    backend: str = "auto",
 ) -> ZkProof:
-    """Produce a (today: transparent, tomorrow: zero-knowledge) proof
-    that the circuit's output for the supplied inputs is what we say."""
+    """Produce a proof that the circuit's output for the supplied
+    inputs is what we say.
+
+    Backends:
+      * ``"auto"`` (default) — use the Plonky2 binary when it can
+        prove the circuit; fall back to the transparent stub.
+      * ``"plonky2"`` — require the real ZK backend; raises if it
+        can't handle the circuit.
+      * ``"stub"`` — force the transparent backend (useful in tests
+        and on machines without the Rust toolchain).
+    """
+    if backend not in ("auto", "plonky2", "stub"):
+        raise ValueError(f"unknown backend `{backend}`")
+
+    if backend in ("auto", "plonky2") and plonky2_runner.can_prove(circuit):
+        try:
+            payload = plonky2_runner.prove_with_binary(
+                circuit,
+                inputs=inputs,
+                fingerprint_module_hash=fingerprint_module_hash,
+            )
+            return _proof_from_plonky2_payload(payload, circuit)
+        except plonky2_runner.Plonky2BackendError:
+            if backend == "plonky2":
+                raise
+            # auto mode: fall through to stub
+    elif backend == "plonky2":
+        raise plonky2_runner.Plonky2BackendError(
+            "plonky2 backend cannot handle this circuit "
+            "(requires CONST/INPUT/ADD/SUB/MUL/NEG/OUTPUT only) "
+            "or the binary is unavailable"
+        )
+
+    return _prove_stub(circuit, inputs, fingerprint_module_hash)
+
+
+def _prove_stub(
+    circuit: ZkCircuit,
+    inputs: Mapping[str, float],
+    fingerprint_module_hash: str,
+) -> ZkProof:
     evaluator = StubEvaluator()
     out, witness = evaluator.evaluate(circuit, inputs)
     transcript = _hash_transcript(witness, inputs, fingerprint_module_hash)
@@ -203,6 +253,37 @@ def prove(
     )
 
 
+def _proof_from_plonky2_payload(payload: dict, circuit: ZkCircuit) -> ZkProof:
+    """Wrap the raw Plonky2 JSON payload in a :class:`ZkProof`. The
+    raw bytes (``proof_bytes_hex``) ride on :attr:`ZkProof.transcript_hash`
+    so existing JSON consumers keep working unchanged; the spec field
+    tells the verifier which path to take."""
+    proof = ZkProof(
+        spec=payload.get("spec", _PROOF_SPEC_PLONKY2),
+        circuit_hash=payload["circuit_hash"],
+        fingerprint_module_hash=payload["fingerprint_module_hash"],
+        function_name=payload["function_name"],
+        public_inputs=dict(payload.get("public_inputs", {})),
+        output=payload.get("output"),
+        transcript_hash=payload.get("proof_bytes_hex", ""),
+        chain_order=payload.get("chain_order", circuit.chain_order),
+        n_gates=payload.get("n_gates", len(circuit.gates)),
+    )
+    # Stash the scale + fixed-point metadata as attributes — they're
+    # not part of the public dataclass schema (which has to round-trip
+    # through ZkProof.to_dict for the registry) but the verifier needs
+    # them to rebuild the field-element view.
+    proof._output_scale_bits = int(payload.get("output_scale_bits", FIXED_POINT_BITS))  # type: ignore[attr-defined]
+    proof._fixed_point_bits = int(payload.get("fixed_point_bits", FIXED_POINT_BITS))  # type: ignore[attr-defined]
+    return proof
+
+
+# Default fixed-point bit width — must match plonky2_backend's
+# FIXED_POINT_BITS constant. Used for both encoding inputs and as the
+# fallback when a proof predates the metadata fields.
+FIXED_POINT_BITS = 16
+
+
 def verify(
     proof: ZkProof,
     *,
@@ -211,18 +292,104 @@ def verify(
     rtol: float = 1e-9,
     atol: float = 1e-12,
 ) -> VerifyResult:
-    """Independent re-execution + transcript check. Returns
-    ``VerifyResult.is_valid = True`` only when:
+    """Validate a proof against a circuit and fingerprint.
 
-      1. The circuit hash in the proof matches the supplied circuit.
-      2. The fingerprint hash matches.
-      3. Re-executing the circuit on the proof's public inputs
-         reproduces the proof's claimed output (to ``rtol`` / ``atol``).
-      4. The transcript hash matches the recomputed one.
+    Routes by ``proof.spec``:
+      * ``monogate-zkproof/v1`` → real Plonky2 verifier (Rust binary).
+      * ``monogate-zkproof/v1-stub`` → transparent re-execution check.
 
-    Any failure produces an ``is_valid=False`` with a one-sentence
-    ``reason`` that the verification dashboard can surface to a human.
+    The transparent path returns ``is_valid=True`` only when:
+      1. circuit_hash matches the supplied circuit;
+      2. fingerprint_module_hash matches;
+      3. re-executing the circuit on the proof's public inputs
+         reproduces the proof's claimed output (within rtol/atol);
+      4. the transcript hash matches the recomputed one.
+
+    Any failure surfaces a one-sentence ``reason`` for the dashboard.
     """
+    if proof.spec == _PROOF_SPEC_PLONKY2:
+        return _verify_plonky2(proof, circuit, fingerprint_module_hash)
+    return _verify_stub(proof, circuit, fingerprint_module_hash, rtol, atol)
+
+
+def _verify_plonky2(
+    proof: ZkProof,
+    circuit: ZkCircuit,
+    fingerprint_module_hash: str,
+) -> VerifyResult:
+    """Cryptographic verify via the Rust binary. Falls back to a
+    quick local re-execution check if the binary isn't available so
+    that callers without a Rust toolchain can still sanity-check the
+    arithmetic claim."""
+    # Always rebuild the payload from the user-facing proof fields
+    # (output, public_inputs) so any tampering with those fields
+    # surfaces inside the Rust verifier as a public-input mismatch
+    # against the bytes inside the proof.
+    payload = {
+        "spec":                    proof.spec,
+        "backend":                 "plonky2",
+        "circuit_hash":            proof.circuit_hash,
+        "fingerprint_module_hash": proof.fingerprint_module_hash,
+        "function_name":           proof.function_name,
+        "public_inputs":           dict(proof.public_inputs),
+        "output":                  proof.output,
+        "output_scale_bits":       int(getattr(proof, "_output_scale_bits", FIXED_POINT_BITS)),
+        "fixed_point_bits":        int(getattr(proof, "_fixed_point_bits", FIXED_POINT_BITS)),
+        "n_gates":                 proof.n_gates,
+        "chain_order":             proof.chain_order,
+        "proof_bytes_hex":         proof.transcript_hash,
+    }
+
+    expected_chash = canonical_circuit_hash(circuit)
+    if proof.circuit_hash != expected_chash:
+        return VerifyResult(
+            is_valid=False,
+            reason="circuit_hash mismatch — proof was produced from a "
+                   "different circuit",
+            expected_circuit_hash=expected_chash,
+        )
+    if proof.fingerprint_module_hash != fingerprint_module_hash:
+        return VerifyResult(
+            is_valid=False,
+            reason="fingerprint_module_hash mismatch — proof was produced "
+                   "from a different module fingerprint",
+            expected_circuit_hash=expected_chash,
+        )
+
+    if not plonky2_runner.available():
+        return VerifyResult(
+            is_valid=False,
+            reason="plonky2 verifier binary not available — install "
+                   "the monogate-zk Rust binary to verify ZK proofs",
+            expected_circuit_hash=expected_chash,
+        )
+
+    try:
+        ok, reason = plonky2_runner.verify_with_binary(
+            circuit, payload,
+            fingerprint_module_hash=fingerprint_module_hash,
+        )
+    except plonky2_runner.Plonky2BackendError as exc:
+        return VerifyResult(
+            is_valid=False,
+            reason=f"plonky2 verifier infrastructure failure: {exc}",
+            expected_circuit_hash=expected_chash,
+        )
+    return VerifyResult(
+        is_valid=ok,
+        reason=reason,
+        expected_circuit_hash=expected_chash,
+        actual_output=proof.output,
+    )
+
+
+def _verify_stub(
+    proof: ZkProof,
+    circuit: ZkCircuit,
+    fingerprint_module_hash: str,
+    rtol: float,
+    atol: float,
+) -> VerifyResult:
     expected_chash = canonical_circuit_hash(circuit)
     if proof.circuit_hash != expected_chash:
         return VerifyResult(
