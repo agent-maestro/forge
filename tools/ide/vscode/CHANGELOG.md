@@ -3,6 +3,46 @@
 All notable changes to the Monogate Forge VS Code extension are
 documented here. Versioning follows the conventions in `PUBLISH.md`.
 
+## [0.10.0] — 2026-05-04
+
+LSP responsiveness + hover quality. The extension itself ships no
+new commands, no new snippets, and no grammar changes — every
+improvement is delivered through the upstream `eml-lsp` server
+that the extension spawns from `pip install monogate-forge`. To
+get the new behavior end-to-end, users must upgrade
+`monogate-forge` to **≥ 0.2.0** (forthcoming on PyPI). Pinned to
+0.9.x of the extension, the experience continues to work; pinned
+to 0.10.0 against an older `monogate-forge`, the experience is
+identical to 0.9.0 (no regressions, no surfaced new behavior).
+
+### Changed (delivered through upstream LSP)
+
+- **Hover cards now carry real numbers.** Pre-0.10.0 the chain
+  order, depth, cost class, fp16 drift risk, and FPGA estimate
+  fields displayed `?` because the parser left
+  `EMLFunction.profile = None` and the LSP didn't run the
+  profiler on demand. The upstream LSP now lazily profiles on
+  first hover per source revision and surfaces every field
+  including stability warnings.
+- **Per-keystroke responsiveness.** The LSP previously reparsed
+  the open document for every hover, completion, definition,
+  references, document-symbol, and document-link request. It now
+  caches a parsed module per `(uri, source-hash)` and seeds the
+  cache from the diagnostics pass, collapsing N reparses per
+  request into one per source revision.
+
+### Notes
+
+- No publish-blocker changes between 0.9.0 and 0.10.0 in the
+  extension's own TypeScript — `out/extension.js` is identical
+  byte-for-byte under the same tsconfig. The version bump exists
+  to track the upstream `monogate-forge` minor that contains the
+  hover/cache improvements.
+- The `pip install monogate-forge` line in the README and welcome
+  card is unchanged. Users who don't have the CLI installed get
+  the same Free editor experience (syntax + snippets + completion
+  + outline) as before.
+
 ## [0.9.0] — 2026-05-02
 
 Truth-gap close-out for the launch sprint. The extension's
