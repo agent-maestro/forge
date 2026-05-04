@@ -1,0 +1,28 @@
+[package]
+name = "monogate-zk"
+version = "0.1.0"
+edition = "2021"
+description = "Plonky2 prover/verifier for Monogate Verification Network ZK circuits"
+license = "MIT"
+
+[[bin]]
+name = "monogate-zk"
+path = "src/main.rs"
+
+[dependencies]
+# Plonky2 — Polygon Zero's PLONK + FRI prover. No trusted setup,
+# Goldilocks field, Poseidon hash. We pin a tag so the proof bytes
+# stay reproducible across builds.
+plonky2 = "1.0.2"
+
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+hex = "0.4"
+anyhow = "1.0"
+sha2 = "0.10"
+clap = { version = "4", features = ["derive"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
