@@ -192,6 +192,18 @@ def main(argv: list[str] | None = None) -> int:
                              "(constant folding + CSE + SuperBEST). "
                              "Useful when comparing optimized vs "
                              "unoptimized output.")
+    parser.add_argument("--emit-fingerprint", action="store_true",
+                        help="Compute the computation fingerprint for "
+                             "this module (Phase 0 of the Verification "
+                             "Network) and write it as a `<stem>.fp.json` "
+                             "sidecar. Backends with line-comment "
+                             "syntax also embed the module hash + "
+                             "per-function tree hashes as a header "
+                             "block in the emitted source.")
+    parser.add_argument("--fingerprint-only", action="store_true",
+                        help="Print the fingerprint JSON to stdout "
+                             "(or --output) and exit. Implies "
+                             "--emit-fingerprint; no backend runs.")
     parser.add_argument("--no-gas-estimate", action="store_true",
                         help="When used with --target solidity, omit "
                              "the per-function NatSpec @dev gas "
@@ -383,6 +395,60 @@ def main(argv: list[str] | None = None) -> int:
     profiler = Profiler()
     profiler.profile_module(mod)
 
+    # ── Fingerprint (Phase 0 of the Verification Network) ────
+    # Computed once after profiling so the deterministic profile
+    # subset is available for embedding.
+    from lang.fingerprint import (
+        embed_fingerprint as _fp_embed,
+        fingerprint_module as _fp_module,
+        has_embed_support as _fp_has_embed,
+    )
+
+    _fp = _fp_module(mod) if (
+        args.emit_fingerprint or args.fingerprint_only
+    ) else None
+    _fp_sidecar_written: list[Path] = []
+
+    def _maybe_stamp(source: str, target: str) -> str:
+        """Prepend the fingerprint header comment, when --emit-fingerprint
+        is on and the target supports line/block comments."""
+        if _fp is None or not _fp_has_embed(target):
+            return source
+        return _fp_embed(source, target=target, fp=_fp)
+
+    def _maybe_write_sidecar(out_path: Path | None) -> None:
+        """Write the .fp.json sidecar next to ``out_path``, idempotently.
+
+        Skipped when --emit-fingerprint isn't on, when the user is
+        printing to stdout (no out_path), or when an identical
+        sidecar already exists (build-cache friendliness)."""
+        if _fp is None or out_path is None:
+            return
+        sidecar = (
+            out_path.with_suffix(out_path.suffix + ".fp.json")
+            if out_path.suffix
+            else out_path.with_suffix(".fp.json")
+        )
+        payload = _fp.to_json()
+        if (
+            not sidecar.exists()
+            or sidecar.read_text(encoding="utf-8") != payload
+        ):
+            sidecar.write_text(payload, encoding="utf-8")
+        if sidecar not in _fp_sidecar_written:
+            _fp_sidecar_written.append(sidecar)
+
+    # ── --fingerprint-only -> emit JSON and exit ─────────────
+    if args.fingerprint_only:
+        payload = _fp.to_json() if _fp else "{}"
+        if args.output:
+            args.output.write_text(payload + "\n", encoding="utf-8")
+            print(f"wrote {args.output} ({len(payload)} bytes)",
+                  file=sys.stderr)
+        else:
+            sys.stdout.write(payload + "\n")
+        return 0
+
     if args.cost_aware:
         from tools.cli.cost_aware import (
             format_report as _format_cost_report,
@@ -465,6 +531,16 @@ def main(argv: list[str] | None = None) -> int:
     # ── No target / --profile-only -> summary ─────────────────
     if not args.target or args.profile_only:
         _print_profile_summary(mod)
+        # When --emit-fingerprint is on without a backend target,
+        # write the sidecar next to the source so users can compute
+        # fingerprints in CI without picking a target.
+        if _fp is not None:
+            sidecar = args.source.with_suffix(args.source.suffix + ".fp.json")
+            payload = _fp.to_json()
+            if (not sidecar.exists()
+                    or sidecar.read_text(encoding="utf-8") != payload):
+                sidecar.write_text(payload, encoding="utf-8")
+            print(f"# fingerprint: {sidecar}", file=sys.stderr)
         return 0
 
     # ── --target all -> run every live backend ────────────────
@@ -477,6 +553,18 @@ def main(argv: list[str] | None = None) -> int:
         out_dir.mkdir(parents=True, exist_ok=True)
         stem = args.source.stem
         results: list[tuple[str, Path, int]] = []  # (target, path, bytes)
+
+        # When --emit-fingerprint is on, drop the sidecar in the
+        # output dir under the source stem. Each per-target write
+        # below also calls _maybe_write_sidecar, which is idempotent
+        # so repeated writes are free.
+        if _fp is not None:
+            sidecar = out_dir / f"{stem}.fp.json"
+            payload = _fp.to_json()
+            if (not sidecar.exists()
+                    or sidecar.read_text(encoding="utf-8") != payload):
+                sidecar.write_text(payload, encoding="utf-8")
+            print(f"# fingerprint: {sidecar}", file=sys.stderr)
 
         # Per-iteration license gate. Pro backends short-circuit
         # by raising _ProTierRequired, which is caught explicitly
@@ -952,8 +1040,10 @@ def main(argv: list[str] | None = None) -> int:
         except CompileError as e:
             print(f"compile error (c backend): {e}", file=sys.stderr)
             return 1
+        c_source = _maybe_stamp(c_source, "c")
         if args.output:
             args.output.write_text(c_source, encoding="utf-8")
+            _maybe_write_sidecar(args.output)
             print(f"wrote {args.output} "
                   f"({len(c_source)} bytes, {c_source.count(chr(10))} lines)",
                   file=sys.stderr)
@@ -1054,8 +1144,10 @@ def main(argv: list[str] | None = None) -> int:
         except JsErr as e:
             print(f"compile error (javascript backend): {e}", file=sys.stderr)
             return 1
+        js = _maybe_stamp(js, "javascript")
         if args.output:
             args.output.write_text(js, encoding="utf-8")
+            _maybe_write_sidecar(args.output)
             print(f"wrote {args.output} ({len(js)} bytes)", file=sys.stderr)
         else:
             print(js, end="")
@@ -1399,8 +1491,10 @@ def main(argv: list[str] | None = None) -> int:
         except MatlabErr as e:
             print(f"compile error (matlab backend): {e}", file=sys.stderr)
             return 1
+        m_source = _maybe_stamp(m_source, "matlab")
         if args.output:
             args.output.write_text(m_source, encoding="utf-8")
+            _maybe_write_sidecar(args.output)
             print(f"wrote {args.output} "
                   f"({len(m_source)} bytes, "
                   f"{m_source.count(chr(10))} lines)",
@@ -1457,8 +1551,10 @@ def main(argv: list[str] | None = None) -> int:
         except RustCompileError as e:
             print(f"compile error (rust backend): {e}", file=sys.stderr)
             return 1
+        rust_source = _maybe_stamp(rust_source, "rust")
         if args.output:
             args.output.write_text(rust_source, encoding="utf-8")
+            _maybe_write_sidecar(args.output)
             print(f"wrote {args.output} "
                   f"({len(rust_source)} bytes, "
                   f"{rust_source.count(chr(10))} lines)",
@@ -1529,8 +1625,10 @@ def main(argv: list[str] | None = None) -> int:
         except PyErr as e:
             print(f"compile error (python backend): {e}", file=sys.stderr)
             return 1
+        py_source = _maybe_stamp(py_source, "python")
         if args.output:
             args.output.write_text(py_source, encoding="utf-8")
+            _maybe_write_sidecar(args.output)
             print(f"wrote {args.output} "
                   f"({len(py_source)} bytes, "
                   f"{py_source.count(chr(10))} lines)",
