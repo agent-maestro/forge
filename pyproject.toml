@@ -119,6 +119,9 @@ exclude = ["*.tests*", "tests*", "industries*", "industries.*"]
                        "**/*.md"]
 "software.verification" = ["**/*.lean", "**/*.v", "**/*.thy",
                             "**/*.smt2", "**/*.md", "**/*.toml"]
+# Fingerprint module ships its canonical shape-class registry +
+# wire-format schema so verifiers can introspect both at runtime.
+"lang.fingerprint" = ["*.json"]
 # Public teaching examples — non-proprietary .eml files that
 # demonstrate language features. Reference these from the README,
 # docs, and live demos. The proprietary kernel library (industries/)

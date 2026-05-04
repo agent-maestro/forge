@@ -154,6 +154,7 @@ def main(argv: list[str] | None = None) -> int:
         "gdscript",
         "go", "autosar", "aadl",
         "solidity",
+        "zkproof",
         "all",
     ], help=("Output target. 'all' runs every backend your "
             "license tier permits (Free: 12 application + Lean; "
@@ -1749,6 +1750,58 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
         else:
             print(lean_source, end="")
+        return 0
+
+    if args.target == "zkproof":
+        # Phase 1 of the Verification Network. Lower every scalar
+        # function in the module to a fixed-gate ZK circuit and emit
+        # a JSON document that downstream provers / verifiers consume.
+        # The circuit hash is bound to the fingerprint module hash so
+        # tamper-evidence flows from one to the other.
+        from lang.fingerprint import fingerprint_module as _fp_mod
+        from lang.zkproof import (
+            CircuitCompileError as _ZkErr,
+            canonical_circuit_hash,
+            circuit_to_dict,
+            compile_circuit,
+        )
+        # We compute the fingerprint for binding even when
+        # --emit-fingerprint isn't set — the circuit needs it.
+        _fp_for_zk = _fp or _fp_mod(mod)
+        circuits: list[dict] = []
+        skipped: list[tuple[str, str]] = []
+        for fn in mod.functions:
+            try:
+                c = compile_circuit(fn)
+            except Exception as exc:  # noqa: BLE001
+                skipped.append((fn.name, str(exc)))
+                continue
+            circuits.append({
+                "function":     fn.name,
+                "circuit_hash": canonical_circuit_hash(c),
+                "fingerprint_module_hash": _fp_for_zk.module_hash,
+                "circuit":      circuit_to_dict(c),
+            })
+        bundle = {
+            "spec":         "monogate-zkcircuit/v1",
+            "module":       _fp_for_zk.module["name"],
+            "module_hash":  _fp_for_zk.module_hash,
+            "n_functions":  len(circuits),
+            "n_skipped":    len(skipped),
+            "skipped":      [{"fn": n, "reason": r} for n, r in skipped],
+            "circuits":     circuits,
+        }
+        import json as _json
+        payload = _json.dumps(bundle, indent=2, sort_keys=True)
+        if args.output:
+            args.output.write_text(payload + "\n", encoding="utf-8")
+            _maybe_write_sidecar(args.output)
+            print(f"wrote {args.output} "
+                  f"({len(circuits)} circuit(s), "
+                  f"{len(skipped)} skipped)",
+                  file=sys.stderr)
+        else:
+            sys.stdout.write(payload + "\n")
         return 0
 
     # ── Planned-but-not-built targets ─────────────────────────
