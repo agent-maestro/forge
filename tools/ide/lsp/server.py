@@ -41,6 +41,7 @@ cross-file diagnostics need the project-aware build.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from pathlib import Path
 
@@ -53,6 +54,7 @@ from lang.parser.ast_nodes import (
 from lang.parser.lexer import KEYWORDS, LexError
 from lang.parser.parser import ParseError, parse_source
 from lang.parser.type_checker import type_check_program
+from lang.profiler.profiler import Profiler
 from tools.fmt.formatter import format_source
 from tools.ide.lsp.workspace import (
     WorkspaceIndex, collect_refs_in_module, is_renameable,
@@ -121,6 +123,71 @@ server = LanguageServer(LSP_NAME, LSP_VERSION)
 # cross-module goto-def resolves into math.eml / ml.eml / etc.
 _WORKSPACE: WorkspaceIndex | None = None
 
+# Single Profiler reused across hovers — avoids re-importing
+# eml_cost on every keystroke.
+_PROFILER: Profiler | None = None
+
+
+def _profiler() -> Profiler:
+    global _PROFILER
+    if _PROFILER is None:
+        _PROFILER = Profiler()
+    return _PROFILER
+
+
+# Per-document parse + profile cache, keyed by uri. Each entry is
+# (source_hash, parsed_module_or_None, profiled_flag). Hover,
+# completion, definition, references, document-symbols, and
+# workspace-symbol all reparse the open document on every request;
+# this collapses N reparses per keystroke into 1 and lets the
+# profiler run at most once per unique source revision.
+_DocCacheEntry = tuple[str, EMLModule | None, bool]
+_DOC_CACHE: dict[str, _DocCacheEntry] = {}
+
+
+def _source_hash(source: str) -> str:
+    return hashlib.sha1(source.encode("utf-8")).hexdigest()
+
+
+def _parsed(uri: str, source: str) -> EMLModule | None:
+    """Return the parsed module for `(uri, source)`, cached by content
+    hash. None on parse failure. Cache holds one entry per uri so
+    typing in a file evicts the prior revision deterministically."""
+    h = _source_hash(source)
+    cached = _DOC_CACHE.get(uri)
+    if cached is not None and cached[0] == h:
+        return cached[1]
+    try:
+        mod = parse_source(source, uri, resolve=False)
+    except Exception:
+        mod = None
+    _DOC_CACHE[uri] = (h, mod, False)
+    return mod
+
+
+def _profiled(uri: str, source: str) -> EMLModule | None:
+    """Same as `_parsed`, but ensures every function in the module
+    has a populated profile dict before returning. Profiles the
+    module at most once per unique source revision; subsequent
+    callers are sub-ms cache hits."""
+    mod = _parsed(uri, source)
+    if mod is None:
+        return None
+    h, _, was_profiled = _DOC_CACHE[uri]
+    if was_profiled:
+        return mod
+    try:
+        _profiler().profile_module(mod)
+    except Exception as e:  # noqa: BLE001 -- diagnostics stay alive
+        logging.warning("profile_module(%s) failed: %r", uri, e)
+    _DOC_CACHE[uri] = (h, mod, True)
+    return mod
+
+
+def _evict(uri: str) -> None:
+    """Drop the cache entry for a uri (e.g. on didClose)."""
+    _DOC_CACHE.pop(uri, None)
+
 
 def _workspace() -> WorkspaceIndex:
     global _WORKSPACE
@@ -139,7 +206,11 @@ def _publish_diagnostics(uri: str, source: str) -> None:
     diagnostics: list[lsp.Diagnostic] = []
 
     # 1) Try to lex + parse. The first error stops the parse, so
-    #    we only get one parse-stage diagnostic per pass.
+    #    we only get one parse-stage diagnostic per pass. We need
+    #    the typed exceptions for line/col, so this stays a direct
+    #    parse_source call rather than `_parsed`. On success we seed
+    #    the doc cache with the result so downstream feature handlers
+    #    skip the redundant parse.
     mod = None
     try:
         mod = parse_source(source, uri, resolve=False)
@@ -168,6 +239,10 @@ def _publish_diagnostics(uri: str, source: str) -> None:
 
     # 2) If parse succeeded, run the chain-order type checker.
     if mod is not None:
+        # Seed the doc cache for downstream handlers (hover,
+        # completion, etc.) so they reuse this parse instead of
+        # redoing it.
+        _DOC_CACHE[uri] = (_source_hash(source), mod, False)
         try:
             type_errors = type_check_program(mod.functions)
             for te in type_errors:
@@ -258,6 +333,7 @@ def _did_save(params: lsp.DidSaveTextDocumentParams) -> None:
 @server.feature(lsp.TEXT_DOCUMENT_DID_CLOSE)
 def _did_close(params: lsp.DidCloseTextDocumentParams) -> None:
     server.publish_diagnostics(params.text_document.uri, [])
+    _evict(params.text_document.uri)
 
 
 def _uri_to_path(uri: str) -> str:
@@ -277,13 +353,12 @@ def _uri_to_path(uri: str) -> str:
 
 # ─── hover (chain order + cost class for fn names) ─────────────────
 
-@server.feature(
-    lsp.TEXT_DOCUMENT_HOVER,
-    lsp.HoverOptions(),
-)
-def _hover(params: lsp.HoverParams) -> lsp.Hover | None:
-    doc = server.workspace.get_text_document(params.text_document.uri)
-    word = _word_at(doc.source, params.position)
+def _hover_markdown(source: str, word: str, *, uri: str) -> str | None:
+    """Pure-data hover renderer. Returns the markdown body or None.
+    The LSP shim wraps this in a `lsp.Hover`; tests call it directly.
+
+    `uri` is used as the cache key — pass the document's LSP uri for
+    open files, or any stable identifier when called from a test."""
     if not word:
         return None
 
@@ -291,20 +366,16 @@ def _hover(params: lsp.HoverParams) -> lsp.Hover | None:
     # and BUILTIN_DOCS is sub-ms even without a parse.
     if word in BUILTIN_DOCS:
         d = BUILTIN_DOCS[word]
-        md = (
+        return (
             f"**`{d['sig']}`** — *builtin transcendental*\n\n"
             f"- structural class: **{d['kind']}**\n"
             f"- chain-order delta: **+{d['delta']}**\n"
             f"- FPGA cost: ~{d['cycles']} cycles @ 32-bit\n"
             f"- {d['note']}"
         )
-        return lsp.Hover(contents=lsp.MarkupContent(
-            kind=lsp.MarkupKind.Markdown, value=md,
-        ))
 
-    try:
-        mod = parse_source(doc.source, doc.uri, resolve=False)
-    except Exception:
+    mod = _profiled(uri, source)
+    if mod is None:
         return None
 
     # Match against function names first.
@@ -315,27 +386,58 @@ def _hover(params: lsp.HoverParams) -> lsp.Hover | None:
             cost = prof.get("cost_class", "?")
             depth = prof.get("eml_depth", "?")
             drift = prof.get("fp16_drift_risk", "?")
-            md = (
-                f"**`{fn.name}`** -- chain order {chain}, cost class {cost}\n\n"
-                f"- depth: {depth}\n"
-                f"- fp16 drift risk: {drift}\n"
+            fpga = prof.get("fpga_estimate") or {}
+            md_lines = [
+                f"**`{fn.name}`** — chain order **{chain}**,"
+                f" cost class `{cost}`",
+                "",
+                f"- depth: **{depth}**",
+                f"- fp16 drift risk: **{drift}**",
+            ]
+            if fpga:
+                lat = fpga.get("estimated_latency_cycles", "?")
+                bits = fpga.get("precision_bits_needed", "?")
+                macs = fpga.get("mac_units", "?")
+                md_lines.append(
+                    f"- FPGA: ~{lat} cy @ {bits}-bit"
+                    f" (mac={macs},"
+                    f" exp={fpga.get('exp_units', 0)},"
+                    f" ln={fpga.get('ln_units', 0)},"
+                    f" trig={fpga.get('trig_units', 0)})"
+                )
+            warns = prof.get("stability_warnings") or []
+            for w in warns:
+                md_lines.append(f"- ⚠ {w}")
+            md_lines.append(
                 f"- locally defined function in module `{mod.name}`"
             )
-            return lsp.Hover(contents=lsp.MarkupContent(
-                kind=lsp.MarkupKind.Markdown, value=md,
-            ))
+            return "\n".join(md_lines)
 
     # Fall through to constants.
     for c in mod.constants:
         if c.name == word:
-            md = (
+            return (
                 f"**`{c.name}`** -- module constant\n\n"
                 f"- type: `{c.type_annot}`\n"
                 f"- in module: `{mod.name}`"
             )
-            return lsp.Hover(contents=lsp.MarkupContent(
-                kind=lsp.MarkupKind.Markdown, value=md,
-            ))
+
+    return None
+
+
+@server.feature(
+    lsp.TEXT_DOCUMENT_HOVER,
+    lsp.HoverOptions(),
+)
+def _hover(params: lsp.HoverParams) -> lsp.Hover | None:
+    doc = server.workspace.get_text_document(params.text_document.uri)
+    word = _word_at(doc.source, params.position)
+    md = _hover_markdown(doc.source, word, uri=doc.uri)
+    if md is None:
+        return None
+    return lsp.Hover(contents=lsp.MarkupContent(
+        kind=lsp.MarkupKind.Markdown, value=md,
+    ))
 
     return None
 
@@ -431,10 +533,7 @@ def _completion_items_for(
 )
 def _completion(params: lsp.CompletionParams) -> lsp.CompletionList:
     doc = server.workspace.get_text_document(params.text_document.uri)
-    try:
-        mod = parse_source(doc.source, doc.uri, resolve=False)
-    except Exception:
-        mod = None
+    mod = _parsed(doc.uri, doc.source)
     items = _completion_items_for(mod)
     return lsp.CompletionList(is_incomplete=False, items=items)
 
@@ -447,9 +546,8 @@ def _definition(params: lsp.DefinitionParams) -> lsp.Location | None:
     word = _word_at(doc.source, params.position)
     if not word:
         return None
-    try:
-        mod = parse_source(doc.source, doc.uri, resolve=False)
-    except Exception:
+    mod = _parsed(doc.uri, doc.source)
+    if mod is None:
         return None
 
     # 1) Local decls first -- a fn / const / type defined in the
@@ -503,14 +601,12 @@ def _gather_references(
     open_path = _uri_to_path(open_uri)
 
     # 1) Open document
-    try:
-        mod = parse_source(open_source, open_uri, resolve=False)
+    mod = _parsed(open_uri, open_source)
+    if mod is not None:
         for hit in collect_refs_in_module(mod, word, open_path):
             locs.append(_location_for(
                 open_uri, hit.line, hit.col, hit.length,
             ))
-    except Exception:
-        pass
 
     # 2) Other indexed files. Skip the open file -- already counted.
     for path in _workspace().all_indexed_files():
@@ -622,9 +718,8 @@ def _document_links(
     target module is in the workspace index. Ctrl-clicking the
     link opens the target .eml file."""
     doc = server.workspace.get_text_document(params.text_document.uri)
-    try:
-        mod = parse_source(doc.source, doc.uri, resolve=False)
-    except Exception:
+    mod = _parsed(doc.uri, doc.source)
+    if mod is None:
         return []
     out: list[lsp.DocumentLink] = []
     wi = _workspace()
@@ -760,9 +855,8 @@ def _document_symbol(
     params: lsp.DocumentSymbolParams,
 ) -> list[lsp.DocumentSymbol]:
     doc = server.workspace.get_text_document(params.text_document.uri)
-    try:
-        mod = parse_source(doc.source, doc.uri, resolve=False)
-    except Exception:
+    mod = _parsed(doc.uri, doc.source)
+    if mod is None:
         return []
     out: list[lsp.DocumentSymbol] = []
     for c in mod.constants:
