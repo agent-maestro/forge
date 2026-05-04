@@ -96,7 +96,7 @@ unlocks vscode 0.10.0's chain-order tooltips), the order is:
 
 1. `monogate-forge-v<x>` — wait until live on PyPI (~30 s)
 2. `efrog-v<y>` (in the efrog repo)
-3. `forge-mcp-v<z>` (in the mcp-server repo) — depends on `efrog`
+3. `monogate-forge-mcp` `v<z>` (in the mcp-server repo) — depends on `efrog`
 4. `vscode-v<w>` — assumes `monogate-forge-v<x>` is live on PyPI
 
 Each step is a tag push from a different repo. There is no
