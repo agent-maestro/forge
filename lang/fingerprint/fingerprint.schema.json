@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://monogate.dev/spec/fingerprint/v1.json",
+  "title": "Monogate Computation Fingerprint",
+  "description": "Deterministic identity of an EML module, written by `eml-compile --emit-fingerprint`. Two machines compiling the same source produce the same fingerprint, byte for byte. Phase 0 of the Monogate Verification Network.",
+  "type": "object",
+  "required": ["spec", "version", "module", "functions", "module_hash"],
+  "additionalProperties": false,
+  "properties": {
+    "spec": {
+      "type": "string",
+      "const": "monogate-fingerprint/v1",
+      "description": "Wire-protocol identifier. Verifiers route on this string before parsing the rest."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver of THIS document's schema (independent of the wire-protocol identifier)."
+    },
+    "module": {
+      "type": "object",
+      "required": ["name", "source_file", "imports"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The EML `module <name>;` identifier. Empty string if unset."
+        },
+        "source_file": {
+          "type": "string",
+          "description": "Basename of the .eml file. Absolute paths are deliberately stripped so fingerprints are reproducible across build machines."
+        },
+        "imports": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Sorted list of `use ::`-joined import paths."
+        }
+      }
+    },
+    "functions": {
+      "type": "array",
+      "description": "One entry per `fn` declaration, in the order they appear in source.",
+      "items": { "$ref": "#/$defs/function" }
+    },
+    "module_hash": {
+      "$ref": "#/$defs/sha256",
+      "description": "SHA-256 over the canonical (module-name + imports + constants + types + per-fn hashes) projection. One number that names the entire .eml source."
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Lowercase hex SHA-256 with a `sha256:` prefix."
+    },
+    "nullable_sha256": {
+      "oneOf": [
+        { "$ref": "#/$defs/sha256" },
+        { "type": "null" }
+      ]
+    },
+    "function": {
+      "type": "object",
+      "required": [
+        "name",
+        "tree_hash",
+        "param_hash",
+        "verify_hash",
+        "profile",
+        "machlib_cert_hash",
+        "shape_class_id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Function name as it appears in the EML source."
+        },
+        "tree_hash": {
+          "$ref": "#/$defs/sha256",
+          "description": "SHA-256 of the canonical AST body, parameters, return type, and where-clauses. Tamper-evident against any meaningful math change."
+        },
+        "param_hash": {
+          "$ref": "#/$defs/sha256",
+          "description": "SHA-256 of the parameter signature only (name + type, in declaration order)."
+        },
+        "verify_hash": {
+          "$ref": "#/$defs/nullable_sha256",
+          "description": "SHA-256 of the (requires, ensures, where, @verify annotations) bundle. Null when no contracts are declared."
+        },
+        "profile": {
+          "type": "object",
+          "description": "Deterministic subset of the profiler output. Backend-specific estimates (FPGA mac/exp units etc.) are deliberately excluded.",
+          "properties": {
+            "chain_order":      { "type": "integer", "minimum": 0 },
+            "eml_depth":        { "type": "integer", "minimum": 0 },
+            "cost_class":       { "type": "string"  },
+            "fp16_drift_risk":  { "type": "string", "enum": ["low", "medium", "high", "unknown"] },
+            "node_count":       { "type": "integer", "minimum": 0 },
+            "max_path_r":       { "type": ["integer", "null"] },
+            "status":           { "type": "string"  },
+            "dynamics":         {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "oscillations": { "type": "integer", "minimum": 0 },
+                "decays":       { "type": "integer", "minimum": 0 },
+                "predicted_r":  { "type": ["integer", "number"] }
+              }
+            }
+          }
+        },
+        "machlib_cert_hash": {
+          "$ref": "#/$defs/nullable_sha256",
+          "description": "SHA-256 of the MachLib proof certificate, or null when no certificate is registered."
+        },
+        "shape_class_id": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 75,
+          "description": "C-237 shape-class ID (0..75). Null until the genome classifier runs."
+        }
+      }
+    }
+  }
+}
