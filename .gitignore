@@ -74,6 +74,46 @@ industries/.audit_baselines/
 license_token*
 forge_license*
 
+# Compiler-emitted siblings of examples/*.eml. The .eml sources +
+# README.md + __init__.py are the canonical tracked artifacts;
+# every other extension under examples/ is `eml-compile --target X`
+# output and must stay regenerable, never committed. Tracked .py
+# (e.g. examples/__init__.py) is unaffected — gitignore only blocks
+# new untracked files.
+examples/*.aadl
+examples/*.adb
+examples/*.ads
+examples/*.arxml
+examples/*.autosar.c
+examples/*.c
+examples/*.cpp
+examples/*.cs
+examples/*.gd
+examples/*.glsl
+examples/*.glsles
+examples/*.go
+examples/*.hlsl
+examples/*.java
+examples/*.kt
+examples/*.lean
+examples/*.ll
+examples/*.luau
+examples/*.m
+examples/*.metal
+examples/*.mjs
+examples/*.py
+examples/*.rs
+examples/*.scala
+examples/*.sol
+examples/*.sv
+examples/*.swift
+examples/*.thy
+examples/*.v
+examples/*.vhd
+examples/*.wasm.ll
+examples/*.wgsl
+examples/*_pkg/
+
 # Compiler-emitted multi-language build outputs
 # (industries/<x>/build/ artifacts are checked in deliberately;
 #  loose multi-language siblings of an .eml file are not)
