@@ -1,30 +1,84 @@
-name: Release
+name: Release monogate-forge to PyPI
+
+# Trusted Publisher (OIDC) flow — no PYPI_TOKEN secret needed.
+# Configure once at https://pypi.org/manage/account/publishing/ for
+# the `monogate-forge` project: GitHub repo `agent-maestro/forge`,
+# workflow `release.yml`, environment `pypi`. See RELEASE.md.
+#
+# Tag pattern is `monogate-forge-v*` so the same repo can host the
+# vscode extension's release flow (`vscode-v*`) on a separate file
+# without ambiguity.
+#
+# To cut a release:
+#   git tag monogate-forge-v0.2.0 && git push --tags
 
 on:
   push:
-    tags: ["v*"]
+    tags:
+      - "monogate-forge-v*"
 
-# Opt into Node 24 for all JavaScript-based actions so the Node-20
-# deprecation banner stops firing on every run.
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-  release:
+  build:
+    name: Build sdist + wheel
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Verify tag matches pyproject version
+        run: |
+          PKG_VER=$(python -c "
+          import tomllib, pathlib
+          d = tomllib.loads(pathlib.Path('pyproject.toml').read_text())
+          print(d['project']['version'])
+          ")
+          TAG_VER="${GITHUB_REF#refs/tags/monogate-forge-v}"
+          if [ "$PKG_VER" != "$TAG_VER" ]; then
+            echo "ERROR: pyproject says $PKG_VER but tag says $TAG_VER"
+            exit 1
+          fi
+
       - name: Build
         run: |
-          python -m pip install --upgrade pip build
+          python -m pip install --upgrade pip build twine
           python -m build
-      - name: Publish to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+          python -m twine check dist/*
+
+      - name: Belt-and-suspenders — wheel must not contain industries/
+        # The pyproject already excludes `industries*`, but a stale
+        # MANIFEST.in or a setuptools regression could re-include it.
+        # The wheel is the public artifact; double-check before upload.
         run: |
-          python -m pip install twine
-          twine upload dist/*
+          if python -m zipfile -l dist/*.whl | grep -E "industries/"; then
+            echo "ERROR: industries/ found in wheel — proprietary IP would leak"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI (Trusted Publisher / OIDC)
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/monogate-forge
+    permissions:
+      # OIDC token requires id-token:write. Repo content is not
+      # modified so contents:read is sufficient.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

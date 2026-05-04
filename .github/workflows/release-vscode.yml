@@ -1,0 +1,76 @@
+name: Release VS Code extension to Marketplace
+
+# VS Code Marketplace publish via vsce. Marketplace doesn't yet
+# support PyPI-style Trusted Publishers (Microsoft's preview of
+# Workload Identity Federation requires Azure DevOps tenant
+# config — out of scope for this repo). The PAT lives as a single
+# repo secret `VSCE_PAT` instead. To rotate:
+#   1. Generate a new PAT at https://dev.azure.com/<org>/_usersSettings/tokens
+#      with scope: Marketplace > Manage
+#   2. Settings → Secrets and variables → Actions → update VSCE_PAT
+#   3. Revoke the old PAT in Azure DevOps
+#
+# Tag pattern is `vscode-v*` so this flow doesn't collide with
+# `monogate-forge-v*` (release.yml).
+#
+# To cut a release:
+#   git tag vscode-v0.10.0 && git push --tags
+
+on:
+  push:
+    tags:
+      - "vscode-v*"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+defaults:
+  run:
+    working-directory: tools/ide/vscode
+
+jobs:
+  publish:
+    name: Build .vsix + publish to Marketplace
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write    # for the GitHub Release that archives .vsix
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Verify tag matches package.json version
+        run: |
+          PKG_VER=$(node -p "require('./package.json').version")
+          TAG_VER="${GITHUB_REF#refs/tags/vscode-v}"
+          if [ "$PKG_VER" != "$TAG_VER" ]; then
+            echo "ERROR: package.json says $PKG_VER but tag says $TAG_VER"
+            exit 1
+          fi
+
+      - name: Install + compile + package
+        run: |
+          npm install
+          npm run compile
+          npx @vscode/vsce package
+
+      - name: Publish to Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx @vscode/vsce publish --packagePath *.vsix
+
+      - name: Attach .vsix to GitHub Release
+        # Archive the exact bytes that went to the marketplace so we
+        # can re-distribute or audit later without trusting
+        # marketplace caches.
+        uses: softprops/action-gh-release@v2
+        with:
+          files: tools/ide/vscode/*.vsix
+          tag_name: ${{ github.ref_name }}
+          name: VS Code extension ${{ github.ref_name }}
+          body: |
+            Marketplace listing:
+            https://marketplace.visualstudio.com/items?itemName=Monogate.monogate-forge-vscode
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
