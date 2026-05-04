@@ -275,6 +275,8 @@ def _trim_profile(profile: Optional[dict]) -> dict:
 
 def fingerprint_function(fn: EMLFunction) -> FunctionFingerprint:
     """Compute the fingerprint of one function."""
+    from .shape_class import classify as _classify_shape
+
     body_canon = canonicalize_function(fn)
     contracts_canon = _canonical_contracts(fn)
     has_contracts = (
@@ -283,12 +285,14 @@ def fingerprint_function(fn: EMLFunction) -> FunctionFingerprint:
         or bool(contracts_canon["where"])
         or bool(contracts_canon["annotations_verify"])
     )
+    trimmed = _trim_profile(fn.profile)
     return FunctionFingerprint(
         name=fn.name,
         tree_hash=sha256_hex(body_canon),
         param_hash=sha256_hex([_canonical_param(p) for p in fn.params]),
         verify_hash=sha256_hex(contracts_canon) if has_contracts else None,
-        profile=_trim_profile(fn.profile),
+        profile=trimmed,
+        shape_class_id=_classify_shape(trimmed),
     )
 
 

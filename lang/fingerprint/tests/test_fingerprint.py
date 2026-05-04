@@ -302,10 +302,32 @@ def test_to_json_roundtrips_through_python_json() -> None:
     assert parsed["module_hash"].startswith("sha256:")
 
 
-def test_machlib_and_shape_class_default_to_null() -> None:
+def test_machlib_defaults_to_null() -> None:
+    """MachLib certificate hash is unpopulated until the resolver runs."""
     fp = fingerprint_module(make_module())
     assert fp.functions[0].machlib_cert_hash is None
+
+
+def test_shape_class_id_is_null_when_no_profile() -> None:
+    """Without a profile, the shape class can't be inferred."""
+    fp = fingerprint_module(make_module())
     assert fp.functions[0].shape_class_id is None
+
+
+def test_shape_class_id_populated_for_known_cost_class() -> None:
+    """When the profiler has set ``cost_class`` to one of the 76
+    canonical C-237 classes, the fingerprint should pin the ID."""
+    fn = make_gaussian_fn()
+    fn.profile = {"chain_order": 1, "cost_class": "p0-d3-w0-c0"}
+    fp = fingerprint_function(fn)
+    assert fp.shape_class_id == 0
+
+
+def test_shape_class_id_null_for_out_of_corpus_class() -> None:
+    fn = make_gaussian_fn()
+    fn.profile = {"chain_order": 9, "cost_class": "p9-d9-w9-c9"}
+    fp = fingerprint_function(fn)
+    assert fp.shape_class_id is None
 
 
 def test_sha256_hex_known_vector() -> None:
