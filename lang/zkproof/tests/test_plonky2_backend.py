@@ -19,11 +19,17 @@ from lang.zkproof import (
 from lang.zkproof import plonky2_runner
 
 
-pytestmark = pytest.mark.skipif(
-    not plonky2_runner.available(),
-    reason="monogate-zk binary not built (run cargo build --release in "
-           "lang/zkproof/plonky2_backend/)",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        not plonky2_runner.available(),
+        reason="monogate-zk binary not built (run cargo build --release in "
+               "lang/zkproof/plonky2_backend/)",
+    ),
+    # Excluded from default CI via `pytest -m 'not slow'`. Real proof
+    # generation is ~10ms but cargo-building the prover crate first
+    # adds minutes; nightly workflow runs the full set.
+    pytest.mark.slow,
+]
 
 
 def _arithmetic_fn() -> EMLFunction:

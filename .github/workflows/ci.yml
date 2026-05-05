@@ -60,9 +60,12 @@ jobs:
         continue-on-error: true
         run: mypy lang/ software/ hardware/ tools/
 
-      - name: Pytest (full suite)
+      - name: Pytest (full suite, excludes slow ZK proof tests)
+        # `-m 'not slow'` skips cargo-build + Plonky2 proof generation.
+        # Run those nightly with `pytest -m slow` after the prover
+        # crate is built via cargo build --release.
         run: |
-          pytest -q --tb=short
+          pytest -q --tb=short -m "not slow"
 
   # ── Optional Verilator job ──
   # Verilator-skipped tests light up here. Keep it on Linux only;
