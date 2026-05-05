@@ -142,6 +142,9 @@ testpaths = [
     "tools",
 ]
 python_files = ["test_*.py"]
+markers = [
+    "slow: cargo-build + ZK proof-generation tests; excluded from default CI via `-m 'not slow'`. Run nightly with `pytest -m slow` after `cargo build --release` in lang/zkproof/plonky2_backend/.",
+]
 
 [tool.ruff]
 line-length = 100
