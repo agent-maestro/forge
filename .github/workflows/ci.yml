@@ -45,9 +45,12 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install Python deps
+        # `[lsp]` extra pulls pygls + lsprotocol so
+        # tests/integration/test_lsp_hover.py can import the LSP
+        # server module without ModuleNotFoundError at collect time.
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,lsp]"
 
       - name: Lint (ruff, advisory)
         continue-on-error: true
