@@ -155,7 +155,16 @@ class ExternalLinter(ABC):
             )
         elapsed = time.monotonic() - t0
         issues = self._parse(proc.stdout, proc.stderr, proc.returncode)
-        ok = not any(i.severity is LintSeverity.ERROR for i in issues)
+        # `ok` requires BOTH a clean exit AND no Error-severity issues.
+        # The returncode check is the silent-failure backstop: if the
+        # tool emits an unrecognized error format (e.g. an unknown-CLI-
+        # flag message) the parser may extract zero issues but exit
+        # non-zero -- without this gate the result would falsely report
+        # `ok=True`.
+        no_error_issues = not any(
+            i.severity is LintSeverity.ERROR for i in issues
+        )
+        ok = (proc.returncode == 0) and no_error_issues
         return LintResult(
             ok=ok,
             issues=issues,

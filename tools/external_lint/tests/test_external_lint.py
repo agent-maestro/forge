@@ -134,7 +134,8 @@ def test_verilog_argv_v_extension(tmp_path):
     src = tmp_path / "foo.v"
     src.write_text("// stub")
     argv = VerilogLinter()._argv(src)
-    assert argv[:3] == ["--lint-only", "--quiet", "-Wall"]
+    assert argv[:2] == ["--lint-only", "-Wall"]
+    assert "--quiet" not in argv  # verilator 4.x rejects this flag
     assert "--sv" not in argv
     assert argv[-1] == str(src)
 

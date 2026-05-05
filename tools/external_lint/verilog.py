@@ -65,7 +65,11 @@ class VerilogLinter(ExternalLinter):
     language = "verilog"
 
     def _argv(self, source: Path) -> list[str]:
-        argv = ["--lint-only", "--quiet", "-Wall"]
+        # `--quiet` was added in Verilator 5.x; the apt package on
+        # Ubuntu LTS runners (and many other environments) ships 4.x,
+        # which exits 1 with "Invalid option: --quiet". `--lint-only`
+        # alone already suppresses code generation, so drop it.
+        argv = ["--lint-only", "-Wall"]
         if source.suffix.lower() == ".sv":
             argv.append("--sv")
         argv.append(str(source))
@@ -73,7 +77,7 @@ class VerilogLinter(ExternalLinter):
 
     def _parse(self, stdout: str, stderr: str, returncode: int) -> tuple[LintIssue, ...]:
         # Verilator writes diagnostics to stderr; stdout is usually empty
-        # under --lint-only --quiet. Combine to be defensive.
+        # under --lint-only. Combine both streams to be defensive.
         issues: list[LintIssue] = []
         for line in (stderr + "\n" + stdout).splitlines():
             line = line.rstrip()
