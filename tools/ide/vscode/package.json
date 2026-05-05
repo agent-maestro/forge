@@ -138,7 +138,6 @@
     "typescript": "^5"
   },
   "overrides": {
-    "_comment_undici": "Pinned to v5 because vsce's transitive cheerio pulls undici v6+ which requires Node 20 (system Node here is 18). Drop the override once we move CI to Node 20+.",
     "undici": "5.28.4"
   }
 }
