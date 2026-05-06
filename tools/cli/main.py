@@ -393,6 +393,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"parse error: {e}", file=sys.stderr)
         return 1
 
+    # ── Phase B: dimensional type-check (before optimizer) ───
+    try:
+        from lang.unit_types import check_module as _unit_check, UnitTypeError
+        _unit_check(mod)
+    except UnitTypeError as e:
+        print(f"type error: {e}", file=sys.stderr)
+        return 1
+    except ImportError:
+        pass  # lang.unit_types not yet installed in older envs -- skip silently
+
     profiler = Profiler()
     profiler.profile_module(mod)
 
