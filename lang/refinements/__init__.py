@@ -29,7 +29,7 @@ Public API
 
 from lang.parser.ast_nodes import Refinement
 from lang.refinements.entail import entail, Decision
-from lang.refinements.auto_splice import auto_splice_module
+from lang.refinements.auto_splice import auto_splice_module, expand_aliases_module
 from lang.refinements.check import check_module
 from lang.refinements.error import RefinementError
 
@@ -38,6 +38,7 @@ __all__ = [
     "entail",
     "Decision",
     "auto_splice_module",
+    "expand_aliases_module",
     "check_module",
     "RefinementError",
 ]

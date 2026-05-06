@@ -17,6 +17,7 @@ Covers:
   - Auto-splicer: multi-variable requires stays unchanged
   - Auto-splicer: single-variable ensures becomes return refinement
   - Backwards compat with flag OFF
+  - Phase C addendum: alias refinement expansion onto parameters
 """
 
 from __future__ import annotations
@@ -479,3 +480,236 @@ class TestBackwardsCompatFullPipeline:
         ref_check = _import_check()
         result = ref_check(mod)
         assert result is not None
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 10. Phase C addendum: alias refinement expansion
+# ─────────────────────────────────────────────────────────────────────
+
+
+class TestAliasExpansion:
+    """Alias refinements are expanded onto parameters by the auto-splicer.
+
+    This is always-on (not flag-gated): alias expansion is a pure
+    post-parse normalization that runs unconditionally in auto_splice_module,
+    even when strict_mode=False (which only gates the requires/ensures
+    folding).  The expansion happens in a new dedicated pass that is
+    always executed.
+    """
+
+    def _splice(self, src: str, strict_mode: bool = False):
+        """Parse + run auto_splice_module; return the module."""
+        auto_splice_module = _import_auto_splice()
+        mod = parse_source(src, "<test>")
+        auto_splice_module(mod, strict_mode=strict_mode)
+        return mod
+
+    # ── 10.1 Alias with refinement: binder substituted to param name ──
+
+    def test_alias_refinement_propagates_to_param(self):
+        """type T = Real{p | p > 0}; fn f(x: T) -- x gets T's refinement with binder x."""
+        mod = self._splice("type T = Real{p | p > 0}; fn f(x: T) -> Real { x }")
+        param = mod.functions[0].params[0]
+        assert param.refinement is not None, "alias refinement must propagate to param"
+        # binder must be renamed from alias binder 'p' to param name 'x'
+        assert param.refinement.binder == "x"
+        # predicate must reference 'x', not 'p'
+        from lang.refinements.auto_splice import _free_vars
+        vars_in_pred = _free_vars(param.refinement.predicate)
+        assert "x" in vars_in_pred
+        assert "p" not in vars_in_pred
+
+    def test_alias_refinement_binder_renaming_is_immutable(self):
+        """Original EMLTypeAlias.refinement binder is NOT mutated."""
+        mod = self._splice("type T = Real{p | p > 0}; fn f(x: T) -> Real { x }")
+        alias = mod.types[0]
+        # alias binder must still be 'p'
+        assert alias.refinement is not None
+        assert alias.refinement.binder == "p"
+
+    # ── 10.2 Alias with unit + refinement: unit_expr propagated ──────
+
+    def test_alias_unit_propagates_to_param(self):
+        """type T = Real[Hz]{f | f <= 22000}; fn f(x: T) -- x.unit_expr='Hz'."""
+        mod = self._splice(
+            "unit Hz = 1/s;\n"
+            "type T = Real[Hz]{f | f <= 22000.0};\n"
+            "fn f(x: T) -> Real { x }"
+        )
+        param = mod.functions[0].params[0]
+        assert param.unit_expr == "Hz", f"expected unit_expr='Hz', got {param.unit_expr!r}"
+        assert param.refinement is not None
+        assert param.refinement.binder == "x"
+
+    def test_alias_unit_only_no_refinement_propagates_unit(self):
+        """type T = Real[Hz]; fn f(x: T) -- only unit propagates, no refinement."""
+        mod = self._splice(
+            "unit Hz = 1/s;\n"
+            "type T = Real[Hz];\n"
+            "fn f(x: T) -> Real { x }"
+        )
+        param = mod.functions[0].params[0]
+        assert param.unit_expr == "Hz"
+        assert param.refinement is None
+
+    # ── 10.3 Two refinements conjuncted ──────────────────────────────
+
+    def test_explicit_and_alias_refinements_conjuncted(self):
+        """type T = Real{p | p > 0}; fn f(x: T{q | q < 100}) -- conjunction."""
+        mod = self._splice(
+            "type T = Real{p | p > 0};\n"
+            "fn f(x: T{q | q < 100.0}) -> Real { x }"
+        )
+        param = mod.functions[0].params[0]
+        assert param.refinement is not None
+        from lang.parser.ast_nodes import NodeKind
+        # The combined predicate must be a BINOP &&
+        assert param.refinement.predicate.kind == NodeKind.BINOP
+        assert param.refinement.predicate.value == "&&"
+        # Both sub-predicates must reference 'x', not 'p' or 'q'
+        from lang.refinements.auto_splice import _free_vars
+        all_vars = _free_vars(param.refinement.predicate)
+        assert "x" in all_vars
+        assert "p" not in all_vars
+        assert "q" not in all_vars
+
+    def test_explicit_refinement_only_alias_no_refinement_unchanged(self):
+        """type T = Real; fn f(x: T{q | q < 100}) -- only explicit refinement kept."""
+        mod = self._splice(
+            "type T = Real;\n"
+            "fn f(x: T{q | q < 100.0}) -> Real { x }"
+        )
+        param = mod.functions[0].params[0]
+        assert param.refinement is not None
+        # binder should be 'q' (no alias binder to substitute)
+        assert param.refinement.binder == "q"
+
+    # ── 10.4 Conflicting unit: alias unit vs explicit annotation ─────
+
+    def test_conflicting_unit_alias_and_explicit_raises(self):
+        """type T = Real[Hz]; fn f(x: T[m]) -- unit mismatch raises RefinementError."""
+        from lang.refinements.error import RefinementError
+        with pytest.raises((RefinementError, Exception), match="[Uu]nit|[Cc]onflict|[Mm]ismatch"):
+            self._splice(
+                "unit Hz = 1/s;\n"
+                "unit m = 1*m;\n"
+                "type T = Real[Hz];\n"
+                "fn f(x: T[m]) -> Real { x }"
+            )
+
+    # ── 10.5 Plain alias (no refinement, no unit): param untouched ───
+
+    def test_plain_alias_no_refinement_param_untouched(self):
+        """type T = Real; fn f(x: T) -- param.refinement stays None."""
+        mod = self._splice("type T = Real; fn f(x: T) -> Real { x }")
+        param = mod.functions[0].params[0]
+        assert param.refinement is None
+        assert param.unit_expr is None
+
+    def test_non_alias_param_untouched(self):
+        """fn f(x: Real{p | p > 0}) -- explicit refinement kept, type_name='Real'."""
+        mod = self._splice("fn f(x: Real{p | p > 0}) -> Real { x }")
+        param = mod.functions[0].params[0]
+        # Explicit refinement must remain unchanged
+        assert param.refinement is not None
+        assert param.refinement.binder == "p"
+
+    # ── 10.6 Transitive alias ────────────────────────────────────────
+
+    def test_transitive_alias_refinement_propagates(self):
+        """type A = Real{p | p > 0}; type B = A; fn f(x: B) -- refinement via B->A."""
+        mod = self._splice(
+            "type A = Real{p | p > 0};\n"
+            "type B = A;\n"
+            "fn f(x: B) -> Real { x }"
+        )
+        param = mod.functions[0].params[0]
+        assert param.refinement is not None, "transitive alias refinement must propagate"
+        assert param.refinement.binder == "x"
+        from lang.refinements.auto_splice import _free_vars
+        vars_in_pred = _free_vars(param.refinement.predicate)
+        assert "x" in vars_in_pred
+        assert "p" not in vars_in_pred
+
+    def test_transitive_alias_chain_three_levels(self):
+        """type A = Real{p | p > 0}; type B = A; type C = B; fn f(x: C) -- 3 levels."""
+        mod = self._splice(
+            "type A = Real{p | p > 0};\n"
+            "type B = A;\n"
+            "type C = B;\n"
+            "fn f(x: C) -> Real { x }"
+        )
+        param = mod.functions[0].params[0]
+        assert param.refinement is not None
+        assert param.refinement.binder == "x"
+
+    # ── 10.7 Cycle detection ─────────────────────────────────────────
+
+    def test_cycle_detected_and_errors(self):
+        """type A = B; type B = A; -- cycle detected, raises with cycle info."""
+        from lang.refinements.error import RefinementError
+        with pytest.raises((RefinementError, Exception), match="[Cc]ycle|[Cc]ircular|[Rr]ecursi"):
+            self._splice("type A = B; type B = A; fn f(x: A) -> Real { x }")
+
+    # ── 10.8 Backwards compat: no alias refinement -> byte-identical ─
+
+    @pytest.mark.parametrize("path", [
+        EXAMPLES_DIR / "pid_controller.eml",
+        EXAMPLES_DIR / "sigmoid.eml",
+        EXAMPLES_DIR / "gaussian.eml",
+        EXAMPLES_DIR / "lerp.eml",
+    ])
+    def test_non_alias_files_unaffected(self, path: Path):
+        """Files without type-alias refinements: output unchanged after expansion pass."""
+        auto_splice_module = _import_auto_splice()
+        mod_before = parse_file(path, resolve=False)
+        mod_after = parse_file(path, resolve=False)
+        auto_splice_module(mod_after, strict_mode=False)
+        # All param refinements identical
+        for fn_b, fn_a in zip(mod_before.functions, mod_after.functions):
+            for pb, pa in zip(fn_b.params, fn_a.params):
+                assert pb.refinement == pa.refinement, (
+                    f"{path.name}: {fn_b.name}.{pb.name} refinement changed"
+                )
+
+    # ── 10.9 Go backend emits guards for alias-expanded params ───────
+
+    def test_go_backend_emits_guard_for_alias_refined_param(self):
+        """After alias expansion, Go backend emits panic for alias-refined params."""
+        from software.backends.go_backend import GoBackend
+        from lang.profiler import Profiler
+
+        auto_splice_module = _import_auto_splice()
+        src = (
+            "module audiodemo;\n"
+            "type AudibleFreq = Real[Hz]{f | 20.0 <= f && f <= 22000.0};\n"
+            "fn audio_pole(freq: AudibleFreq, fs: Real[Hz]{x | x > 0.0})\n"
+            "    -> Real { fs }\n"
+        )
+        # Parse and expand aliases
+        mod = parse_source(src, "<test>")
+        auto_splice_module(mod, strict_mode=False)
+        Profiler().profile_module(mod)
+        out = GoBackend().compile(mod)
+        # Both freq (alias-expanded) and fs (explicit) must have guards
+        assert "refinement violated on freq" in out, (
+            f"Expected guard for 'freq', got:\n{out}"
+        )
+        assert "refinement violated on fs" in out, (
+            f"Expected guard for 'fs', got:\n{out}"
+        )
+
+    def test_go_backend_audio_pole_file_has_two_guards(self):
+        """audio_pole_refined.eml compiled to Go has 2 refinement-violated panics."""
+        from software.backends.go_backend import GoBackend
+        from lang.profiler import Profiler
+
+        auto_splice_module = _import_auto_splice()
+        mod = parse_file(EXAMPLES_DIR / "audio_pole_refined.eml", resolve=False)
+        auto_splice_module(mod, strict_mode=False)
+        Profiler().profile_module(mod)
+        out = GoBackend().compile(mod)
+        panic_count = out.count("refinement violated")
+        assert panic_count == 2, (
+            f"Expected 2 'refinement violated' panics, got {panic_count}:\n{out}"
+        )
