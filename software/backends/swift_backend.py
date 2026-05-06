@@ -458,6 +458,13 @@ class SwiftBackend:
             except CompileError as e:
                 out.append(f"{self.indent}// require: unsupported ({e})")
 
+        # Phase G: `assume` clauses -- trusted hypotheses, zero runtime cost.
+        for a in fn.assumes:
+            try:
+                out.append(f"{self.indent}// assume: {self._emit_expr(a)}")
+            except CompileError as e:
+                out.append(f"{self.indent}// assume: unsupported ({e})")
+
         record = (
             _struct_name(fn.name) if fn.return_tuple_types else None
         )

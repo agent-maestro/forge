@@ -468,6 +468,12 @@ class WGSLBackend:
                 out.append(f"//   forge.requires: {self._emit_expr(r)}")
             except CompileError:
                 pass
+        # Phase G: `assume` clauses -- trusted hypotheses, zero runtime cost.
+        for a in fn.assumes:
+            try:
+                out.append(f"// assume: {self._emit_expr(a)}")
+            except CompileError as e:
+                out.append(f"// assume: unsupported ({e})")
         for r in fn.ensures:
             try:
                 out.append(

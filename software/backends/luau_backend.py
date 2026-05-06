@@ -319,6 +319,13 @@ class LuauBackend:
             except CompileError as e:
                 out.append(f"{self.indent}-- require: unsupported ({e})")
 
+        # Phase G: `assume` clauses -- trusted hypotheses, zero runtime cost.
+        for a in fn.assumes:
+            try:
+                out.append(f"{self.indent}-- assume: {self._emit_expr(a)}")
+            except CompileError as e:
+                out.append(f"{self.indent}-- assume: unsupported ({e})")
+
         body = self._emit_block(fn.body, return_value=True)
         for ln in body:
             out.append(self.indent + ln)

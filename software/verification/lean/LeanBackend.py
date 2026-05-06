@@ -396,6 +396,16 @@ class LeanBackend:
             except _UnsupportedNode as e:
                 hyp_clauses.append(f"-- TODO: requires #{i+1} ({e})")
 
+        # Phase G: assume-derived hypotheses (after requires hyps).
+        # assume (P) -> (h_assumeN : P) -- trusted, not runtime-checked.
+        # Appears AFTER all requires-derived hypotheses per the ordering spec.
+        for i, asm in enumerate(func.assumes, start=1):
+            try:
+                hyp = self._emit_expr(asm)
+                hyp_clauses.append(f"(h_assume{i} : {_to_prop(hyp)})")
+            except _UnsupportedNode as e:
+                hyp_clauses.append(f"-- TODO: assume #{i} ({e})")
+
         # ── Phase D: Conclusion = return_refinement ∧ ensures ───────
         param_names = [_safe_id(p.name) for p in func.params]
         call = f"{safe_func} {' '.join(param_names)}"

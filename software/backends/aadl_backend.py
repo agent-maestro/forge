@@ -288,9 +288,14 @@ class AadlBackend:
         # placeholder if absent. Compute_Execution_Time is bounded
         # via the profile's FPGA estimate when available.
         # Phase E.5: also add Refinement_Predicate => "..." annotations.
+        # Phase G: add assume clause comments.
         props: list[str] = self._derive_properties(fn)
         ref_props = self._emit_refinement_properties(fn)
-        all_props = props + ref_props
+        assume_props: list[str] = []
+        for a in fn.assumes:
+            pred_str = _pred_text(a)
+            assume_props.append(f"-- assume: {pred_str}")
+        all_props = props + ref_props + assume_props
         if all_props:
             out.append("properties")
             for prop in all_props:

@@ -455,6 +455,14 @@ class CSharpBackend:
                 )
             except CompileError:
                 pass
+        # Phase G: assume clauses -- trusted hypotheses, zero runtime cost.
+        for a in fn.assumes:
+            try:
+                contract_lines.append(
+                    f"// assume: {_xml_escape(self._emit_expr(a))}"
+                )
+            except CompileError as e:
+                contract_lines.append(f"// assume: unsupported ({e})")
         for r in fn.ensures:
             try:
                 contract_lines.append(

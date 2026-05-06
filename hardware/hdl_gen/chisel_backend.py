@@ -284,6 +284,15 @@ class ChiselBackend:
         # Phase E.5: refinement guards.
         refinement_block = self._emit_refinement_guards(fn)
 
+        # Phase G: assume clauses -- comment-only (no chisel assert).
+        assume_comments = ""
+        for a in fn.assumes:
+            try:
+                pred_str = _chisel_pred_expr(a)
+                assume_comments += f"  // assume: {pred_str}\n"
+            except Exception as e:
+                assume_comments += f"  // assume: unsupported ({e})\n"
+
         klass = self._class_name(fn.name)
         return (
             f"// Pipeline: {fn.name}\n"
@@ -301,6 +310,7 @@ class ChiselBackend:
             f"  // expression tree below can reference plain names.\n"
             f"{self._bind_params(fn)}\n"
             f"{refinement_block}"
+            f"{assume_comments}"
             f"\n"
             f"{body_lines}\n"
             f"\n"

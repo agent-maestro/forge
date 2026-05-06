@@ -350,6 +350,15 @@ class CBackend:
             except CompileError as e:
                 out.append(f"{self.indent}/* requires: unsupported ({e}) */")
 
+        # Phase G: `assume` clauses -- trusted hypotheses, zero runtime cost.
+        # Emit as comment-only; no assert() guard is generated.
+        for a in fn.assumes:
+            try:
+                pred = self._emit_expr(a)
+                out.append(f"{self.indent}/* assume: {pred} */")
+            except CompileError as e:
+                out.append(f"{self.indent}/* assume: unsupported ({e}) */")
+
         # Body -- pass the struct name when returning a tuple so the
         # final expression gets the C99 cast `(name){...}`.
         struct_name = (

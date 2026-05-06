@@ -320,6 +320,13 @@ class RustBackend:
             except CompileError as e:
                 out.append(f"{self.indent}// requires: unsupported ({e})")
 
+        # Phase G: `assume` clauses -- trusted hypotheses, zero runtime cost.
+        for a in fn.assumes:
+            try:
+                out.append(f"{self.indent}// assume: {self._emit_expr(a)}")
+            except CompileError as e:
+                out.append(f"{self.indent}// assume: unsupported ({e})")
+
         struct_name = (
             self._tuple_type_name(fn.name) if fn.return_tuple_types else None
         )

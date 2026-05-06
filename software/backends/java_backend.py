@@ -286,6 +286,12 @@ class JavaBackend:
         out.append(f"public static {ret} {fn.name}({params}) {{")
         # Phase E.2: refinement guards fire BEFORE body.
         out.extend(self._emit_refinement_guards(fn))
+        # Phase G: `assume` clauses -- trusted hypotheses, zero runtime cost.
+        for a in fn.assumes:
+            try:
+                out.append(f"{self.indent}// assume: {self._emit_expr(a)}")
+            except CompileError as e:
+                out.append(f"{self.indent}// assume: unsupported ({e})")
         # Tell _emit_block which record-class constructor to wrap the
         # final TUPLE expression in (None for scalar-return functions).
         record = (

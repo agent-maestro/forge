@@ -20,7 +20,7 @@ from dataclasses import dataclass
 KEYWORDS: frozenset[str] = frozenset({
     "module", "import", "use", "as",
     "const", "type", "fn", "extern", "let", "mut", "while", "where",
-    "domain", "precision", "chain_order", "requires", "ensures",
+    "domain", "precision", "chain_order", "requires", "ensures", "assume",
     "return", "if", "else",
     "true", "false",
     # Phase A: unit-of-measure declarations
