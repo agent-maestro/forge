@@ -26,7 +26,7 @@ type GeoSignal = Real where chain_order <= 3
 
 @target(fpga, clock_mhz = 200, precision = float64)
 @verify(lean, theorem = "mercator_y_finite_in_domain")
-fn mercator_y(lat: Real) -> GeoSignal
+fn mercator_y(lat: Real[rad]) -> GeoSignal
     where chain_order <= 3
     requires (abs(lat) < MAX_LAT)
 {
@@ -34,7 +34,7 @@ fn mercator_y(lat: Real) -> GeoSignal
 }
 
 @target(fpga, clock_mhz = 200, precision = float64)
-fn mercator_x(lon: Real) -> GeoSignal
+fn mercator_x(lon: Real[rad]) -> GeoSignal
     where chain_order <= 0
     requires (abs(lon) < 6.283185307)        // |lon| < 2π
 {
