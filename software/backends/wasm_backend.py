@@ -59,15 +59,25 @@ class WASMBackend:
     def compile_full(self, mod: EMLModule) -> WASMResult:
         ir = self._llvm.compile(mod)
 
+        # Try llc first, then clang. Each may fail (e.g. clang without
+        # the wasm32 target installed, common in minimal CI images).
+        # Fall through to toolchain="none" on any failure -- the IR
+        # text is still produced and is what most tests inspect.
         llc = shutil.which("llc")
         if llc:
-            wasm = self._run_llc(ir, llc)
-            return WASMResult(wasm=wasm, ir=ir, toolchain="llc")
+            try:
+                wasm = self._run_llc(ir, llc)
+                return WASMResult(wasm=wasm, ir=ir, toolchain="llc")
+            except subprocess.CalledProcessError:
+                pass  # toolchain present but missing wasm32 target
 
         clang = shutil.which("clang")
         if clang:
-            wasm = self._run_clang(ir, clang)
-            return WASMResult(wasm=wasm, ir=ir, toolchain="clang")
+            try:
+                wasm = self._run_clang(ir, clang)
+                return WASMResult(wasm=wasm, ir=ir, toolchain="clang")
+            except subprocess.CalledProcessError:
+                pass  # toolchain present but missing wasm32 target
 
         return WASMResult(wasm=b"", ir=ir, toolchain="none")
 

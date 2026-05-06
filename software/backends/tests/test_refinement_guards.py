@@ -31,6 +31,7 @@ Non-regression contract for E.3:
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 
 import pytest
@@ -80,20 +81,23 @@ PID = REPO_ROOT / "examples" / "pid_controller.eml"
 # read `test_pid_no_refinements_md5_unchanged` for git-blame continuity even
 # though the fixture now exercises three refinement guards.
 _PID_BASELINES: dict[str, str] = {
-    "go":         "140ace099348b562f63de4c1c1239edb",
-    "kotlin":     "34a52d7869b0a4a867256817058e20bc",
-    "javascript": "c341cf370485d533a085972c52e12fa8",
-    "csharp":     "ccdda03dd7cab428068fe9852ee32fb6",
-    "swift":      "4f368988fbb25707cd7bb977052fd821",
-    "luau":       "b48ab057786dd5a676481a5273b0203e",
-    "cpp":        "0cd47a2b4e39bf83ca6594cdf144603e",
-    "java":       "f83f11e6a3abd1a5b8c258aec3c2f4aa",
-    "hlsl":       "5bea2d10e1cdac369c44200a286cf6de",
-    "glsl":       "9ec66ae384a6039f7f5f0eaa67034483",
-    "wgsl":       "f47d5260ef84a9f11acf26f1afa15724",
-    "metal":      "5396fc45a193e3a900dbf46fced7ce93",
-    "llvm":       "e95329ab3cd943fd2b63ee116bd9d327",
-    "matlab":     "042329239552a033461dd93e277a3514",
+    # Hashes computed via _md5() which strips embedded source-file paths
+    # (the path differs between dev and CI; canonicalising before hashing
+    # keeps the baseline stable across machines).
+    "go":         "b4fb1ac74274dc67cfa754fc3bfc0210",
+    "kotlin":     "6b5033983502d9216923c80a366f7207",
+    "javascript": "ff2e0bd47a9a68277efa148c7d35e517",
+    "csharp":     "2bc633eec4efbb8f42dc4a7268c97365",
+    "swift":      "e080d2b04568f0121a55a31021af4b6d",
+    "luau":       "3bb0d660ba9b452bb6a0094f18d4810e",
+    "cpp":        "2dd3816ce1e83218a113b4613c620564",
+    "java":       "929176b6f1bd2bf46ef3877e04e37776",
+    "hlsl":       "2c5e2d92b1818cae619ea78b40d540c4",
+    "glsl":       "9f59872bf2b9a880e0b6f81c22c96601",
+    "wgsl":       "ecb98df5d6dc12370287db90e8af7625",
+    "metal":      "3057769ada696dfa3617a43883594a79",
+    "llvm":       "d60b23e9434e192c9d47f98f06372091",
+    "matlab":     "f21528e7307a3f154003b1d14688a9c9",
 }
 
 # Phase E.3 PID baselines: collected AFTER implementation (pid_controller has
@@ -112,11 +116,12 @@ _PID_BASELINES_PHASE_E3: dict[str, str] = {
 # These MUST match pre-E.3 output (no guard emission for clean kernels).
 # Collected from the pre-implementation run.
 _NOREFINEMENT1_BASELINES_E3: dict[str, str] = {
-    "rust":     "28533e01fe96951dee7b14c3ffe1ef44",
-    "c":        "37aaee69ee02603f4b3ee5bfed880deb",
-    "python":   "f2cfd024820732f148f4f79c055b44b3",
-    "wasm_ir":  "b2e35e847deee6a6f5d935268c5a79a7",
-    "gdscript": "c7f6ad1cb2f9424c4ed5c46fba40def0",
+    # Hashes computed via _md5() which strips embedded source-file paths.
+    "rust":     "6fedf801e950a8ef9769ec471e4e8da4",
+    "c":        "cdc1f8bfc2cb54f99d48444e032d6fa0",
+    "python":   "b23b3c539f847811c0f220e7581f95c4",
+    "wasm_ir":  "e27dadb777a801928adb53ca5b6ae67c",
+    "gdscript": "ccb0e844679961e552196a4069e1fda1",
 }
 
 
@@ -150,8 +155,25 @@ def _compile_wasm_ir_file(path: Path) -> str:
     return WASMBackend().compile_full(mod).ir
 
 
+_SOURCE_FILE_RE = re.compile(
+    r'(Source file:|source_filename =|@source\s+file)\s*"?[^\n"]*',
+)
+
+
+def _strip_source_paths(text: str) -> str:
+    """Strip absolute source-file paths from a backend's header comment.
+
+    Backends embed the resolved kernel path (e.g.
+    `// Source file: /home/runner/work/forge/...`) in the file header.
+    The path differs between dev and CI environments, so any hash
+    that includes it is environment-dependent.  Replace the path
+    with a stable `<canonicalized>` token before hashing.
+    """
+    return _SOURCE_FILE_RE.sub(r"\1 <canonicalized>", text)
+
+
 def _md5(text: str) -> str:
-    return hashlib.md5(text.encode()).hexdigest()
+    return hashlib.md5(_strip_source_paths(text).encode()).hexdigest()
 
 
 # ── Shared EML fixtures ───────────────────────────────────────────────────────
