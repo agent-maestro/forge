@@ -311,6 +311,18 @@ def main(argv: list[str] | None = None) -> int:
                              "byte-identical to pre-Phase-C. When ON, a one-line "
                              "note appears in `--explain` output for each clause "
                              "that was absorbed into a refinement.")
+    parser.add_argument("--lint", action="store_true",
+                        default=False,
+                        help="(v0.5 deprecation) Emit warnings for `requires` "
+                             "clauses that use transcendental functions (sin, "
+                             "cos, tan, exp, ln, sqrt, asin, acos, atan, sinh, "
+                             "cosh, tanh, pow with non-integer exponent). "
+                             "The refinement sub-language cannot decide such "
+                             "predicates; migrate to `assume (...)` or move the "
+                             "check into the function body. Default OFF: "
+                             "without this flag behaviour is byte-identical to "
+                             "pre-v0.5. Warnings are emitted to stderr; the "
+                             "compile still succeeds.")
     parser.add_argument("--explain", action="store_true",
                         help="Print a per-function diff showing which "
                              "optimizer passes fired, before/after "
@@ -449,6 +461,18 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except ImportError:
         pass  # lang.refinements not yet installed -- skip silently
+
+    # ── v0.5 deprecation lint: transcendental `requires` warnings ────
+    # Default OFF.  Only runs when --lint is set.  Warnings go to stderr;
+    # the compile continues and exits 0 regardless.
+    if getattr(args, "lint", False):
+        try:
+            from lang.lint import lint_module as _lint_module
+            _lint_warnings = _lint_module(mod, lint_enabled=True)
+            for _w in _lint_warnings:
+                print(_w.message, file=sys.stderr)
+        except ImportError:
+            pass  # lang.lint not yet installed -- skip silently
 
     profiler = Profiler()
     profiler.profile_module(mod)
