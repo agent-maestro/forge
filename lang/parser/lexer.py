@@ -23,6 +23,8 @@ KEYWORDS: frozenset[str] = frozenset({
     "domain", "precision", "chain_order", "requires", "ensures",
     "return", "if", "else",
     "true", "false",
+    # Phase A: unit-of-measure declarations
+    "unit",
     # Type keywords (parser distinguishes by context)
     "Real", "f64", "f32", "f16", "bf16",
     "u8", "u16", "u32", "u64", "i8", "i16", "i32", "i64",
@@ -53,6 +55,10 @@ SINGLE_CHAR_OPS: dict[str, str] = {
     "[": "LBRACK", "]": "RBRACK",
     ":": "COLON", ";": "SEMI", ",": "COMMA", ".": "DOT",
     "!": "BANG", "@": "AT",
+    # Phase A: caret is used for unit-expression exponentiation (e.g. s^2).
+    # It has no meaning in normal EML expressions; the parser only
+    # consumes it inside a [unit_expr] suffix.
+    "^": "CARET",
 }
 
 

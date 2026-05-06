@@ -13,6 +13,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+import math
+
 from lang.parser.ast_nodes import (
     Annotation,
     ASTNode,
@@ -22,11 +24,70 @@ from lang.parser.ast_nodes import (
     EMLImport,
     EMLModule,
     EMLTypeAlias,
+    EMLUnitDecl,
     NodeKind,
     Param,
     WhereClause,
 )
 from lang.parser.lexer import Token, tokenize
+
+
+# ── Unit-of-measure support ───────────────────────────────────────────
+
+# The 8 SI base units in canonical order.
+# Index: 0=m, 1=kg, 2=s, 3=A, 4=K, 5=mol, 6=cd, 7=rad
+_BASE_UNIT_INDEX: dict[str, int] = {
+    "m": 0, "kg": 1, "s": 2, "A": 3,
+    "K": 4, "mol": 5, "cd": 6, "rad": 7,
+}
+_ZERO_EXPONENTS: tuple = (0, 0, 0, 0, 0, 0, 0, 0)
+
+# Scaling constants permitted inside unit RHS expressions.
+_UNIT_SCALE_CONSTANTS: dict[str, float] = {
+    "PI":    math.pi,
+    "TAU":   2.0 * math.pi,
+    "EULER": math.e,
+}
+
+
+def _unit_basis(idx: int) -> tuple:
+    """Return the 8-exponent base vector for the base unit at index `idx`."""
+    exps = [0] * 8
+    exps[idx] = 1
+    return tuple(exps)
+
+
+def _unit_multiply(
+    a: tuple[tuple, float], b: tuple[tuple, float],
+) -> tuple[tuple, float]:
+    """Multiply two unit vectors: (exps_a, scale_a) * (exps_b, scale_b)."""
+    exps_a, scale_a = a
+    exps_b, scale_b = b
+    return (
+        tuple(ea + eb for ea, eb in zip(exps_a, exps_b)),
+        scale_a * scale_b,
+    )
+
+
+def _unit_divide(
+    a: tuple[tuple, float], b: tuple[tuple, float],
+) -> tuple[tuple, float]:
+    """Divide two unit vectors: (exps_a, scale_a) / (exps_b, scale_b)."""
+    exps_a, scale_a = a
+    exps_b, scale_b = b
+    return (
+        tuple(ea - eb for ea, eb in zip(exps_a, exps_b)),
+        scale_a / scale_b,
+    )
+
+
+def _unit_power(a: tuple[tuple, float], exp: int) -> tuple[tuple, float]:
+    """Raise a unit vector to an integer power."""
+    exps_a, scale_a = a
+    return (
+        tuple(e * exp for e in exps_a),
+        scale_a ** exp,
+    )
 
 
 class ParseError(Exception):
@@ -66,6 +127,14 @@ class Parser:
         self.source_file = source_file
         self.tokens: list[Token] = tokenize(source)
         self.pos = 0
+        # Session-local unit registry: name -> (base_exponents, scale)
+        # Pre-populated with the 8 SI base units (all have scale=1.0).
+        self._unit_registry: dict[str, tuple[tuple, float]] = {
+            name: (_unit_basis(idx), 1.0)
+            for name, idx in _BASE_UNIT_INDEX.items()
+        }
+        # Dimensionless "1" pseudo-unit.
+        self._unit_registry["1"] = (_ZERO_EXPONENTS, 1.0)
 
     # ── Token-stream helpers ──────────────────────────────────
 
@@ -125,7 +194,12 @@ class Parser:
 
         while not self._check("EOF"):
             tok = self._peek()
-            if self._check("KEYWORD", "const"):
+            if self._check("KEYWORD", "unit"):
+                decl = self._parse_unit_decl()
+                mod.unit_decls.append(decl)
+                # Register so later unit decls can reference this one.
+                self._unit_registry[decl.name] = (decl.base_exponents, decl.scale)
+            elif self._check("KEYWORD", "const"):
                 mod.constants.append(self._parse_const())
             elif self._check("KEYWORD", "type"):
                 mod.types.append(self._parse_type_alias())
@@ -138,8 +212,8 @@ class Parser:
                 mod.imports.append(self._parse_use())
             else:
                 raise ParseError(
-                    "expected `use`, `const`, `type`, `fn`, `extern fn`, "
-                    "or `@`-annotation",
+                    "expected `use`, `unit`, `const`, `type`, `fn`, "
+                    "`extern fn`, or `@`-annotation",
                     tok, self.source_file,
                 )
         return mod
@@ -216,7 +290,7 @@ class Parser:
         kw = self._eat("KEYWORD", "const")
         name_tok = self._eat("IDENT")
         self._eat("COLON")
-        type_name = self._parse_type_name()
+        type_name, unit_expr = self._parse_type_name_with_unit()
         self._eat("ASSIGN")
         expr = self._parse_expr()
         # Optional trailing semicolon (some demo files include it,
@@ -226,6 +300,7 @@ class Parser:
             name=name_tok.value,
             type_name=type_name,
             value=expr,
+            unit_expr=unit_expr,
             line=kw.line,
             col=kw.col,
         )
@@ -260,7 +335,7 @@ class Parser:
         params = self._parse_params()
         self._eat("RPAREN")
         self._eat("ARROW")
-        return_type, return_tuple_types = self._parse_return_type()
+        return_type, return_tuple_types, return_unit_expr = self._parse_return_type()
         # Optional `where` clauses (comma-separated).
         where_clauses: list[WhereClause] = []
         if self._check("KEYWORD", "where"):
@@ -280,6 +355,7 @@ class Parser:
             params=params,
             return_type=return_type,
             return_tuple_types=return_tuple_types,
+            return_unit_expr=return_unit_expr,
             where_clauses=where_clauses,
             body=body,
             annotations=annotations,
@@ -306,7 +382,7 @@ class Parser:
         params = self._parse_params()
         self._eat("RPAREN")
         self._eat("ARROW")
-        return_type, return_tuple_types = self._parse_return_type()
+        return_type, return_tuple_types, return_unit_expr = self._parse_return_type()
         # Optional trailing semicolon (consistent with const/type).
         self._accept("SEMI")
         return EMLFunction(
@@ -314,10 +390,160 @@ class Parser:
             params=params,
             return_type=return_type,
             return_tuple_types=return_tuple_types,
+            return_unit_expr=return_unit_expr,
             body=None,
             line=kw.line,
             col=kw.col,
             is_extern=True,
+        )
+
+    # ── Unit declarations ─────────────────────────────────────────────
+
+    def _parse_unit_decl(self) -> EMLUnitDecl:
+        """Parse `unit NAME = <unit_rhs_expr> ;`.
+
+        The RHS is a unit-algebra expression: products / quotients /
+        integer powers of base-unit names, previously-declared unit
+        names, integer literals, and (optionally) a multiplicative
+        scaling factor using one of the permitted constants
+        (PI, TAU, EULER) or a numeric literal.
+
+        Examples:
+            unit Hz  = 1/s;
+            unit N   = kg*m/s^2;
+            unit km  = m * 1000;
+            unit deg = rad * (PI/180);
+        """
+        kw = self._eat("KEYWORD", "unit")
+        name_tok = self._eat("IDENT")
+        self._eat("ASSIGN")
+        exps, scale = self._parse_unit_rhs()
+        self._eat("SEMI")
+        return EMLUnitDecl(
+            name=name_tok.value,
+            base_exponents=tuple(exps),
+            scale=scale,
+            line=kw.line,
+            col=kw.col,
+        )
+
+    def _parse_unit_rhs(self) -> tuple[tuple, float]:
+        """Parse the RHS of a unit declaration and return (base_exponents, scale).
+
+        Grammar (informally):
+            unit_rhs  ::= unit_factor ( ('*' | '/') unit_factor )*
+            unit_factor ::= unit_atom ('^' INT)?
+            unit_atom   ::= IDENT | INT | '(' unit_rhs ')'
+
+        Where IDENT must be a known base-unit or previously-declared unit,
+        or one of the permitted scaling constants (PI, TAU, EULER).
+        """
+        result = self._parse_unit_factor()
+        while self._check("STAR") or self._check("SLASH"):
+            op = self._advance()
+            right = self._parse_unit_factor()
+            if op.kind == "STAR":
+                result = _unit_multiply(result, right)
+            else:
+                result = _unit_divide(result, right)
+        return result
+
+    def _parse_unit_factor(self) -> tuple[tuple, float]:
+        """Parse `unit_atom ('^' INT)?`."""
+        base = self._parse_unit_atom()
+        if self._check("CARET"):
+            self._advance()
+            exp_tok = self._peek()
+            # Support negative exponents: ^-2
+            neg = False
+            if exp_tok.kind == "MINUS":
+                neg = True
+                self._advance()
+                exp_tok = self._peek()
+            if exp_tok.kind != "INT":
+                raise ParseError(
+                    "expected integer exponent after '^'",
+                    exp_tok, self.source_file,
+                )
+            exp = int(self._advance().value)
+            if neg:
+                exp = -exp
+            return _unit_power(base, exp)
+        return base
+
+    def _parse_unit_atom(self) -> tuple[tuple, float]:
+        """Parse the atomic unit: an identifier, a numeric literal, or a
+        parenthesised unit_rhs.
+
+        Rules:
+          - An identifier must be a base unit (m, kg, s, A, K, mol, cd, rad),
+            a previously-declared unit name, or a permitted scaling constant
+            (PI, TAU, EULER).  Any other identifier is a ParseError.
+          - A numeric literal (INT or FLOAT) is treated as a dimensionless
+            scale factor (base_exponents all zero).
+          - '1' as an identifier is the dimensionless unit (already in registry).
+        """
+        tok = self._peek()
+
+        # Parenthesised sub-expression
+        if tok.kind == "LPAREN":
+            self._advance()
+            result = self._parse_unit_rhs()
+            self._eat("RPAREN")
+            return result
+
+        # Numeric literals -- dimensionless scale
+        if tok.kind in ("INT", "FLOAT"):
+            val = float(self._advance().value)
+            return (_ZERO_EXPONENTS, val)
+
+        # Boolean literal -- reject
+        if tok.kind == "KEYWORD" and tok.value in ("true", "false"):
+            raise ParseError(
+                f"unit expression: boolean literal {tok.value!r} is not "
+                "a valid unit; expected a unit name or numeric literal",
+                tok, self.source_file,
+            )
+
+        # String literal -- reject
+        if tok.kind == "STRING":
+            raise ParseError(
+                "unit expression: string literals are not valid in unit "
+                "declarations",
+                tok, self.source_file,
+            )
+
+        # Identifier: base unit, declared unit, or permitted constant
+        if tok.kind in ("IDENT", "KEYWORD"):
+            name = tok.value
+            # Reject function calls immediately
+            if self._peek(1).kind == "LPAREN":
+                raise ParseError(
+                    f"unit expression: function call '{name}(...)' is not "
+                    "permitted in a unit declaration",
+                    tok, self.source_file,
+                )
+            # Permitted scaling constants
+            if name in _UNIT_SCALE_CONSTANTS:
+                self._advance()
+                return (_ZERO_EXPONENTS, _UNIT_SCALE_CONSTANTS[name])
+            # Known unit (base or previously declared)
+            if name in self._unit_registry:
+                self._advance()
+                exps, scale = self._unit_registry[name]
+                return (exps, scale)
+            # Unknown identifier -- reject
+            raise ParseError(
+                f"unit expression: unknown unit or identifier {name!r}; "
+                "only base units (m, kg, s, A, K, mol, cd, rad), "
+                "previously declared units, PI, TAU, and EULER are allowed",
+                tok, self.source_file,
+            )
+
+        raise ParseError(
+            "unit expression: expected a unit name, numeric literal, "
+            "or parenthesised expression",
+            tok, self.source_file,
         )
 
     def _parse_annotation(self) -> Annotation:
@@ -350,10 +576,11 @@ class Parser:
         while not self._check("RPAREN"):
             name_tok = self._eat("IDENT")
             self._eat("COLON")
-            type_name = self._parse_type_name()
+            type_name, unit_expr = self._parse_type_name_with_unit()
             params.append(Param(
                 name=name_tok.value,
                 type_name=type_name,
+                unit_expr=unit_expr,
                 line=name_tok.line,
                 col=name_tok.col,
             ))
@@ -361,24 +588,58 @@ class Parser:
                 break
         return params
 
-    def _parse_return_type(self) -> tuple[str, list[str]]:
-        """Return (single_type_name, tuple_types). Only one is non-empty.
+    def _parse_return_type(self) -> tuple[str, list[str], Optional[str]]:
+        """Return (single_type_name, tuple_types, unit_expr).
+
         For tuple returns like `(f64, f64)`, single_type_name is empty
-        and tuple_types is the list."""
+        and tuple_types is the list; unit_expr is None for tuples.
+        For single return types, unit_expr captures the [unit] annotation.
+        """
         if self._check("LPAREN"):
             self._advance()
             tuple_types: list[str] = []
             while not self._check("RPAREN"):
-                tuple_types.append(self._parse_type_name())
+                # Tuple element types may also carry unit annotations
+                # (deferred to Phase B; consume them without error).
+                t, _ = self._parse_type_name_with_unit()
+                tuple_types.append(t)
                 if not self._accept("COMMA"):
                     break
             self._eat("RPAREN")
-            return ("", tuple_types)
-        return (self._parse_type_name(), [])
+            return ("", tuple_types, None)
+        type_name, unit_expr = self._parse_type_name_with_unit()
+        return (type_name, [], unit_expr)
 
     def _parse_type_name(self) -> str:
         """A type is a single keyword (Real, f64, ...), an identifier
-        (a user-declared alias), or `fixed<W,F>`."""
+        (a user-declared alias), or `fixed<W,F>`.
+
+        This shim drops the optional unit annotation when callers
+        (e.g. `_parse_type_alias`, `_parse_let`) don't need it.
+        Use `_parse_type_name_with_unit` where the unit must be captured.
+        """
+        type_name, _ = self._parse_type_name_with_unit()
+        return type_name
+
+    def _parse_type_name_with_unit(self) -> tuple[str, Optional[str]]:
+        """Parse a type name, optionally followed by a [unit_expr] suffix.
+
+        Returns (type_name, unit_expr_text | None).
+
+        The unit suffix is only consumed when the next token after the
+        type name is LBRACK -- this is unambiguous in EML because the
+        language has no array-indexing expression syntax, so `[` after
+        a type keyword can only mean a unit annotation.
+
+        Design decision (Phase A): literal-suffix form `9.81 [m/s^2]`
+        (a unit annotation attached to a numeric literal in an *expression*
+        context) is NOT parsed here; it is deferred to Phase B.
+        Rationale: expressions are already tokenized before this path
+        is called, and distinguishing `foo[x]` (indexing) from
+        `foo [unit]` (future annotated literal) would require lookahead
+        that is unnecessary for Phase A's scope of type-position
+        annotations only.
+        """
         tok = self._peek()
         if tok.kind == "KEYWORD" and tok.value == "fixed":
             self._advance()
@@ -387,10 +648,51 @@ class Parser:
             self._eat("COMMA")
             f = self._eat("INT").value
             self._eat("GT")
-            return f"fixed<{w},{f}>"
+            type_name = f"fixed<{w},{f}>"
+            # fixed<W,F> does not support unit annotations in Phase A.
+            return type_name, None
         if tok.kind in ("IDENT", "KEYWORD"):
-            return self._advance().value
+            type_name = self._advance().value
+            unit_expr = self._try_parse_unit_suffix()
+            return type_name, unit_expr
         raise ParseError("expected a type name", tok, self.source_file)
+
+    def _try_parse_unit_suffix(self) -> Optional[str]:
+        """If the next token is LBRACK, consume a `[unit_expr]` suffix and
+        return its source text.  Returns None if no bracket follows.
+
+        A unit expression is a product/quotient/power of unit identifiers
+        and integer literals, e.g.:
+            [Hz]   [m/s^2]   [kg*m/s^2]   [1]   [m/s]
+        Additive operators (+, -) are rejected -- they are not unit algebra.
+        """
+        if not self._check("LBRACK"):
+            return None
+        lbrack = self._advance()  # consume '['
+        parts: list[str] = []
+        # Collect the raw tokens until ']', building up a source-text
+        # representation. Validate that only unit-algebra tokens appear.
+        while not self._check("RBRACK") and not self._check("EOF"):
+            tok = self._peek()
+            if tok.kind == "PLUS" or tok.kind == "MINUS":
+                raise ParseError(
+                    "unit expression does not support additive operators; "
+                    "use only *, /, ^ and unit identifiers",
+                    tok, self.source_file,
+                )
+            if tok.kind in ("IDENT", "KEYWORD", "INT", "STAR", "SLASH"):
+                parts.append(tok.value)
+                self._advance()
+            elif tok.kind == "CARET":
+                parts.append("^")
+                self._advance()
+            else:
+                raise ParseError(
+                    f"unexpected token in unit expression",
+                    tok, self.source_file,
+                )
+        self._eat("RBRACK")
+        return "".join(parts) if parts else None
 
     def _parse_chain_order_constraint(self) -> dict:
         """Just the `chain_order <op> N` form -- used by type aliases."""
