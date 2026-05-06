@@ -66,7 +66,7 @@ Five-minute tour: [`docs/quickstart.md`](docs/quickstart.md). Full tutorial: [mo
 
 ## What you get
 
-**32 backends.** Every kernel compiles to all of these from the same source.
+**33 backends.** Every kernel compiles to all of these from the same source.
 
 ### Software (general-purpose)
 | Target | Flag | Tier |
@@ -132,7 +132,12 @@ Five-minute tour: [`docs/quickstart.md`](docs/quickstart.md). Full tutorial: [mo
 |---|---|---|
 | Solidity (PRBMath SD59x18) | `--target solidity` | Pro |
 
-The Free tier — 12 targets covering general-purpose software (C, C++, Rust, Python, Go, Java, Kotlin, C#, JavaScript), web/edge runtimes (WebAssembly), MATLAB, and Lean 4 proofs — is enough to take any EML kernel from your laptop to the browser to a formal proof without a license. A Pro license unlocks the remaining 20: hardware (Verilog, VHDL, SystemVerilog, Chisel, LLVM IR), GPU shaders (HLSL, GLSL, GLSL ES, WGSL, Metal), Apple Swift, safety-critical (Ada, AUTOSAR, AADL, ROS 2), Coq, Isabelle/HOL, Solidity, and gaming (Luau, GDScript). Get a license at [monogateforge.com/get-started](https://monogateforge.com/get-started).
+### Zero-knowledge
+| Target | Flag | Tier |
+|---|---|---|
+| Plonky2 ZK circuits (research) | `--target zkproof` | Free |
+
+The Free tier — 13 targets covering general-purpose software (C, C++, Rust, Python, Go, Java, Kotlin, C#, JavaScript), web/edge runtimes (WebAssembly), MATLAB, Lean 4 proofs, and the research-tier Plonky2 ZK prover — is enough to take any EML kernel from your laptop to the browser to a formal proof without a license. A Pro license unlocks the remaining 20: hardware (Verilog, VHDL, SystemVerilog, Chisel, LLVM IR), GPU shaders (HLSL, GLSL, GLSL ES, WGSL, Metal), Apple Swift, safety-critical (Ada, AUTOSAR, AADL, ROS 2), Coq, Isabelle/HOL, Solidity, and gaming (Luau, GDScript). Get a license at [monogateforge.com/get-started](https://monogateforge.com/get-started).
 
 ---
 

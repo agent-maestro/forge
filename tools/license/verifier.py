@@ -50,6 +50,11 @@ FREE_TARGETS: frozenset[str] = frozenset({
     # developers. WebAssembly belongs alongside JS for the
     # browser/edge story.
     "javascript", "wasm", "csharp",
+    # Research-tier ZK prover. Plonky2 backend covers
+    # arithmetic-only circuits today; transcendentals fall
+    # through to the transparent stub. Promote to PRO_TARGETS
+    # once the transcendental circuit path lands.
+    "zkproof",
 })
 
 PRO_TARGETS: frozenset[str] = frozenset({

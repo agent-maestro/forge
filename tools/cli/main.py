@@ -126,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
             "\n"
             "TIERS\n"
             "  Free:  c, cpp, rust, python, go, java, kotlin, csharp,\n"
-            "         javascript, wasm, matlab, lean\n"
+            "         javascript, wasm, matlab, lean, zkproof\n"
             "  Pro:   verilog, vhdl, systemverilog, chisel, llvm,\n"
             "         hlsl, glsl, glsles, wgsl, metal, swift,\n"
             "         luau, gdscript, ada, autosar, aadl, ros2,\n"
@@ -157,9 +157,9 @@ def main(argv: list[str] | None = None) -> int:
         "zkproof",
         "all",
     ], help=("Output target. 'all' runs every backend your "
-            "license tier permits (Free: 12 application + Lean; "
-            "Pro: all 32) and writes <stem>.<ext> files into "
-            "--output (must be a directory) or alongside the "
+            "license tier permits (Free: 12 application + Lean + "
+            "zkproof; Pro: all 33) and writes <stem>.<ext> files "
+            "into --output (must be a directory) or alongside the "
             "source. See `--help` epilog for the tier list."))
     parser.add_argument("-o", "--output", type=Path,
                         help="Output file (defaults to stdout)")
