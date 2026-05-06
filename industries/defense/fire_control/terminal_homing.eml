@@ -30,22 +30,13 @@ type Acceleration = Real where chain_order <= 0
 @target(fpga, clock_mhz = 250, precision = float32)
 @verify(lean, theorem = "terminal_pn_high_gain_at_tgo_zero")
 fn terminal_pn_command(
-    n_terminal: Real,
-    closing_speed: Real,
-    sigma_dot: Real,
-    time_to_go: Real,
-    time_constant: Real,
+    n_terminal:    Real{n | N_TERM_MIN <= n && n <= N_TERM_MAX},
+    closing_speed: Real{v | 0.0 <= v && v <= V_MAX},
+    sigma_dot:     Real{s | abs(s) <= SIGMA_MAX},
+    time_to_go:    Real{t | TGO_MIN <= t && t <= TGO_MAX},
+    time_constant: Real{t | T_CONST_MIN <= t && t <= T_CONST_MAX},
 ) -> Acceleration
     where chain_order <= 0
-    requires (n_terminal >= N_TERM_MIN)
-    requires (n_terminal <= N_TERM_MAX)
-    requires (closing_speed >= 0.0)
-    requires (closing_speed <= V_MAX)
-    requires (abs(sigma_dot) <= SIGMA_MAX)
-    requires (time_to_go >= TGO_MIN)
-    requires (time_to_go <= TGO_MAX)
-    requires (time_constant >= T_CONST_MIN)
-    requires (time_constant <= T_CONST_MAX)
 {
     n_terminal * closing_speed * sigma_dot * time_to_go / time_constant
 }
@@ -54,12 +45,11 @@ fn terminal_pn_command(
 // can also feed a Kalman-tracker-derived t_go directly.
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "tgo_inverse_proportional_to_closing")
-fn time_to_go_estimate(range_m: Real, closing_speed: Real) -> Real
+fn time_to_go_estimate(
+    range_m:       Real{r | 0.0 <= r && r <= 5.0e5},
+    closing_speed: Real{v | 1.0 <= v && v <= V_MAX},
+) -> Real
     where chain_order <= 0
-    requires (range_m >= 0.0)
-    requires (range_m <= 5.0e5)
-    requires (closing_speed >= 1.0)
-    requires (closing_speed <= V_MAX)
     ensures  (result >= 0.0)
 {
     range_m / closing_speed
@@ -71,14 +61,12 @@ fn time_to_go_estimate(range_m: Real, closing_speed: Real) -> Real
 // PN command. Chain order 0.
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "true_pn_gain_increases_at_late_phase")
-fn true_pn_gain(n_base: Real, time_to_go: Real, total_time: Real) -> Real
+fn true_pn_gain(
+    n_base:     Real{n | 2.0 <= n && n <= N_TERM_MAX},
+    time_to_go: Real{t | 0.0 <= t && t <= TGO_MAX},
+    total_time: Real{t | TGO_MIN <= t && t <= TGO_MAX},
+) -> Real
     where chain_order <= 0
-    requires (n_base >= 2.0)
-    requires (n_base <= N_TERM_MAX)
-    requires (time_to_go >= 0.0)
-    requires (time_to_go <= TGO_MAX)
-    requires (total_time >= TGO_MIN)
-    requires (total_time <= TGO_MAX)
 {
     n_base * (1.0 + (total_time - time_to_go) / total_time)
 }

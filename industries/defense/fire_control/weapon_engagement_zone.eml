@@ -30,19 +30,12 @@ type EngagementRange = Real where chain_order <= 1
 @target(fpga, clock_mhz = 200, precision = float32)
 @verify(lean, theorem = "outer_wez_decreases_with_target_speed_aligned")
 fn outer_wez_range(
-    weapon_speed: Real,
-    target_speed: Real,
-    burn_time: Real,
-    aspect_angle: Real,
+    weapon_speed: Real{v | 0.0 <= v && v <= V_MAX},
+    target_speed: Real{v | 0.0 <= v && v <= V_MAX},
+    burn_time:    Real{t | 0.0 <= t && t <= T_MAX},
+    aspect_angle: Real{a | abs(a) <= ANGLE_MAX},
 ) -> EngagementRange
     where chain_order <= 1
-    requires (weapon_speed >= 0.0)
-    requires (weapon_speed <= V_MAX)
-    requires (target_speed >= 0.0)
-    requires (target_speed <= V_MAX)
-    requires (burn_time >= 0.0)
-    requires (burn_time <= T_MAX)
-    requires (abs(aspect_angle) <= ANGLE_MAX)
 {
     let nominal = weapon_speed * burn_time;
     let target_advance = target_speed * burn_time * cos(aspect_angle);
@@ -52,10 +45,10 @@ fn outer_wez_range(
 // Inner WEZ -- typically a fixed safety arming distance.
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "inner_wez_nonneg")
-fn inner_wez_range(safe_arming_distance: Real) -> EngagementRange
+fn inner_wez_range(
+    safe_arming_distance: Real{d | 0.0 <= d && d <= RANGE_MAX},
+) -> EngagementRange
     where chain_order <= 0
-    requires (safe_arming_distance >= 0.0)
-    requires (safe_arming_distance <= RANGE_MAX)
 {
     safe_arming_distance
 }
@@ -65,19 +58,12 @@ fn inner_wez_range(safe_arming_distance: Real) -> EngagementRange
 @target(fpga, clock_mhz = 250, precision = float32)
 @verify(lean, theorem = "tof_inverse_proportional_to_closing")
 fn time_of_flight(
-    range_m: Real,
-    weapon_speed: Real,
-    target_speed: Real,
-    aspect_angle: Real,
+    range_m:      Real{r | 0.0 <= r && r <= RANGE_MAX},
+    weapon_speed: Real{v | 0.0 <  v && v <= V_MAX},
+    target_speed: Real{v | 0.0 <= v && v <= V_MAX},
+    aspect_angle: Real{a | abs(a) <= ANGLE_MAX},
 ) -> Real
     where chain_order <= 1
-    requires (range_m >= 0.0)
-    requires (range_m <= RANGE_MAX)
-    requires (weapon_speed > 0.0)
-    requires (weapon_speed <= V_MAX)
-    requires (target_speed >= 0.0)
-    requires (target_speed <= V_MAX)
-    requires (abs(aspect_angle) <= ANGLE_MAX)
 {
     let closing = weapon_speed - target_speed * cos(aspect_angle);
     range_m / clamp(closing, 1.0, V_MAX)
