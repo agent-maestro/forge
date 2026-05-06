@@ -31,19 +31,12 @@ type YawRate = Real where chain_order <= 1
 @target(fpga, clock_mhz = 200, precision = float32)
 @verify(lean, theorem = "yaw_rate_reference_increases_with_steer")
 fn yaw_rate_reference(
-    speed: Real,
-    steer_angle: Real,
-    wheelbase: Real,
-    char_speed: Real,
+    speed:       Real{v | V_MIN <= v && v <= V_MAX},
+    steer_angle: Real{a | abs(a) <= STEER_MAX},
+    wheelbase:   Real{l | L_MIN <= l && l <= L_MAX},
+    char_speed:  Real{v | VCH_MIN <= v && v <= VCH_MAX},
 ) -> YawRate
     where chain_order <= 1
-    requires (speed >= V_MIN)
-    requires (speed <= V_MAX)
-    requires (abs(steer_angle) <= STEER_MAX)
-    requires (wheelbase >= L_MIN)
-    requires (wheelbase <= L_MAX)
-    requires (char_speed >= VCH_MIN)
-    requires (char_speed <= VCH_MAX)
 {
     let understeer = 1.0 + (speed * speed) / (char_speed * char_speed);
     (speed / wheelbase) * tan(steer_angle) / understeer
@@ -53,10 +46,11 @@ fn yaw_rate_reference(
 // braking decision. Bounded by the saturation of yaw_rate_ref.
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "yaw_error_zero_at_reference_match")
-fn yaw_rate_error(measured: Real, reference: Real) -> Real
+fn yaw_rate_error(
+    measured:  Real{m | abs(m) <= 5.0},
+    reference: Real{r | abs(r) <= 5.0},
+) -> Real
     where chain_order <= 0
-    requires (abs(measured) <= 5.0)
-    requires (abs(reference) <= 5.0)
 {
     measured - reference
 }
@@ -67,15 +61,11 @@ fn yaw_rate_error(measured: Real, reference: Real) -> Real
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "sideslip_rate_well_defined_at_speed")
 fn sideslip_rate(
-    lateral_accel: Real,
-    yaw_rate: Real,
-    speed: Real,
+    lateral_accel: Real{a | abs(a) <= 12.0},
+    yaw_rate:      Real{r | abs(r) <= 5.0},
+    speed:         Real{v | V_MIN <= v && v <= V_MAX},
 ) -> Real
     where chain_order <= 0
-    requires (abs(lateral_accel) <= 12.0)
-    requires (abs(yaw_rate) <= 5.0)
-    requires (speed >= V_MIN)
-    requires (speed <= V_MAX)
 {
     lateral_accel / speed - yaw_rate
 }

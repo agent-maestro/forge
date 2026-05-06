@@ -29,18 +29,12 @@ type WheelTorque = Real where chain_order <= 0
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "left_torque_within_limit")
 fn left_wheel_torque(
-    total_drive_torque: Real,
-    desired_yaw_moment: Real,
-    track_width: Real,
-    rolling_radius: Real,
+    total_drive_torque: Real{t | abs(t) <= TORQUE_MAX},
+    desired_yaw_moment: Real{m | abs(m) <= YAW_MOMENT_MAX},
+    track_width:        Real{w | TRACK_MIN <= w && w <= TRACK_MAX},
+    rolling_radius:     Real{r | RADIUS_MIN <= r && r <= RADIUS_MAX},
 ) -> WheelTorque
     where chain_order <= 0
-    requires (abs(total_drive_torque) <= TORQUE_MAX)
-    requires (abs(desired_yaw_moment) <= YAW_MOMENT_MAX)
-    requires (track_width >= TRACK_MIN)
-    requires (track_width <= TRACK_MAX)
-    requires (rolling_radius >= RADIUS_MIN)
-    requires (rolling_radius <= RADIUS_MAX)
 {
     let split = desired_yaw_moment * rolling_radius / track_width;
     clamp(0.5 * total_drive_torque - split, -TORQUE_MAX, TORQUE_MAX)
@@ -49,18 +43,12 @@ fn left_wheel_torque(
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "right_torque_complements_left")
 fn right_wheel_torque(
-    total_drive_torque: Real,
-    desired_yaw_moment: Real,
-    track_width: Real,
-    rolling_radius: Real,
+    total_drive_torque: Real{t | abs(t) <= TORQUE_MAX},
+    desired_yaw_moment: Real{m | abs(m) <= YAW_MOMENT_MAX},
+    track_width:        Real{w | TRACK_MIN <= w && w <= TRACK_MAX},
+    rolling_radius:     Real{r | RADIUS_MIN <= r && r <= RADIUS_MAX},
 ) -> WheelTorque
     where chain_order <= 0
-    requires (abs(total_drive_torque) <= TORQUE_MAX)
-    requires (abs(desired_yaw_moment) <= YAW_MOMENT_MAX)
-    requires (track_width >= TRACK_MIN)
-    requires (track_width <= TRACK_MAX)
-    requires (rolling_radius >= RADIUS_MIN)
-    requires (rolling_radius <= RADIUS_MAX)
 {
     let split = desired_yaw_moment * rolling_radius / track_width;
     clamp(0.5 * total_drive_torque + split, -TORQUE_MAX, TORQUE_MAX)
@@ -71,18 +59,12 @@ fn right_wheel_torque(
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "yaw_moment_zero_at_balanced_split")
 fn yaw_moment_from_split(
-    left_torque: Real,
-    right_torque: Real,
-    track_width: Real,
-    rolling_radius: Real,
+    left_torque:    Real{t | abs(t) <= TORQUE_MAX},
+    right_torque:   Real{t | abs(t) <= TORQUE_MAX},
+    track_width:    Real{w | TRACK_MIN <= w && w <= TRACK_MAX},
+    rolling_radius: Real{r | RADIUS_MIN <= r && r <= RADIUS_MAX},
 ) -> Real
     where chain_order <= 0
-    requires (abs(left_torque) <= TORQUE_MAX)
-    requires (abs(right_torque) <= TORQUE_MAX)
-    requires (track_width >= TRACK_MIN)
-    requires (track_width <= TRACK_MAX)
-    requires (rolling_radius >= RADIUS_MIN)
-    requires (rolling_radius <= RADIUS_MAX)
 {
     (right_torque - left_torque) * track_width / (2.0 * rolling_radius)
 }

@@ -30,11 +30,12 @@ type Modulation = Real where chain_order <= 0
 
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "common_mode_centers_vector")
-fn common_mode_offset(va_ref: Real, vb_ref: Real, vc_ref: Real) -> Real
+fn common_mode_offset(
+    va_ref: Real{v | abs(v) <= VOLTAGE_MAX},
+    vb_ref: Real{v | abs(v) <= VOLTAGE_MAX},
+    vc_ref: Real{v | abs(v) <= VOLTAGE_MAX},
+) -> Real
     where chain_order <= 0
-    requires (abs(va_ref) <= VOLTAGE_MAX)
-    requires (abs(vb_ref) <= VOLTAGE_MAX)
-    requires (abs(vc_ref) <= VOLTAGE_MAX)
 {
     let vmax = clamp(va_ref, vb_ref, VOLTAGE_MAX);
     let vmin_b = clamp(vb_ref, -VOLTAGE_MAX, va_ref);
@@ -46,15 +47,11 @@ fn common_mode_offset(va_ref: Real, vb_ref: Real, vc_ref: Real) -> Real
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "phase_duty_in_unit_interval")
 fn phase_duty(
-    v_phase_ref: Real,
-    v_common_mode: Real,
-    v_dc: Real,
+    v_phase_ref:   Real{v | abs(v) <= VOLTAGE_MAX},
+    v_common_mode: Real{v | abs(v) <= VOLTAGE_MAX},
+    v_dc:          Real{v | 1.0 <= v && v <= VOLTAGE_MAX},
 ) -> DutyCycle
     where chain_order <= 0
-    requires (abs(v_phase_ref) <= VOLTAGE_MAX)
-    requires (abs(v_common_mode) <= VOLTAGE_MAX)
-    requires (v_dc >= 1.0)
-    requires (v_dc <= VOLTAGE_MAX)
     ensures  (result >= 0.0)
     ensures  (result <= 1.0)
 {
@@ -67,12 +64,11 @@ fn phase_duty(
 // linear-overmodulation extension; above that, square-wave.
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "modulation_index_nonneg")
-fn modulation_index(v_ref_magnitude: Real, v_dc: Real) -> Modulation
+fn modulation_index(
+    v_ref_magnitude: Real{v | 0.0 <= v && v <= VOLTAGE_MAX},
+    v_dc:            Real{v | 1.0 <= v && v <= VOLTAGE_MAX},
+) -> Modulation
     where chain_order <= 0
-    requires (v_ref_magnitude >= 0.0)
-    requires (v_ref_magnitude <= VOLTAGE_MAX)
-    requires (v_dc >= 1.0)
-    requires (v_dc <= VOLTAGE_MAX)
     ensures  (result >= 0.0)
 {
     2.0 * v_ref_magnitude / v_dc
@@ -82,10 +78,8 @@ fn modulation_index(v_ref_magnitude: Real, v_dc: Real) -> Modulation
 // linear-range ceiling (M_LIN_MAX), else 0.0. The host kicks
 // the field-weakening loop on saturation.
 @target(fpga, clock_mhz = 500, precision = float32)
-fn linear_range_flag(modulation_index: Real) -> Real
+fn linear_range_flag(modulation_index: Real{m | 0.0 <= m && m <= 4.0}) -> Real
     where chain_order <= 0
-    requires (modulation_index >= 0.0)
-    requires (modulation_index <= 4.0)
     ensures  (result >= 0.0)
     ensures  (result <= 1.0)
 {

@@ -31,17 +31,11 @@ type SlipRatio = Real where chain_order <= 0
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "slip_in_unit_interval_under_braking")
 fn slip_ratio(
-    vehicle_speed: Real,
-    wheel_omega: Real,
-    wheel_radius: Real,
+    vehicle_speed: Real{v | V_MIN <= v && v <= V_MAX},
+    wheel_omega:   Real{w | 0.0 <= w && w <= OMEGA_MAX},
+    wheel_radius:  Real{r | R_MIN <= r && r <= R_MAX},
 ) -> SlipRatio
     where chain_order <= 0
-    requires (vehicle_speed >= V_MIN)
-    requires (vehicle_speed <= V_MAX)
-    requires (wheel_omega >= 0.0)
-    requires (wheel_omega <= OMEGA_MAX)
-    requires (wheel_radius >= R_MIN)
-    requires (wheel_radius <= R_MAX)
     ensures  (result >= 0.0)
     ensures  (result <= SLIP_MAX)
 {
@@ -56,16 +50,13 @@ fn slip_ratio(
 // (dry asphalt, wet asphalt, snow, ice).
 @target(fpga, clock_mhz = 200, precision = float32)
 @verify(lean, theorem = "burckhardt_mu_zero_at_zero_slip")
-fn burckhardt_mu(slip: Real, c1: Real, c2: Real, c3: Real) -> Real
+fn burckhardt_mu(
+    slip: Real{s | 0.0 <= s && s <= SLIP_MAX},
+    c1:   Real{c | 0.0 <= c && c <= 2.0},
+    c2:   Real{c | 0.0 <= c && c <= 50.0},
+    c3:   Real{c | 0.0 <= c && c <= 1.0},
+) -> Real
     where chain_order <= 1
-    requires (slip >= 0.0)
-    requires (slip <= SLIP_MAX)
-    requires (c1 >= 0.0)
-    requires (c1 <= 2.0)
-    requires (c2 >= 0.0)
-    requires (c2 <= 50.0)
-    requires (c3 >= 0.0)
-    requires (c3 <= 1.0)
 {
     c1 * (1.0 - exp(-c2 * slip)) - c3 * slip
 }
@@ -75,17 +66,11 @@ fn burckhardt_mu(slip: Real, c1: Real, c2: Real, c3: Real) -> Real
 // host pump-modulator integrates. Chain order 0.
 @target(fpga, clock_mhz = 500, precision = float32)
 fn slip_pressure_correction(
-    measured_slip: Real,
-    target_slip: Real,
-    kp: Real,
+    measured_slip: Real{s | 0.0 <= s && s <= SLIP_MAX},
+    target_slip:   Real{s | 0.0 <= s && s <= SLIP_MAX},
+    kp:            Real{k | 0.0 <= k && k <= 1.0e4},
 ) -> Real
     where chain_order <= 0
-    requires (measured_slip >= 0.0)
-    requires (measured_slip <= SLIP_MAX)
-    requires (target_slip >= 0.0)
-    requires (target_slip <= SLIP_MAX)
-    requires (kp >= 0.0)
-    requires (kp <= 1.0e4)
 {
     kp * (target_slip - measured_slip)
 }

@@ -60,13 +60,10 @@ fn pi_step(
 @target(fpga, clock_mhz = 100, precision = float32)
 @verify(lean, theorem = "vd_command_within_inverter_limits")
 fn foc_d_axis(
-    i_d_setpoint: Real,
-    i_d_measured: Real,
-    i_d_integral: Real,
+    i_d_setpoint: Real{i | abs(i) < 500.0},   // realistic peak motor current, A
+    i_d_measured: Real{i | abs(i) < 500.0},
+    i_d_integral: Real{i | abs(i) < 100.0},   // anti-windup limit
 ) -> Real
-    requires (abs(i_d_setpoint) < 500.0)   // realistic peak motor current, A
-    requires (abs(i_d_measured) < 500.0)
-    requires (abs(i_d_integral) < 100.0)   // anti-windup limit
     ensures  (abs(result) < V_LIMIT)
 {
     let error = i_d_setpoint - i_d_measured;

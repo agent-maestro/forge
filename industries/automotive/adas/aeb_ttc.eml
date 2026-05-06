@@ -31,13 +31,11 @@ type TimeToCollision = Real where chain_order <= 0
 
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "ttc_positive_when_closing")
-fn ttc_constant_velocity(range_m: Real, range_rate: Real) -> TimeToCollision
+fn ttc_constant_velocity(
+    range_m:    Real{r | 0.0 <= r && r <= RANGE_MAX},
+    range_rate: Real{r | -VEL_MAX <= r && r < -EPS},   // must be closing
+) -> TimeToCollision
     where chain_order <= 0
-    requires (range_m >= 0.0)
-    requires (range_m <= RANGE_MAX)
-    requires (range_rate >= -VEL_MAX)
-    requires (range_rate <= VEL_MAX)
-    requires (range_rate < -EPS)        // must be closing
     ensures  (result >= 0.0)
 {
     -range_m / range_rate
@@ -49,16 +47,11 @@ fn ttc_constant_velocity(range_m: Real, range_rate: Real) -> TimeToCollision
 @target(fpga, clock_mhz = 250, precision = float32)
 @verify(lean, theorem = "ttc_constant_accel_real_when_discriminant_nonneg")
 fn ttc_constant_acceleration(
-    range_m: Real,
-    range_rate: Real,
-    rel_accel: Real,
+    range_m:    Real{r | 0.0 <= r && r <= RANGE_MAX},
+    range_rate: Real{r | -VEL_MAX <= r && r <= VEL_MAX},
+    rel_accel:  Real{a | abs(a) <= ACCEL_MAX},
 ) -> TimeToCollision
     where chain_order <= 1
-    requires (range_m >= 0.0)
-    requires (range_m <= RANGE_MAX)
-    requires (range_rate >= -VEL_MAX)
-    requires (range_rate <= VEL_MAX)
-    requires (abs(rel_accel) <= ACCEL_MAX)
 {
     let disc = range_rate * range_rate - 2.0 * rel_accel * range_m;
     let disc_clamped = clamp(disc, 0.0, 1.0e9);
@@ -70,12 +63,11 @@ fn ttc_constant_acceleration(
 // the warning fires when range / brake_distance < 1.5.
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "stopping_distance_quadratic_in_speed")
-fn stopping_distance(speed: Real, deceleration: Real) -> Real
+fn stopping_distance(
+    speed:        Real{v | 0.0 <= v && v <= VEL_MAX},
+    deceleration: Real{a | EPS <= a && a <= ACCEL_MAX},
+) -> Real
     where chain_order <= 0
-    requires (speed >= 0.0)
-    requires (speed <= VEL_MAX)
-    requires (deceleration >= EPS)
-    requires (deceleration <= ACCEL_MAX)
     ensures  (result >= 0.0)
 {
     speed * speed / (2.0 * deceleration)
