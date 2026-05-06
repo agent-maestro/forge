@@ -279,6 +279,49 @@ def _expand_alias_refinements(
 
     fn.params = new_params
 
+    # Return-type alias expansion: same logic, applied to fn.return_type.
+    # The conventional binder name for return refinements is "result".
+    if fn.return_type:
+        ret_alias_unit, ret_alias_ref = _resolve_alias(fn.return_type, alias_map)
+
+        if ret_alias_unit is not None and fn.return_unit_expr is not None:
+            if ret_alias_unit != fn.return_unit_expr:
+                raise RefinementError(
+                    f"Unit conflict on return type of '{fn.name}': "
+                    f"type alias carries unit '{ret_alias_unit}' but return "
+                    f"annotation specifies '{fn.return_unit_expr}'",
+                    line=fn.line,
+                    col=fn.col,
+                )
+        if ret_alias_unit is not None and fn.return_unit_expr is None:
+            fn.return_unit_expr = ret_alias_unit
+
+        if ret_alias_ref is not None:
+            ret_alias_ref_renamed = Refinement(
+                binder="result",
+                predicate=_substitute_var(ret_alias_ref.predicate, ret_alias_ref.binder, "result"),
+                line=ret_alias_ref.line,
+                col=ret_alias_ref.col,
+            )
+            if fn.return_refinement is not None:
+                explicit_pred_renamed = _substitute_var(
+                    fn.return_refinement.predicate, fn.return_refinement.binder, "result"
+                )
+                fn.return_refinement = Refinement(
+                    binder="result",
+                    predicate=ASTNode(
+                        kind=NodeKind.BINOP,
+                        value="&&",
+                        children=[ret_alias_ref_renamed.predicate, explicit_pred_renamed],
+                        line=ret_alias_ref.line,
+                        col=ret_alias_ref.col,
+                    ),
+                    line=ret_alias_ref.line,
+                    col=ret_alias_ref.col,
+                )
+            else:
+                fn.return_refinement = ret_alias_ref_renamed
+
 
 def _splice_function(fn: EMLFunction) -> None:
     """Splice single-variable requires/ensures clauses for one function."""
