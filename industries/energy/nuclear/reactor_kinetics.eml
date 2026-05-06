@@ -38,28 +38,15 @@ type NeutronState = Real where chain_order <= 0
 @target(fpga, clock_mhz = 200, precision = float64)
 @verify(lean, theorem = "n_step_zero_growth_at_critical_with_zero_c")
 fn neutron_step(
-    n: Real,
-    c: Real,
-    reactivity: Real,
-    beta: Real,
-    prompt_lifetime: Real,
-    decay_const: Real,
-    dt: Real,
+    n:               Real{x | 0.0 <= x && x <= N_MAX},
+    c:               Real{x | 0.0 <= x && x <= C_MAX},
+    reactivity:      Real{r | abs(r) <= RHO_MAX},
+    beta:            Real{b | BETA_MIN <= b && b <= BETA_MAX},
+    prompt_lifetime: Real{l | LIFETIME_MIN <= l && l <= LIFETIME_MAX},
+    decay_const:     Real{l | LAMBDA_MIN <= l && l <= LAMBDA_MAX},
+    dt:              Real{t | 0.0 <= t && t <= DT_MAX},
 ) -> NeutronState
     where chain_order <= 0
-    requires (n >= 0.0)
-    requires (n <= N_MAX)
-    requires (c >= 0.0)
-    requires (c <= C_MAX)
-    requires (abs(reactivity) <= RHO_MAX)
-    requires (beta >= BETA_MIN)
-    requires (beta <= BETA_MAX)
-    requires (prompt_lifetime >= LIFETIME_MIN)
-    requires (prompt_lifetime <= LIFETIME_MAX)
-    requires (decay_const >= LAMBDA_MIN)
-    requires (decay_const <= LAMBDA_MAX)
-    requires (dt >= 0.0)
-    requires (dt <= DT_MAX)
 {
     n + dt * ((reactivity - beta) / prompt_lifetime * n + decay_const * c)
 }
@@ -67,26 +54,14 @@ fn neutron_step(
 @target(fpga, clock_mhz = 200, precision = float64)
 @verify(lean, theorem = "precursor_step_decays_without_source")
 fn precursor_step(
-    n: Real,
-    c: Real,
-    beta: Real,
-    prompt_lifetime: Real,
-    decay_const: Real,
-    dt: Real,
+    n:               Real{x | 0.0 <= x && x <= N_MAX},
+    c:               Real{x | 0.0 <= x && x <= C_MAX},
+    beta:            Real{b | BETA_MIN <= b && b <= BETA_MAX},
+    prompt_lifetime: Real{l | LIFETIME_MIN <= l && l <= LIFETIME_MAX},
+    decay_const:     Real{l | LAMBDA_MIN <= l && l <= LAMBDA_MAX},
+    dt:              Real{t | 0.0 <= t && t <= DT_MAX},
 ) -> NeutronState
     where chain_order <= 0
-    requires (n >= 0.0)
-    requires (n <= N_MAX)
-    requires (c >= 0.0)
-    requires (c <= C_MAX)
-    requires (beta >= BETA_MIN)
-    requires (beta <= BETA_MAX)
-    requires (prompt_lifetime >= LIFETIME_MIN)
-    requires (prompt_lifetime <= LIFETIME_MAX)
-    requires (decay_const >= LAMBDA_MIN)
-    requires (decay_const <= LAMBDA_MAX)
-    requires (dt >= 0.0)
-    requires (dt <= DT_MAX)
 {
     c + dt * (beta / prompt_lifetime * n - decay_const * c)
 }
@@ -99,17 +74,11 @@ fn precursor_step(
 @target(fpga, clock_mhz = 200, precision = float64)
 @verify(lean, theorem = "reactor_period_inverse_proportional_to_reactivity")
 fn reactor_period(
-    reactivity: Real,
-    prompt_lifetime: Real,
-    decay_const: Real,
+    reactivity:      Real{r | 1.0e-6 <= r && r <= RHO_MAX},
+    prompt_lifetime: Real{l | LIFETIME_MIN <= l && l <= LIFETIME_MAX},
+    decay_const:     Real{l | LAMBDA_MIN <= l && l <= LAMBDA_MAX},
 ) -> Real
     where chain_order <= 0
-    requires (reactivity >= 1.0e-6)
-    requires (reactivity <= RHO_MAX)
-    requires (prompt_lifetime >= LIFETIME_MIN)
-    requires (prompt_lifetime <= LIFETIME_MAX)
-    requires (decay_const >= LAMBDA_MIN)
-    requires (decay_const <= LAMBDA_MAX)
 {
     (prompt_lifetime + (1.0 - reactivity) / decay_const) / reactivity
 }

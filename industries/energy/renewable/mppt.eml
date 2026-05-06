@@ -21,16 +21,10 @@ type StableSignal = Real where chain_order <= 1
 @target(fpga, clock_mhz = 100, precision = float32)
 @verify(lean, theorem = "mppt_voltage_command_safe")
 fn mppt_step(
-    voltage_now: Real,
-    power_now: Real,
-    power_prev: Real,
+    voltage_now: Real{v | V_MIN <= v && v <= V_MAX},
+    power_now:   Real{p | POWER_MIN <= p && p <= POWER_MAX},
+    power_prev:  Real{p | POWER_MIN <= p && p <= POWER_MAX},
 ) -> Real
-    requires (V_MIN <= voltage_now)
-    requires (voltage_now <= V_MAX)
-    requires (POWER_MIN <= power_now)
-    requires (power_now <= POWER_MAX)
-    requires (POWER_MIN <= power_prev)
-    requires (power_prev <= POWER_MAX)
     ensures  (V_MIN <= result)
     ensures  (result <= V_MAX)
 {

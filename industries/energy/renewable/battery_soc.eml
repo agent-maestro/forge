@@ -33,19 +33,12 @@ type StateOfCharge = Real where chain_order <= 0
 @target(fpga, clock_mhz = 500, precision = float64)
 @verify(lean, theorem = "soc_coulomb_count_decreases_under_discharge")
 fn coulomb_count_step(
-    soc_prev: Real,
-    current_a: Real,
-    capacity_ah: Real,
-    dt_s: Real,
+    soc_prev:    Real{s | SOC_MIN <= s && s <= SOC_MAX},
+    current_a:   Real{i | abs(i) <= I_MAX},
+    capacity_ah: Real{q | Q_MIN <= q && q <= Q_MAX},
+    dt_s:        Real{t | 0.0 <= t && t <= DT_MAX},
 ) -> StateOfCharge
     where chain_order <= 0
-    requires (soc_prev >= SOC_MIN)
-    requires (soc_prev <= SOC_MAX)
-    requires (abs(current_a) <= I_MAX)
-    requires (capacity_ah >= Q_MIN)
-    requires (capacity_ah <= Q_MAX)
-    requires (dt_s >= 0.0)
-    requires (dt_s <= DT_MAX)
     ensures  (result >= SOC_MIN)
     ensures  (result <= SOC_MAX)
 {
@@ -57,10 +50,8 @@ fn coulomb_count_step(
 // linear bulk of the SOC range, 0.1-0.9). Chain order 0.
 @target(fpga, clock_mhz = 500, precision = float64)
 @verify(lean, theorem = "ocv_curve_monotone_in_soc")
-fn lithium_ion_ocv_curve(soc: Real) -> Real
+fn lithium_ion_ocv_curve(soc: Real{s | 0.05 <= s && s <= 0.95}) -> Real
     where chain_order <= 0
-    requires (soc >= 0.05)
-    requires (soc <= 0.95)
     ensures  (result >= V_MIN)
     ensures  (result <= V_MAX)
 {
@@ -77,17 +68,11 @@ fn lithium_ion_ocv_curve(soc: Real) -> Real
 @target(fpga, clock_mhz = 500, precision = float64)
 @verify(lean, theorem = "mixed_soc_blends_estimators")
 fn mixed_soc_estimate(
-    soc_coulomb: Real,
-    soc_from_ocv: Real,
-    alpha: Real,
+    soc_coulomb:  Real{s | SOC_MIN <= s && s <= SOC_MAX},
+    soc_from_ocv: Real{s | SOC_MIN <= s && s <= SOC_MAX},
+    alpha:        Real{a | 0.0 <= a && a <= 1.0},
 ) -> StateOfCharge
     where chain_order <= 0
-    requires (soc_coulomb >= SOC_MIN)
-    requires (soc_coulomb <= SOC_MAX)
-    requires (soc_from_ocv >= SOC_MIN)
-    requires (soc_from_ocv <= SOC_MAX)
-    requires (alpha >= 0.0)
-    requires (alpha <= 1.0)
     ensures  (result >= SOC_MIN)
     ensures  (result <= SOC_MAX)
 {
