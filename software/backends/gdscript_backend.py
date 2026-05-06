@@ -34,6 +34,36 @@ from lang.parser.ast_nodes import (
 )
 
 
+# ── Phase E.3: refinement-guard helpers (module-level, by convention) ─
+
+def _substitute_var(node: ASTNode, old: str, new: str) -> ASTNode:
+    """Return a new ASTNode with every VAR named `old` replaced by `new`."""
+    if node.kind == NodeKind.VAR and node.value == old:
+        return ASTNode(
+            kind=node.kind, value=new, children=[],
+            type_annotation=node.type_annotation,
+            chain_constraint=node.chain_constraint,
+            line=node.line, col=node.col,
+        )
+    new_children = [_substitute_var(c, old, new) for c in node.children]
+    return ASTNode(
+        kind=node.kind, value=node.value, children=new_children,
+        type_annotation=node.type_annotation,
+        chain_constraint=node.chain_constraint,
+        line=node.line, col=node.col,
+    )
+
+
+def _var_names(node: ASTNode) -> set[str]:
+    """Collect every VAR name appearing in `node`."""
+    names: set[str] = set()
+    if node.kind == NodeKind.VAR:
+        names.add(node.value)
+    for c in node.children:
+        names.update(_var_names(c))
+    return names
+
+
 _BUILTIN_TO_GD: dict[NodeKind, str] = {
     NodeKind.EXP:   "exp",
     NodeKind.LN:    "log",
@@ -156,9 +186,55 @@ class GDScriptBackend:
         ret_ty = "Array" if self._returns_tuple(fn) else "float"
         out.append(f"static func {fn.name}({params}) -> {ret_ty}:")
 
+        # Phase E.3: refinement guards fire BEFORE requires guards.
+        for ln in self._emit_refinement_guards(fn):
+            out.append(self.indent + ln)
+
+        # `requires` clauses lower to GDScript native assert(cond, "msg").
+        for r in fn.requires:
+            try:
+                cond = self._emit_expr(r)
+                msg = f"{fn.name}: requires ({cond})"
+                out.append(f'{self.indent}assert({cond}, "{msg}")')
+            except CompileError as e:
+                out.append(f"{self.indent}# requires: unsupported ({e})")
+
         body = self._emit_body(fn)
         for ln in body:
             out.append(self.indent + ln)
+        return out
+
+    # ── Phase E.3: refinement guards ─────────────────────────────
+
+    def _emit_refinement_guards(self, fn: EMLFunction) -> list[str]:
+        """Return one assert() line per refined parameter.
+
+        Cross-param refinements emit a comment-only obligation line.
+        """
+        out: list[str] = []
+        param_names = {p.name for p in fn.params}
+        for p in fn.params:
+            if p.refinement is None:
+                continue
+            ref = p.refinement
+            pred = _substitute_var(ref.predicate, ref.binder, p.name)
+            pred_vars = _var_names(pred)
+            other_params_in_pred = (pred_vars - {p.name}) & param_names
+            if other_params_in_pred:
+                try:
+                    cond_str = self._emit_expr(pred)
+                except CompileError as e:
+                    cond_str = f"<unsupported: {e}>"
+                out.append(
+                    f"# refinement obligation: {fn.name}: {p.name}: {cond_str}"
+                )
+                continue
+            try:
+                cond = self._emit_expr(pred)
+                msg = f"{fn.name}: refinement violated on {p.name}: {cond}"
+                out.append(f'assert({cond}, "{msg}")')
+            except CompileError as e:
+                out.append(f"# refinement: unsupported ({e})")
         return out
 
     @staticmethod

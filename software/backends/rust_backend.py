@@ -5,6 +5,14 @@ comment header, tuple struct generation) but emits Rust syntax:
 `fn name(params) -> ret_type` blocks, `let mut`, `while`,
 `monogate_sys::mg_*` calls.
 
+Phase E.3: refinement-aware lowering.
+  - `requires` clauses lower to `assert!(cond, "msg")` runtime guards.
+  - Refined parameters lower to `assert!(pred, "msg")` guards before the
+    requires guards.
+  - `assert!` (always-on panicking macro) is used for both, matching the
+    "safety precondition" semantics. `debug_assert!` would be stripped in
+    release builds, which is inappropriate for domain-enforcing contracts.
+
 Reference: lang/spec/EML_LANG_DESIGN.md section 2.2.
 """
 
@@ -17,6 +25,40 @@ from lang.parser.ast_nodes import (
     EMLModule,
     NodeKind,
 )
+
+
+# ── Phase E.3: refinement guard helpers ──────────────────────────────────────
+
+
+def _substitute_var(node: ASTNode, old: str, new: str) -> ASTNode:
+    """Return a new ASTNode tree with every VAR named *old* replaced by *new*.
+
+    Immutable: the original tree is never modified.
+    """
+    if node.kind == NodeKind.VAR and node.value == old:
+        return ASTNode(
+            kind=NodeKind.VAR, value=new, children=[],
+            type_annotation=node.type_annotation,
+            chain_constraint=node.chain_constraint,
+            line=node.line, col=node.col,
+        )
+    new_children = [_substitute_var(c, old, new) for c in node.children]
+    return ASTNode(
+        kind=node.kind, value=node.value, children=new_children,
+        type_annotation=node.type_annotation,
+        chain_constraint=node.chain_constraint,
+        line=node.line, col=node.col,
+    )
+
+
+def _var_names(node: ASTNode) -> set[str]:
+    """Collect every VAR name that appears anywhere in *node*."""
+    names: set[str] = set()
+    if node.kind == NodeKind.VAR:
+        names.add(str(node.value))
+    for c in node.children:
+        names.update(_var_names(c))
+    return names
 
 
 # Builtin NodeKind -> monogate_sys function name (without crate prefix).
@@ -194,6 +236,48 @@ class RustBackend:
                 _rewrite_var_names(fn.body, rename)
         return out
 
+    # ── Phase E.3: refinement guards ─────────────────────────────
+
+    def _emit_refinement_guards(self, fn: EMLFunction) -> list[str]:
+        """Return one assert!() line per refined parameter (Phase E.3).
+
+        Binder-substitution: the refinement's binder is alpha-renamed to
+        the actual parameter name before emission.
+
+        Cross-param refinements (predicate references another parameter)
+        are emitted as comment-only obligation lines.
+        """
+        out: list[str] = []
+        param_names = {p.name for p in fn.params}
+        for p in fn.params:
+            if p.refinement is None:
+                continue
+            ref = p.refinement
+            pred = _substitute_var(ref.predicate, ref.binder, p.name)
+            pred_vars = _var_names(pred)
+            other_params_in_pred = (pred_vars - {p.name}) & param_names
+            if other_params_in_pred:
+                try:
+                    cond_str = self._emit_expr(pred)
+                except CompileError as e:
+                    cond_str = f"<unsupported: {e}>"
+                out.append(
+                    f"{self.indent}// refinement obligation: "
+                    f"{fn.name}: {p.name}: {cond_str}"
+                )
+                continue
+            try:
+                cond = self._emit_expr(pred)
+                msg = f"{fn.name}: refinement violated on {p.name}: {cond}"
+                out.append(
+                    f'{self.indent}assert!({cond}, "{msg}");'
+                )
+            except CompileError as e:
+                out.append(
+                    f"{self.indent}// refinement: unsupported ({e})"
+                )
+        return out
+
     def _emit_function(self, fn: EMLFunction) -> list[str]:
         # Extern fns are FFI declarations -- the implementation is
         # provided by another crate or linked .a/.so/.dll.
@@ -220,6 +304,21 @@ class RustBackend:
             f"{p.name}: {_rust_type(p.type_name)}" for p in fn.params
         )
         out.append(f"pub fn {fn.name}({params_rust}) -> {ret_type} {{")
+
+        # Phase E.3: refinement-derived guards fire BEFORE requires guards.
+        # Refinements correspond to parameter types; requires clauses are
+        # user-specified cross-cutting contracts.
+        out.extend(self._emit_refinement_guards(fn))
+
+        # `requires` lower to assert!() guards (always-on panicking macro).
+        for r in fn.requires:
+            try:
+                cond = self._emit_expr(r)
+                out.append(
+                    f'{self.indent}assert!({cond}, "{fn.name}: requires ({cond})");'
+                )
+            except CompileError as e:
+                out.append(f"{self.indent}// requires: unsupported ({e})")
 
         struct_name = (
             self._tuple_type_name(fn.name) if fn.return_tuple_types else None

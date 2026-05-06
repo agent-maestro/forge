@@ -536,8 +536,15 @@ fn f(x: Real) -> Real
         # Still has sorry fallback (for goals linarith genuinely can't close)
         assert "sorry" in out
 
-    def test_pid_controller_c_backend_unchanged(self):
-        """pid_controller.eml --target c output MD5 is e864a6de6e6697c29ef0be4fd06a797b."""
+    def test_pid_controller_c_backend_post_e3(self):
+        """pid_controller.eml --target c output MD5 stable post-Phase-E.3.
+
+        Pre-E.3 hash was e864a6de6e6697c29ef0be4fd06a797b (C dropped
+        requires clauses).  Phase E.3 wired requires->assert() in the C
+        backend, so pid's output now includes precondition guards and
+        the hash changed once.  Post-E.3 must remain stable across
+        further phases.
+        """
         import subprocess
         import hashlib
         result = subprocess.run(
@@ -545,7 +552,7 @@ fn f(x: Real) -> Real
             capture_output=True, text=True
         )
         md5 = hashlib.md5(result.stdout.encode()).hexdigest()
-        assert md5 == "e864a6de6e6697c29ef0be4fd06a797b", (
+        assert md5 == "3ae9cb6715bf8b5d05c05b12cfc38ff0", (
             f"C backend MD5 changed to {md5} -- codegen drift detected!"
         )
 
