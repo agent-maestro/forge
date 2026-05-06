@@ -109,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="eml-compile",
         description=(
             "Monogate Forge -- the EML-lang compiler. "
-            "Compile one .eml source to 32 different targets: software, "
+            "Compile one .eml source to 33 different targets: software, "
             "GPU shaders, FPGA RTL, formal-verification proofs, and "
             "safety-critical avionics."
         ),

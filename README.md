@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/pypi/pyversions/monogate-forge.svg)](https://pypi.org/project/monogate-forge/)
 
-**Forge is the EML language and compiler. Write a math kernel once, compile it to 32 different targets — software, GPU shaders, FPGA RTL, formal-verification proofs, and safety-critical avionics — with chain-order analysis and Lean-checkable contracts on every function.**
+**Forge is the EML language and compiler. Write a math kernel once, compile it to 33 different targets — software, GPU shaders, FPGA RTL, formal-verification proofs, and safety-critical avionics — with chain-order analysis and Lean-checkable contracts on every function.**
 
 ---
 
