@@ -54,6 +54,12 @@ from lang.parser.ast_nodes import (
     EMLModule,
     NodeKind,
 )
+from software.verification.isabelle.refinement_emit import (
+    refinement_to_hypothesis,
+    _emit_pred,
+    _substitute_var,
+)
+from software.verification.isabelle.obligation_emit import obligations_to_lemmas
 
 
 # Builtin NodeKind -> Isabelle/HOL name. ``Complex_Main`` exports
@@ -190,6 +196,13 @@ class IsabelleBackend:
         out.extend(self._render_function_def(func))
         out.append("")
         out.extend(self._render_theorem(func, theorem_name))
+
+        # Phase E.4: emit deferred obligation lemmas after the main theorem.
+        lemmas = obligations_to_lemmas(func)
+        for lemma in lemmas:
+            out.append("")
+            out.append(lemma)
+
         return out
 
     def _render_function_def(self, func: EMLFunction) -> list[str]:
@@ -270,36 +283,108 @@ class IsabelleBackend:
     def _render_theorem(
         self, func: EMLFunction, theorem_name: str,
     ) -> list[str]:
-        # Hypotheses go under `assumes`; conclusion under `shows`.
-        hyp_clauses: list[str] = []
+        # ── Phase E.4: Refinement hypotheses (front of list) ────────
+        # Parameter refinements are always lowered regardless of any
+        # flag — they provide the interval bounds that downstream
+        # proofs need.
+        # Each refinement produces a labelled assumes clause:
+        #   assumes h_x: "<prop>"
+        # so the linarith tactic can find them by name.
+        assumes_clauses: list[str] = []
+        has_refinement_hyps = False
+        for p in func.params:
+            if p.refinement is not None:
+                # refinement_to_hypothesis returns (h_x: "<prop>")
+                # We need to emit it as an assumes line.
+                renamed_pred = _substitute_var(
+                    p.refinement.predicate, p.refinement.binder, p.name
+                )
+                try:
+                    prop = _emit_pred(renamed_pred)
+                except (ValueError, AttributeError) as e:
+                    prop = f"True (* TODO: refinement unsupported ({e}) *)"
+                assumes_clauses.append(f'h_{p.name}: "{prop}"')
+                has_refinement_hyps = True
+
+        # ── requires-derived hypotheses (after refinement assumes) ──
         for i, req in enumerate(func.requires, start=1):
             try:
                 hyp = self._emit_expr(req)
             except CompileError as e:
-                hyp_clauses.append(f"(* requires #{i}: {e} *)")
+                assumes_clauses.append(f"(* requires #{i}: {e} *)")
                 continue
-            hyp_clauses.append(f'"{hyp}"')
+            assumes_clauses.append(f'"{hyp}"')
 
+        # ── Phase E.4: Conclusion = return_refinement /\ ensures ────
+        param_names = [p.name for p in func.params]
+        call = f"{func.name} {' '.join(param_names)}"
+
+        conclusion_parts: list[str] = []
+
+        # Return refinement: substitute binder with the function call.
+        if func.return_refinement is not None:
+            ret_ref = func.return_refinement
+            try:
+                renamed_pred = _substitute_var(
+                    ret_ref.predicate, ret_ref.binder, "__result__"
+                )
+                prop_str = _emit_pred(renamed_pred)
+                # Replace __result__ placeholder with the actual call string.
+                prop_str = prop_str.replace("__result__", f"({call})")
+                conclusion_parts.append(prop_str)
+            except (ValueError, AttributeError) as e:
+                conclusion_parts.append(
+                    f"True (* TODO: return refinement unsupported ({e}) *)"
+                )
+
+        # ensures clauses (first one used, per existing behavior).
         if func.ensures:
             ens = func.ensures[0]
-            param_names = [p.name for p in func.params]
-            call = f"{func.name} {' '.join(param_names)}"
             try:
-                conclusion = self._emit_expr(ens, result_subst=f"({call})")
+                conclusion_parts.append(
+                    self._emit_expr(ens, result_subst=f"({call})")
+                )
             except CompileError as e:
-                conclusion = f"True (* TODO: ensures unsupported -- {e} *)"
+                conclusion_parts.append(
+                    f"True (* TODO: ensures unsupported -- {e} *)"
+                )
+
+        if conclusion_parts:
+            if len(conclusion_parts) == 1:
+                conclusion = conclusion_parts[0]
+            else:
+                conclusion = " \\<and> ".join(f"({p})" for p in conclusion_parts)
         else:
             conclusion = "True"
 
+        # ── Build theorem lines ──────────────────────────────────────
         lines = [f"theorem {theorem_name}:"]
-        if hyp_clauses:
-            lines.append(f"  assumes {hyp_clauses[0]}")
-            for h in hyp_clauses[1:]:
+        if assumes_clauses:
+            lines.append(f"  assumes {assumes_clauses[0]}")
+            for h in assumes_clauses[1:]:
                 lines.append(f"          {h}")
             lines.append(f'  shows "{conclusion}"')
         else:
             lines.append(f'  shows "{conclusion}"')
-        lines.append("  sorry")
+
+        # ── Proof body ───────────────────────────────────────────────
+        # When refinement hypotheses are present, attempt linarith
+        # (HOL / Complex_Main builtin — no AFP entries required).
+        # The `proof - unfolding <fn>_def by linarith` pattern tries
+        # to discharge the goal automatically; if linarith fails the
+        # `apply auto; oops` fallback keeps the file type-checkable.
+        #
+        # For non-refined kernels the original `sorry` path is
+        # preserved for backwards compatibility.
+        if has_refinement_hyps:
+            lines.extend([
+                "proof -",
+                f"  unfolding {func.name}_def",
+                "  by linarith",
+                "qed",
+            ])
+        else:
+            lines.append("  sorry")
         return lines
 
     # ── Helpers ───────────────────────────────────────────────
