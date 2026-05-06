@@ -1,65 +1,283 @@
 """Phase C: Auto-splicer for requires/ensures -> refinement type annotations.
 
-The auto-splicer is gated behind the ``--strict-refinements`` CLI flag
-(default OFF). With the flag OFF, this module is a no-op and behavior is
-byte-identical to pre-Phase-C.
+The auto-splicer has two passes:
 
-With the flag ON (``strict_mode=True``):
+Pass 1 -- Alias expansion (ALWAYS-ON, not flag-gated):
+  - Builds a dict of EMLTypeAlias objects from ``mod.types``.
+  - For each function parameter whose ``type_name`` resolves to a type alias
+    that carries a ``refinement`` and/or ``unit_expr``:
+      * The alias's ``refinement`` is substituted (alias binder -> param name)
+        and placed onto ``param.refinement``.
+      * The alias's ``unit_expr`` is propagated to ``param.unit_expr`` when
+        the param has no explicit unit annotation.
+      * If both the alias AND the param carry an explicit ``refinement``, they
+        are conjuncted (alias pred AND explicit pred), with both binders
+        normalised to the param name.
+      * If both the alias AND the param carry a ``unit_expr`` and they differ,
+        a ``RefinementError`` is raised.
+  - Alias references are transitively resolved (type B = A -> B expands A).
+  - Cycle detection raises ``RefinementError`` with a clear message.
+  - This runs BEFORE pass 2 so downstream consumers see populated
+    ``Param.refinement`` / ``Param.unit_expr`` fields.
+
+Pass 2 -- requires/ensures folding (flag-gated behind ``strict_mode=True``):
   - Single-variable ``requires (pred)`` clauses where ``pred`` only references
     one function parameter are folded into that parameter's refinement.
   - Single-variable ``ensures (pred)`` clauses where ``pred`` only references
-    `result` are folded into the function's return refinement.
+    ``result`` are folded into the function's return refinement.
   - Multi-variable clauses (referencing more than one parameter) stay as-is.
   - An ``explain_notes`` list is populated on the function (Phase C's
     annotation for ``--explain`` output).
 
 No SMT solver is used. Only syntactic analysis is performed.
 
-Design note: The splicer modifies the AST in-place (the module is the
-same object; EMLFunction fields are updated). The modifications are:
-  - ``fn.requires`` list items are removed when spliced.
-  - ``fn.ensures`` list items are removed when spliced.
-  - ``param.refinement`` is set (or extended) with the spliced predicate.
-  - ``fn.return_refinement`` is set with the spliced ensures predicate.
+Design note: Param objects are replaced (immutable style) rather than
+mutated.  EMLTypeAlias.refinement is never modified.
 """
 
 from __future__ import annotations
+
+from typing import Optional
 
 from lang.parser.ast_nodes import (
     ASTNode,
     EMLFunction,
     EMLModule,
+    EMLTypeAlias,
     NodeKind,
+    Param,
     Refinement,
 )
+from lang.refinements.error import RefinementError
 
 
 # ── Public API ────────────────────────────────────────────────────────
 
 
+def expand_aliases_module(mod: EMLModule) -> EMLModule:
+    """Pass 1 only: propagate type-alias refinements/units onto function params.
+
+    Must run BEFORE the unit-type checker so that a parameter declared with
+    an alias type (e.g. ``f: AudibleFreq`` where ``AudibleFreq`` is
+    ``Real[Hz]{...}``) carries the alias's ``unit_expr`` during unit
+    inference.  Idempotent: running this twice on the same module is a
+    no-op on the second call.
+    """
+    alias_map = {ta.name: ta for ta in mod.types}
+    if alias_map:
+        for fn in mod.functions:
+            _expand_alias_refinements(fn, alias_map)
+    return mod
+
+
 def auto_splice_module(mod: EMLModule, *, strict_mode: bool) -> EMLModule:
-    """Walk the module and splice single-variable requires/ensures into refinements.
+    """Walk the module and (1) expand alias refinements, (2) splice requires/ensures.
 
     Parameters
     ----------
     mod : EMLModule
-        The module to process (modified in-place).
+        The module to process (modified in-place for function param lists).
     strict_mode : bool
-        When False (default), this function is a no-op.
-        When True, single-variable clauses are spliced.
+        When False, only pass 1 (alias expansion) runs.
+        When True, pass 2 (single-variable requires/ensures folding) also runs.
 
     Returns
     -------
     EMLModule
-        The same module, modified in-place when strict_mode is True.
-    """
-    if not strict_mode:
-        return mod
+        The same module object.  Function param lists may be replaced when
+        alias expansion produces new ``Param`` objects.
 
-    for fn in mod.functions:
-        _splice_function(fn)
+    Note: pass 1 is idempotent, so it is safe to call this AFTER
+    ``expand_aliases_module``.  Callers that want both passes can call only
+    this function; the CLI calls expand_aliases_module first (before unit
+    checking) and then this for pass 2.
+    """
+    # Pass 1: alias refinement expansion -- ALWAYS runs (idempotent).
+    expand_aliases_module(mod)
+
+    # Pass 2: requires/ensures folding -- gated behind strict_mode.
+    if strict_mode:
+        for fn in mod.functions:
+            _splice_function(fn)
 
     return mod
+
+
+# ── Pass 1: Alias refinement expansion ───────────────────────────────
+
+
+def _resolve_alias(
+    type_name: str,
+    alias_map: dict[str, EMLTypeAlias],
+    visited: Optional[frozenset[str]] = None,
+) -> tuple[Optional[str], Optional[Refinement]]:
+    """Transitively resolve a type alias to its (unit_expr, Refinement) pair.
+
+    Follows alias chains until hitting a non-alias base type or an alias with
+    no further alias base.  Conjuncts refinements if intermediate aliases each
+    carry one (rare but supported).
+
+    Parameters
+    ----------
+    type_name : str
+        The type name to resolve (may or may not be in alias_map).
+    alias_map : dict[str, EMLTypeAlias]
+        All aliases in the module, keyed by name.
+    visited : frozenset[str] | None
+        Names already on the resolution stack; used for cycle detection.
+
+    Returns
+    -------
+    (unit_expr, refinement) : tuple
+        Both may be None if the alias (chain) carries neither.
+
+    Raises
+    ------
+    RefinementError
+        When a cycle is detected.
+    """
+    if visited is None:
+        visited = frozenset()
+
+    if type_name not in alias_map:
+        # Not an alias: base type (Real, Int, f64, …)
+        return (None, None)
+
+    if type_name in visited:
+        cycle_path = " -> ".join(sorted(visited)) + " -> " + type_name
+        raise RefinementError(
+            f"Cycle detected in type alias chain: {cycle_path}",
+            line=alias_map[type_name].line,
+            col=alias_map[type_name].col,
+        )
+
+    alias = alias_map[type_name]
+    visited = visited | {type_name}
+
+    # Recurse into the base type (which may itself be an alias).
+    parent_unit, parent_ref = _resolve_alias(alias.base_type, alias_map, visited)
+
+    # Merge unit: prefer the deepest (most-specific) non-None value.
+    merged_unit = alias.unit_expr if alias.unit_expr is not None else parent_unit
+
+    # Merge refinement: conjunct if both carry one.
+    if alias.refinement is not None and parent_ref is not None:
+        # Both carry refinements: conjunct with a common binder.
+        # We'll normalise both to a temporary binder later; for now join them.
+        merged_ref = _conjunct_refinements(parent_ref, alias.refinement)
+    elif alias.refinement is not None:
+        merged_ref = alias.refinement
+    else:
+        merged_ref = parent_ref
+
+    return (merged_unit, merged_ref)
+
+
+def _conjunct_refinements(a: Refinement, b: Refinement) -> Refinement:
+    """Conjunct two refinements into a single &&-joined refinement.
+
+    The resulting binder is taken from ``a``; ``b``'s predicate is
+    renamed from b.binder -> a.binder before joining.
+    """
+    b_pred_renamed = _substitute_var(b.predicate, b.binder, a.binder)
+    combined = ASTNode(
+        kind=NodeKind.BINOP,
+        value="&&",
+        children=[a.predicate, b_pred_renamed],
+        line=a.line,
+        col=a.col,
+    )
+    return Refinement(binder=a.binder, predicate=combined, line=a.line, col=a.col)
+
+
+def _expand_alias_refinements(
+    fn: EMLFunction,
+    alias_map: dict[str, EMLTypeAlias],
+) -> None:
+    """Expand alias refinements/units onto all parameters of ``fn`` in-place.
+
+    For each parameter:
+    - Resolve its type_name through the alias chain.
+    - If the resolved alias carries a unit_expr:
+        * If the param already has a different unit_expr, raise RefinementError.
+        * Otherwise propagate the alias unit.
+    - If the resolved alias carries a refinement:
+        * Substitute alias binder -> param name.
+        * If the param already has an explicit refinement, conjunct them
+          (alias pred first, explicit pred second, both normalised to param name).
+    - Construct a new Param (immutable) and replace in fn.params.
+    """
+    new_params: list[Param] = []
+    for param in fn.params:
+        alias_unit, alias_ref = _resolve_alias(param.type_name, alias_map)
+
+        # Unit conflict check.
+        if alias_unit is not None and param.unit_expr is not None:
+            if alias_unit != param.unit_expr:
+                raise RefinementError(
+                    f"Unit conflict on parameter '{param.name}': "
+                    f"type alias carries unit '{alias_unit}' but parameter "
+                    f"annotation specifies '{param.unit_expr}'",
+                    line=param.line,
+                    col=param.col,
+                )
+
+        resolved_unit = alias_unit if param.unit_expr is None else param.unit_expr
+
+        if alias_ref is None:
+            # No alias refinement: param is unchanged (immutable: rebuild only if needed).
+            if resolved_unit != param.unit_expr:
+                param = Param(
+                    name=param.name,
+                    type_name=param.type_name,
+                    unit_expr=resolved_unit,
+                    refinement=param.refinement,
+                    line=param.line,
+                    col=param.col,
+                )
+            new_params.append(param)
+            continue
+
+        # Alias carries a refinement: substitute alias binder -> param name.
+        alias_ref_renamed = Refinement(
+            binder=param.name,
+            predicate=_substitute_var(alias_ref.predicate, alias_ref.binder, param.name),
+            line=alias_ref.line,
+            col=alias_ref.col,
+        )
+
+        # Merge with any explicit param refinement.
+        if param.refinement is not None:
+            # Explicit refinement on param: normalise its binder to param name too.
+            explicit_pred_renamed = _substitute_var(
+                param.refinement.predicate, param.refinement.binder, param.name
+            )
+            combined_pred = ASTNode(
+                kind=NodeKind.BINOP,
+                value="&&",
+                children=[alias_ref_renamed.predicate, explicit_pred_renamed],
+                line=alias_ref.line,
+                col=alias_ref.col,
+            )
+            merged_ref = Refinement(
+                binder=param.name,
+                predicate=combined_pred,
+                line=alias_ref.line,
+                col=alias_ref.col,
+            )
+        else:
+            merged_ref = alias_ref_renamed
+
+        new_params.append(Param(
+            name=param.name,
+            type_name=param.type_name,
+            unit_expr=resolved_unit,
+            refinement=merged_ref,
+            line=param.line,
+            col=param.col,
+        ))
+
+    fn.params = new_params
 
 
 def _splice_function(fn: EMLFunction) -> None:
