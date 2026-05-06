@@ -313,6 +313,15 @@ class CoqBackend:
                 continue
             hyp_clauses.append(f"(h{i} : {hyp})")
 
+        # Phase G: assume-derived hypotheses (after requires hyps).
+        # assume (P) -> (h_assumeN : P) -- trusted, not runtime-checked.
+        for i, asm in enumerate(func.assumes, start=1):
+            try:
+                hyp = self._emit_expr(asm)
+                hyp_clauses.append(f"(h_assume{i} : {hyp})")
+            except CompileError as e:
+                hyp_clauses.append(f"(* assume #{i}: {e} *)")
+
         # ── Phase E.4: Conclusion = return_refinement /\ ensures ────
         param_names = [p.name for p in func.params]
         call = f"{func.name} {' '.join(param_names)}"

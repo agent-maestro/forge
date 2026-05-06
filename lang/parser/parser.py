@@ -391,21 +391,33 @@ class Parser:
         if self._check("KEYWORD", "where"):
             self._advance()
             where_clauses = self._parse_where_clauses()
-        # Optional `requires` / `ensures` (zero or more, in any order).
+        # Optional `requires` / `ensures` / `assume` (zero or more, in any order).
         # Phase C: requires/ensures predicates are also validated against the
         # restricted predicate sub-language (no transcendentals).
+        # Phase G: `assume (P)` is a new keyword that behaves like `requires`
+        # at the proof level but emits NO runtime guard.  It parses with the
+        # FULL expression language (transcendentals allowed), same as requires.
+        # Clauses are collected in source order; each clause type goes to its
+        # own list (fn.requires, fn.ensures, fn.assumes).
         requires: list[ASTNode] = []
         ensures: list[ASTNode] = []
-        while self._check("KEYWORD", "requires") or self._check("KEYWORD", "ensures"):
+        assumes: list[ASTNode] = []
+        while (
+            self._check("KEYWORD", "requires")
+            or self._check("KEYWORD", "ensures")
+            or self._check("KEYWORD", "assume")
+        ):
             kw_clause = self._advance()
-            # Phase C note: requires/ensures clauses parse with the FULL expression
-            # language (same as Phase A/B).  The predicate sub-language restriction
-            # (no transcendentals) applies ONLY inside `{binder | predicate}`
-            # refinement type bodies, not to standalone requires/ensures.
-            # This preserves backwards compat with existing .eml files that use
-            # transcendentals in requires (e.g. `requires (rate * dt < vol * sqrt(dt))`).
+            # All three clause types parse with the FULL expression language.
+            # The predicate sub-language restriction (no transcendentals) applies
+            # ONLY inside `{binder | predicate}` refinement type bodies.
             expr = self._parse_expr()
-            (requires if kw_clause.value == "requires" else ensures).append(expr)
+            if kw_clause.value == "requires":
+                requires.append(expr)
+            elif kw_clause.value == "ensures":
+                ensures.append(expr)
+            else:  # "assume"
+                assumes.append(expr)
         # Body
         body = self._parse_block()
         return EMLFunction(
@@ -420,6 +432,7 @@ class Parser:
             annotations=annotations,
             requires=requires,
             ensures=ensures,
+            assumes=assumes,
             line=kw.line,
             col=kw.col,
         )

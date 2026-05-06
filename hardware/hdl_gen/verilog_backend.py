@@ -343,6 +343,15 @@ class VerilogBackend:
         # Phase E.5: sim-time refinement guards (synth-tool-safe).
         refinement_block = self._emit_refinement_guards(fn)
 
+        # Phase G: assume clauses -- comment-only (no sim-time guard).
+        assume_comments = ""
+        for a in fn.assumes:
+            try:
+                pred_str = _verilog_pred_expr(a)
+                assume_comments += f"    // assume: {pred_str}\n"
+            except Exception as e:
+                assume_comments += f"    // assume: unsupported ({e})\n"
+
         return (
             f"// Pipeline: {fn.name}\n"
             f"// Chain order: {co}     Cost class: {cc}\n"
@@ -360,6 +369,7 @@ class VerilogBackend:
             f"\n"
             f"{body_block}\n"
             f"{refinement_block}"
+            f"{assume_comments}"
             f"\n"
             f"    // Registered output: one cycle latency between\n"
             f"    // valid_in and valid_out (combinational body).\n"

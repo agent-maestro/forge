@@ -302,6 +302,15 @@ class VHDLBackend:
         # Phase E.5: refinement assert/report guards.
         refinement_block = self._emit_refinement_guards(fn)
 
+        # Phase G: assume clauses -- comment-only (no VHDL assert).
+        assume_comments = ""
+        for a in fn.assumes:
+            try:
+                pred_str = _vhdl_pred_expr(a)
+                assume_comments += f"    -- assume: {pred_str}\n"
+            except Exception as e:
+                assume_comments += f"    -- assume: unsupported ({e})\n"
+
         return (
             f"-- Pipeline: {fn.name}\n"
             f"-- Chain order: {co}     Cost class: {cc}\n"
@@ -340,6 +349,7 @@ class VHDLBackend:
             f"        end if;\n"
             f"    end process;\n"
             f"{refinement_block}"
+            f"{assume_comments}"
             f"\n"
             f"end architecture rtl;\n"
         )

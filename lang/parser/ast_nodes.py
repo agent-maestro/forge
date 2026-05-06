@@ -198,6 +198,9 @@ class EMLFunction:
     annotations: list[Annotation] = field(default_factory=list)
     requires: list[ASTNode] = field(default_factory=list)
     ensures: list[ASTNode] = field(default_factory=list)
+    # Phase G: assume clauses -- trusted hypotheses, zero runtime cost.
+    # Never spliced into refinements; treated as hypotheses in proof targets.
+    assumes: list[ASTNode] = field(default_factory=list)
     line: int = 0
     col: int = 0
 

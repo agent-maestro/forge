@@ -200,13 +200,21 @@ class SystemVerilogBackend(VerilogBackend):
         comment so the human reviewer sees the contract was
         understood but not lowerable.
         """
-        if not fn.requires and not fn.ensures:
+        if not fn.requires and not fn.ensures and not fn.assumes:
             return ""
 
         lines: list[str] = [
             "",
-            "    // ── SVA contracts (from @verify / requires / ensures) ──",
+            "    // ── SVA contracts (from @verify / requires / ensures / assume) ──",
         ]
+
+        # Phase G: assume clauses -- comment-only, no SVA property.
+        for i, asm in enumerate(fn.assumes, start=1):
+            try:
+                expr = self._sva_expr(asm, qfmt)
+                lines.append(f"    // assume: {expr}")
+            except CompileError as e:
+                lines.append(f"    // assume #{i}: unsupported ({e})")
 
         for i, req in enumerate(fn.requires, start=1):
             try:

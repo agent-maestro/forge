@@ -447,6 +447,17 @@ class LLVMBackend:
             except CompileError as e:
                 body_lines.append(f"  ; requires: unsupported ({e})")
 
+        # Phase G: `assume` clauses -- trusted hypotheses, comment-only in LLVM-IR.
+        # Unlike requires, assume emits NO runtime guard (no llvm.assume call).
+        for a in fn.assumes:
+            try:
+                pred_str = self._emit_refinement_pred_str(a, st)
+                body_lines.append(f"  ; assume: {pred_str}")
+            except CompileError as e:
+                body_lines.append(f"  ; assume: unsupported ({e})")
+            except Exception as e:
+                body_lines.append(f"  ; assume: unsupported ({e})")
+
         struct_name = (
             self._tuple_type_name(fn.name) if fn.return_tuple_types else None
         )

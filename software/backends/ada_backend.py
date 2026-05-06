@@ -325,6 +325,20 @@ class AdaBackend:
         sig_head = self._function_head(fn)
         out: list[str] = [f"{sig_head} is"]
         out.append("begin")
+        # Phase G: assume clauses.
+        # GNAT pragma Assume (Boolean_Expr) is the natural Ada equivalent:
+        # it tells SPARK GNATprove to treat the predicate as a known fact
+        # without generating a runtime check.  If the predicate contains
+        # transcendentals that Ada cannot evaluate at compile time, fall back
+        # to a comment-only line so the body remains syntactically valid.
+        for a in fn.assumes:
+            try:
+                pred = self._emit_expr(a)
+                out.append(self.indent + f"pragma Assume ({pred});")
+            except CompileError as e:
+                out.append(self.indent + f"-- assume: unsupported ({e})")
+            except Exception as e:
+                out.append(self.indent + f"-- assume: unsupported ({e})")
         body = self._emit_block(fn.body, return_value=True)
         for ln in body:
             out.append(self.indent + ln)

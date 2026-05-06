@@ -285,8 +285,11 @@ class KotlinBackend:
         has_requires = bool(fn.requires)
         has_refinements = any(p.refinement is not None for p in fn.params)
 
+        # Phase G: functions with assume clauses cannot use expression-body
+        # form because the assume comments must appear in the function body.
+        has_assumes = bool(fn.assumes)
         if (is_pure_expr and not has_requires and not has_refinements
-                and not fn.return_tuple_types):
+                and not has_assumes and not fn.return_tuple_types):
             try:
                 expr = self._emit_expr(self._final_expression(fn.body))
                 out.append(f"fun {fn.name}({params}): {ret} = {expr}")
@@ -309,6 +312,13 @@ class KotlinBackend:
                            f'{{ "{fn.name}: requires {cond}" }}')
             except CompileError as e:
                 out.append(f"{self.indent}// require: unsupported ({e})")
+
+        # Phase G: `assume` clauses -- trusted hypotheses, zero runtime cost.
+        for a in fn.assumes:
+            try:
+                out.append(f"{self.indent}// assume: {self._emit_expr(a)}")
+            except CompileError as e:
+                out.append(f"{self.indent}// assume: unsupported ({e})")
 
         record = (
             self._tuple_data_class_name(fn.name)
