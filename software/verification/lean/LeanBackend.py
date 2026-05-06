@@ -463,25 +463,22 @@ class LeanBackend:
 
         # ── Proof body ───────────────────────────────────────────────
         # When the goal is trivially True, close with `trivial`.
-        # Otherwise always try `first | linarith | sorry`:
-        #   - linarith is a Lean 4 builtin (part of Lean4/Std, no Mathlib)
-        #     that can close linear arithmetic goals AND finds MachLib.Forge
-        #     lemmas in scope (exp_nonneg, max_nonneg_right, min_le_*, etc.)
-        #     for common non-linear patterns via `linarith [hint]` auto-search.
-        #   - MachLib benchmarks show linarith closes ~33/33 species theorems
-        #     (cat_vision, bat_sonar, pit_viper, etc.) when MachLib.Forge is
-        #     in scope — including exp, max, min, div goals.
-        #   - The sorry fallback keeps the file compiling for goals linarith
-        #     genuinely cannot close (rare; mostly goals requiring ring/nlinarith).
-        # The `first | linarith | sorry` pattern emits a sorry in the TEXT
-        # but Lean does NOT invoke sorry when linarith succeeds — the theorem
-        # is considered proof-complete by the kernel.
+        # Otherwise emit a sorry placeholder.  An earlier draft of
+        # this backend tried `first | linarith | sorry`, but
+        # `linarith` is a Mathlib tactic and is NOT available in
+        # core Lean 4 / Std; emitting it caused "unknown tactic"
+        # errors when the generated file was compiled against
+        # bare MachLib.  The sorry placeholder lets the file
+        # type-check cleanly (with a sorry-warning); refinement
+        # hypotheses are still in scope and the user (or a later
+        # tactic-extension phase) can discharge them by hand or
+        # via a MachLib-provided tactic.
         if conclusion == "True":
             proof_lines.append("  trivial")
         else:
             proof_lines.extend([
                 f"  unfold {safe_func}",
-                "  first | linarith | sorry  -- TODO: prove against MachLib foundations",
+                "  sorry  -- TODO: prove against MachLib foundations",
             ])
         return proof_lines
 

@@ -25,6 +25,7 @@ should set up the lake environment.
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -124,7 +125,11 @@ class LeanRunner:
             )
 
         try:
-            src = LeanBackend().compile(fn)
+            # compile_module(mod) (not compile(fn)) so module-level
+            # constants the function references (`dt`, `ATT_LIMIT`,
+            # etc.) are emitted as `noncomputable def`s ahead of the
+            # function.  Otherwise `lean` fails on unresolved names.
+            src = LeanBackend().compile_module(self.module)
         except Exception as e:
             return LeanCheckResult(
                 function_name=function_name,
@@ -186,9 +191,30 @@ class LeanRunner:
             lean_file = tmp_path / "Generated.lean"
             lean_file.write_text(src, encoding="utf-8")
             try:
+                # `--no-deps` was rejected by Lean 4.14.0 (and current
+                # leanprover binaries -- the flag never existed on the
+                # `lean` CLI; it was a `lake` flag).  Drop it.
+                #
+                # Generated Lean files import MachLib, which lives in a
+                # sibling repo.  Discover its built olean directory and
+                # add it to LEAN_PATH so `lean` can resolve `import
+                # MachLib`.  When MachLib hasn't been built locally
+                # (`lake build` in machlib/foundations) the import will
+                # fail and the test will surface that explicitly.
+                env = os.environ.copy()
+                machlib_lib = (
+                    Path(__file__).resolve().parents[3]
+                    / "machlib" / "foundations" / ".lake" / "build" / "lib"
+                )
+                if machlib_lib.exists():
+                    existing = env.get("LEAN_PATH", "")
+                    env["LEAN_PATH"] = (
+                        f"{machlib_lib}:{existing}" if existing else str(machlib_lib)
+                    )
                 r = subprocess.run(
-                    ["lean", "--no-deps", str(lean_file)],
+                    ["lean", str(lean_file)],
                     cwd=str(tmp_path),
+                    env=env,
                     capture_output=True, text=True,
                     timeout=self.timeout_s,
                 )
