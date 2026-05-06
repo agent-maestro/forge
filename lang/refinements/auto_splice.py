@@ -60,13 +60,21 @@ def expand_aliases_module(mod: EMLModule) -> EMLModule:
     Must run BEFORE the unit-type checker so that a parameter declared with
     an alias type (e.g. ``f: AudibleFreq`` where ``AudibleFreq`` is
     ``Real[Hz]{...}``) carries the alias's ``unit_expr`` during unit
-    inference.  Idempotent: running this twice on the same module is a
-    no-op on the second call.
+    inference.
+
+    Idempotent: a sentinel attribute ``_aliases_expanded`` is set on the
+    module after the first call.  Subsequent calls return early so callers
+    can safely chain ``expand_aliases_module(mod)`` with later passes that
+    also delegate to it (e.g. ``auto_splice_module``) without
+    double-conjuncting alias predicates.
     """
+    if getattr(mod, "_aliases_expanded", False):
+        return mod
     alias_map = {ta.name: ta for ta in mod.types}
     if alias_map:
         for fn in mod.functions:
             _expand_alias_refinements(fn, alias_map)
+    mod._aliases_expanded = True  # type: ignore[attr-defined]
     return mod
 
 

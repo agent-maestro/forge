@@ -39,6 +39,84 @@ from lang.parser.ast_nodes import (
 )
 
 
+# ── Phase E.5: refinement guard helpers ──────────────────────────────────────
+
+
+def _substitute_var(node: ASTNode, old: str, new: str) -> ASTNode:
+    """Return a new ASTNode tree with every VAR named *old* replaced by *new*.
+
+    Immutable: the original tree is never modified.
+    """
+    if node.kind == NodeKind.VAR and node.value == old:
+        return ASTNode(
+            kind=NodeKind.VAR, value=new, children=[],
+            type_annotation=node.type_annotation,
+            chain_constraint=node.chain_constraint,
+            line=node.line, col=node.col,
+        )
+    new_children = [_substitute_var(c, old, new) for c in node.children]
+    return ASTNode(
+        kind=node.kind, value=node.value, children=new_children,
+        type_annotation=node.type_annotation,
+        chain_constraint=node.chain_constraint,
+        line=node.line, col=node.col,
+    )
+
+
+def _var_names(node: ASTNode) -> set[str]:
+    """Collect every VAR name that appears anywhere in *node*."""
+    names: set[str] = set()
+    if node.kind == NodeKind.VAR:
+        names.add(str(node.value))
+    for c in node.children:
+        names.update(_var_names(c))
+    return names
+
+
+# Verilog operator string per BINOP value (reused for predicate rendering).
+_BINOP_PRED: dict[str, str] = {
+    "+": "+", "-": "-", "*": "*", "/": "/",
+    "<": "<", ">": ">", "<=": "<=", ">=": ">=",
+    "==": "==", "!=": "!=",
+    "&&": "&&", "||": "||",
+}
+
+
+def _verilog_pred_expr(node: ASTNode) -> str:
+    """Render a predicate AST node as a Verilog expression string.
+
+    Used for sim-time $display guards (not synthesizable; inside
+    pragma translate_off blocks). ABS uses inline ternary per
+    Hard Contract #3: (x < 0 ? -x : x).
+    """
+    kind = node.kind
+    if kind == NodeKind.LITERAL:
+        v = node.value
+        if isinstance(v, bool):
+            return "1'b1" if v else "1'b0"
+        if isinstance(v, (int, float)):
+            # Emit as a plain decimal for readability in sim messages.
+            return repr(v)
+        return repr(v)
+    if kind == NodeKind.VAR:
+        return str(node.value)
+    if kind == NodeKind.UNARYOP:
+        sub = _verilog_pred_expr(node.children[0])
+        return f"({node.value}{sub})"
+    if kind == NodeKind.BINOP:
+        left = _verilog_pred_expr(node.children[0])
+        right = _verilog_pred_expr(node.children[1])
+        op = _BINOP_PRED.get(node.value, node.value)
+        return f"({left} {op} {right})"
+    if kind == NodeKind.ABS:
+        sub = _verilog_pred_expr(node.children[0])
+        # Verilog: no abs primitive; inline ternary per Hard Contract #3.
+        return f"({sub} < 0 ? -{sub} : {sub})"
+    # Fallback: function-call style
+    args = ", ".join(_verilog_pred_expr(c) for c in node.children)
+    return f"{kind.name.lower()}({args})"
+
+
 # Verilog operator string per BINOP value.
 _BINOP_TO_VERILOG: dict[str, str] = {
     "+": "+", "-": "-", "*": "*", "/": "/",
@@ -181,6 +259,47 @@ class VerilogBackend:
             )
         return "\n".join(lines)
 
+    def _emit_refinement_guards(self, fn: EMLFunction) -> str:
+        """Return pragma translate_off / sim-time $display guards (Phase E.5).
+
+        Idiom: synth-tool-friendly sim-time check inside a translate_off block.
+          `pragma translate_off
+          always @(posedge clk) begin
+              if (!(cond)) $display("...");
+          end
+          `pragma translate_on
+
+        ABS uses inline ternary (x < 0 ? -x : x) per Hard Contract #3.
+        Cross-param refinements emit a comment-only line.
+        """
+        param_names = {p.name for p in fn.params}
+        guard_lines: list[str] = []
+        for p in fn.params:
+            if p.refinement is None:
+                continue
+            ref = p.refinement
+            pred = _substitute_var(ref.predicate, ref.binder, p.name)
+            pred_vars = _var_names(pred)
+            other_params = (pred_vars - {p.name}) & param_names
+            if other_params:
+                cond_str = _verilog_pred_expr(pred)
+                guard_lines.append(
+                    f"    // refinement obligation: {fn.name}: {p.name}: {cond_str}"
+                )
+                continue
+            cond = _verilog_pred_expr(pred)
+            msg = f"{fn.name}: refinement violated on {p.name}: {cond}"
+            guard_lines.append(
+                f"    `pragma translate_off\n"
+                f"    always @(posedge clk) begin\n"
+                f'        if (!({cond})) $display("{msg}");\n'
+                f"    end\n"
+                f"    `pragma translate_on"
+            )
+        if not guard_lines:
+            return ""
+        return "\n" + "\n".join(guard_lines) + "\n"
+
     def _emit_function(
         self, fn: EMLFunction, plan: AllocationPlan,
     ) -> str:
@@ -221,6 +340,9 @@ class VerilogBackend:
             "    // (constant body -- no intermediates)"
         )
 
+        # Phase E.5: sim-time refinement guards (synth-tool-safe).
+        refinement_block = self._emit_refinement_guards(fn)
+
         return (
             f"// Pipeline: {fn.name}\n"
             f"// Chain order: {co}     Cost class: {cc}\n"
@@ -237,6 +359,7 @@ class VerilogBackend:
             f");\n"
             f"\n"
             f"{body_block}\n"
+            f"{refinement_block}"
             f"\n"
             f"    // Registered output: one cycle latency between\n"
             f"    // valid_in and valid_out (combinational body).\n"
