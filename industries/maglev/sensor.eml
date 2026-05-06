@@ -67,10 +67,8 @@ const V_DIFF_MIN:    Real =   0.05      // V -- below this, clamp
 // Chain order 0 (rational on the input).
 @target(fpga, clock_mhz = 200, precision = float32)
 @verify(lean, theorem = "hall_to_gap_monotone")
-fn voltage_to_gap(v_hall: Real) -> Real
+fn voltage_to_gap(v_hall: Real{v | V_H_MIN <= v && v <= V_H_MAX}) -> Real
     where chain_order <= 0
-    requires (v_hall >= V_H_MIN)
-    requires (v_hall <= V_H_MAX)
     ensures  (result >= Z_MIN_OUT)
     ensures  (result <= Z_MAX_OUT)
 {
@@ -93,16 +91,11 @@ fn voltage_to_gap(v_hall: Real) -> Real
 @target(fpga, clock_mhz = 200, precision = float32)
 @verify(lean, theorem = "filtered_gap_within_envelope")
 fn filtered_gap(
-    v_hall: Real,
-    x1: Real, x2: Real, y1: Real, y2: Real,
+    v_hall: Real{v | V_H_MIN <= v && v <= V_H_MAX},
+    x1: Real{x | abs(x) <= 1.0}, x2: Real{x | abs(x) <= 1.0},
+    y1: Real{y | abs(y) <= 1.0}, y2: Real{y | abs(y) <= 1.0},
 ) -> Real
     where chain_order <= 1
-    requires (v_hall >= V_H_MIN)
-    requires (v_hall <= V_H_MAX)
-    requires (abs(x1) <= 1.0)
-    requires (abs(x2) <= 1.0)
-    requires (abs(y1) <= 1.0)
-    requires (abs(y2) <= 1.0)
     ensures  (result >= Z_MIN_OUT)
     ensures  (result <= Z_MAX_OUT)
 {

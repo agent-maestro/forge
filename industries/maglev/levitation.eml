@@ -47,14 +47,12 @@ const LIFT_MARGIN: Real =   1.10
 // Pure rational expression: chain order 0.
 @target(fpga, clock_mhz = 200, precision = float32)
 @verify(lean, theorem = "magnetic_lift_force_nonnegative")
-fn magnetic_force(k: Real, current: Real, gap: Real) -> Real
+fn magnetic_force(
+    k:       Real{k | K_MIN <= k && k <= K_MAX},
+    current: Real{i | ZERO <= i && i <= I_MAX},
+    gap:     Real{z | Z_MIN <= z && z <= Z_MAX},
+) -> Real
     where chain_order <= 0
-    requires (k >= K_MIN)
-    requires (k <= K_MAX)
-    requires (current >= ZERO)
-    requires (current <= I_MAX)
-    requires (gap >= Z_MIN)
-    requires (gap <= Z_MAX)
     ensures  (result >= ZERO)
 {
     k * current * current / (gap * gap)
@@ -69,12 +67,11 @@ fn magnetic_force(k: Real, current: Real, gap: Real) -> Real
 // Chain order 0.
 @target(fpga, clock_mhz = 200, precision = float32)
 @verify(lean, theorem = "levitation_envelope_lifts_with_margin")
-fn lift_margin(k: Real, mass: Real) -> Real
+fn lift_margin(
+    k:    Real{k | K_MIN <= k && k <= K_MAX},
+    mass: Real{m | M_MIN <= m && m <= M_MAX},
+) -> Real
     where chain_order <= 0
-    requires (k >= K_MIN)
-    requires (k <= K_MAX)
-    requires (mass >= M_MIN)
-    requires (mass <= M_MAX)
 {
     let f_floor   = k * I_MIN * I_MIN / (Z_MAX * Z_MAX);
     let f_required = LIFT_MARGIN * mass * G;
@@ -87,16 +84,13 @@ fn lift_margin(k: Real, mass: Real) -> Real
 //
 // Chain order 0.
 @target(fpga, clock_mhz = 200, precision = float32)
-fn net_force(k: Real, current: Real, gap: Real, mass: Real) -> Real
+fn net_force(
+    k:       Real{k | K_MIN <= k && k <= K_MAX},
+    current: Real{i | ZERO <= i && i <= I_MAX},
+    gap:     Real{z | Z_MIN <= z && z <= Z_MAX},
+    mass:    Real{m | M_MIN <= m && m <= M_MAX},
+) -> Real
     where chain_order <= 0
-    requires (k >= K_MIN)
-    requires (k <= K_MAX)
-    requires (current >= ZERO)
-    requires (current <= I_MAX)
-    requires (gap >= Z_MIN)
-    requires (gap <= Z_MAX)
-    requires (mass >= M_MIN)
-    requires (mass <= M_MAX)
 {
     k * current * current / (gap * gap) - mass * G
 }

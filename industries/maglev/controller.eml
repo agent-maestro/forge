@@ -64,16 +64,12 @@ const DERIV_MAX:   Real =  10.0      // gap rate of change (m/s)
 @target(fpga, clock_mhz = 100, precision = float32)
 @verify(lean, theorem = "maglev_command_within_coil_limits")
 fn pid_command(
-    gap_target: Real, gap_measured: Real,
-    integral: Real, derivative: Real,
+    gap_target:   Real{g | Z_TARGET_MIN <= g && g <= Z_TARGET_MAX},
+    gap_measured: Real{g | Z_MIN <= g && g <= Z_MAX},
+    integral:     Real{i | abs(i) <= I_LIMIT},
+    derivative:   Real{d | abs(d) <= DERIV_MAX},
 ) -> Real
     where chain_order <= 0
-    requires (gap_target   >= Z_TARGET_MIN)
-    requires (gap_target   <= Z_TARGET_MAX)
-    requires (gap_measured >= Z_MIN)
-    requires (gap_measured <= Z_MAX)
-    requires (abs(integral)   <= I_LIMIT)
-    requires (abs(derivative) <= DERIV_MAX)
     ensures  (result >= ZERO)
     ensures  (result <= I_MAX)
 {
@@ -92,12 +88,12 @@ fn pid_command(
 // Chain order 0.
 @target(fpga, clock_mhz = 100, precision = float32)
 @verify(lean, theorem = "maglev_integrator_bounded")
-fn integrator_step(integral: Real, error: Real, dt: Real) -> Real
+fn integrator_step(
+    integral: Real{i | abs(i) <= I_LIMIT},
+    error:    Real{e | abs(e) <= ERR_MAX},
+    dt:       Real{t | 1.0e-5 <= t && t <= 0.01},
+) -> Real
     where chain_order <= 0
-    requires (abs(integral) <= I_LIMIT)
-    requires (abs(error)    <= ERR_MAX)
-    requires (dt >= 1.0e-5)
-    requires (dt <= 0.01)
     ensures  (abs(result) <= I_LIMIT)
 {
     clamp(integral + error * dt, -I_LIMIT, I_LIMIT)
@@ -110,14 +106,12 @@ fn integrator_step(integral: Real, error: Real, dt: Real) -> Real
 //
 // Chain order 0.
 @target(fpga, clock_mhz = 100, precision = float32)
-fn derivative_step(gap_now: Real, gap_prev: Real, dt: Real) -> Real
+fn derivative_step(
+    gap_now:  Real{g | Z_MIN <= g && g <= Z_MAX},
+    gap_prev: Real{g | Z_MIN <= g && g <= Z_MAX},
+    dt:       Real{t | 1.0e-5 <= t && t <= 0.01},
+) -> Real
     where chain_order <= 0
-    requires (gap_now  >= Z_MIN)
-    requires (gap_now  <= Z_MAX)
-    requires (gap_prev >= Z_MIN)
-    requires (gap_prev <= Z_MAX)
-    requires (dt >= 1.0e-5)
-    requires (dt <= 0.01)
     ensures  (abs(result) <= DERIV_MAX)
 {
     clamp((gap_now - gap_prev) / dt, -DERIV_MAX, DERIV_MAX)
