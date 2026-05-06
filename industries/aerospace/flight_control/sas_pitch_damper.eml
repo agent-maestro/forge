@@ -32,15 +32,11 @@ type GainSchedule       = Real where chain_order <= 0
 @target(fpga, clock_mhz = 250, precision = float32)
 @verify(lean, theorem = "sas_pitch_command_signed_by_rate_error")
 fn sas_pitch_command(
-    pitch_rate_meas: Real,
-    pitch_rate_cmd: Real,
-    gain: Real,
+    pitch_rate_meas: Real{q | abs(q) <= Q_MAX},
+    pitch_rate_cmd:  Real{q | abs(q) <= Q_MAX},
+    gain:            Real{g | 0.0 <= g && g <= K_BASE_MAX},
 ) -> ElevatorDeflection
     where chain_order <= 0
-    requires (abs(pitch_rate_meas) <= Q_MAX)
-    requires (abs(pitch_rate_cmd) <= Q_MAX)
-    requires (gain >= 0.0)
-    requires (gain <= K_BASE_MAX)
 {
     clamp(-gain * (pitch_rate_meas - pitch_rate_cmd), -ELEV_MAX, ELEV_MAX)
 }
@@ -48,21 +44,13 @@ fn sas_pitch_command(
 @target(fpga, clock_mhz = 250, precision = float32)
 @verify(lean, theorem = "scheduled_gain_increases_with_dynamic_pressure")
 fn scheduled_gain(
-    base_gain: Real,
-    mach: Real,
-    altitude: Real,
-    a_mach: Real,
-    a_altitude: Real,
+    base_gain:  Real{g | 0.0 <= g && g <= K_BASE_MAX},
+    mach:       Real{m | 0.0 <= m && m <= M_MAX},
+    altitude:   Real{h | 0.0 <= h && h <= H_MAX},
+    a_mach:     Real{a | abs(a) <= A_M_MAX},
+    a_altitude: Real{a | abs(a) <= A_H_MAX},
 ) -> GainSchedule
     where chain_order <= 0
-    requires (base_gain >= 0.0)
-    requires (base_gain <= K_BASE_MAX)
-    requires (mach >= 0.0)
-    requires (mach <= M_MAX)
-    requires (altitude >= 0.0)
-    requires (altitude <= H_MAX)
-    requires (abs(a_mach) <= A_M_MAX)
-    requires (abs(a_altitude) <= A_H_MAX)
     ensures  (result >= 0.0)
 {
     let h_norm = altitude / H_MAX;
@@ -76,14 +64,11 @@ fn scheduled_gain(
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "trim_bias_combined_within_authority")
 fn elevator_with_trim(
-    sas_command: Real,
-    pilot_stick: Real,
-    trim_bias: Real,
+    sas_command: Real{c | abs(c) <= ELEV_MAX},
+    pilot_stick: Real{s | abs(s) <= ELEV_MAX},
+    trim_bias:   Real{t | abs(t) <= ELEV_MAX},
 ) -> ElevatorDeflection
     where chain_order <= 0
-    requires (abs(sas_command) <= ELEV_MAX)
-    requires (abs(pilot_stick) <= ELEV_MAX)
-    requires (abs(trim_bias) <= ELEV_MAX)
 {
     clamp(sas_command + pilot_stick + trim_bias, -ELEV_MAX, ELEV_MAX)
 }

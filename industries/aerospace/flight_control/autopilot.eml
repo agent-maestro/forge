@@ -64,13 +64,10 @@ fn rate_controller(
 @target(fpga, clock_mhz = 100, precision = float32)
 @verify(lean, theorem = "autopilot_command_within_limits")
 fn autopilot_step(
-    pitch_setpoint: Real,
-    pitch_measured: Real,
-    pitch_integral: Real,
+    pitch_setpoint: Real{p | abs(p) < 1.5708},          // |pi/2|, +/- 90 deg
+    pitch_measured: Real{p | abs(p) < 1.5708},
+    pitch_integral: Real{i | abs(i) < INTEGRAL_LIMIT},
 ) -> Real
-    requires (abs(pitch_setpoint) < 1.5708)   // |pi/2|, +/- 90 deg
-    requires (abs(pitch_measured) < 1.5708)
-    requires (abs(pitch_integral) < INTEGRAL_LIMIT)
     ensures  (abs(result) < ELEVATOR_MAX)
 {
     let pitch_error = pitch_setpoint - pitch_measured;

@@ -31,13 +31,12 @@ type LosAngle     = Real where chain_order <= 1
 
 @target(fpga, clock_mhz = 250, precision = float32)
 @verify(lean, theorem = "pn_command_proportional_to_los_rate")
-fn pn_command(n: Real, closing_speed: Real, sigma_dot: Real) -> Acceleration
+fn pn_command(
+    n:             Real{n | N_MIN <= n && n <= N_MAX},
+    closing_speed: Real{v | 0.0 <= v && v <= V_MAX},
+    sigma_dot:     Real{s | abs(s) <= SIGMA_DOT_MAX},
+) -> Acceleration
     where chain_order <= 0
-    requires (n >= N_MIN)
-    requires (n <= N_MAX)
-    requires (closing_speed >= 0.0)
-    requires (closing_speed <= V_MAX)
-    requires (abs(sigma_dot) <= SIGMA_DOT_MAX)
 {
     n * closing_speed * sigma_dot
 }
@@ -47,18 +46,12 @@ fn pn_command(n: Real, closing_speed: Real, sigma_dot: Real) -> Acceleration
 @target(fpga, clock_mhz = 250, precision = float32)
 @verify(lean, theorem = "augmented_pn_includes_target_accel")
 fn augmented_pn_command(
-    n: Real,
-    closing_speed: Real,
-    sigma_dot: Real,
-    target_accel: Real,
+    n:             Real{n | N_MIN <= n && n <= N_MAX},
+    closing_speed: Real{v | 0.0 <= v && v <= V_MAX},
+    sigma_dot:     Real{s | abs(s) <= SIGMA_DOT_MAX},
+    target_accel:  Real{a | abs(a) <= 500.0},
 ) -> Acceleration
     where chain_order <= 0
-    requires (n >= N_MIN)
-    requires (n <= N_MAX)
-    requires (closing_speed >= 0.0)
-    requires (closing_speed <= V_MAX)
-    requires (abs(sigma_dot) <= SIGMA_DOT_MAX)
-    requires (abs(target_accel) <= 500.0)
 {
     n * closing_speed * sigma_dot + 0.5 * n * target_accel
 }
@@ -68,10 +61,11 @@ fn augmented_pn_command(
 // `sigma_dot` for `pn_command`.
 @target(fpga, clock_mhz = 200, precision = float32)
 @verify(lean, theorem = "los_angle_well_defined")
-fn los_angle(rel_x: Real, rel_y: Real) -> LosAngle
+fn los_angle(
+    rel_x: Real{x | abs(x) <= 1.0e6},
+    rel_y: Real{y | abs(y) <= 1.0e6},
+) -> LosAngle
     where chain_order <= 1
-    requires (abs(rel_x) <= 1.0e6)
-    requires (abs(rel_y) <= 1.0e6)
     ensures  (result >= -3.1416)
     ensures  (result <= 3.1416)
 {
@@ -81,9 +75,8 @@ fn los_angle(rel_x: Real, rel_y: Real) -> LosAngle
 // Closing speed from range and range-rate (also useful when
 // the tracker provides them directly). Chain order 0.
 @target(fpga, clock_mhz = 400, precision = float32)
-fn closing_speed_from_rate(range_rate: Real) -> Real
+fn closing_speed_from_rate(range_rate: Real{r | abs(r) <= V_MAX}) -> Real
     where chain_order <= 0
-    requires (abs(range_rate) <= V_MAX)
 {
     -range_rate
 }

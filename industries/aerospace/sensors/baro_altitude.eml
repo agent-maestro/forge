@@ -30,10 +30,8 @@ type Altitude = Real where chain_order <= 1
 
 @target(fpga, clock_mhz = 100, precision = float64)
 @verify(lean, theorem = "baro_altitude_monotone_decreasing_in_pressure")
-fn pressure_to_altitude(static_pressure: Real) -> Altitude
+fn pressure_to_altitude(static_pressure: Real{p | P_MIN <= p && p <= P_MAX}) -> Altitude
     where chain_order <= 1
-    requires (static_pressure >= P_MIN)
-    requires (static_pressure <= P_MAX)
 {
     T0_OVER_L * (1.0 - pow(static_pressure / P0, RL_OVER_G))
 }
@@ -43,10 +41,8 @@ fn pressure_to_altitude(static_pressure: Real) -> Altitude
 //   P = P0 * (1 - L * h / T0) ^ (g / (R*L))
 @target(fpga, clock_mhz = 100, precision = float64)
 @verify(lean, theorem = "altitude_to_pressure_inverse")
-fn altitude_to_pressure(altitude: Real) -> Real
+fn altitude_to_pressure(altitude: Real{h | -500.0 <= h && h <= 11000.0}) -> Real
     where chain_order <= 1
-    requires (altitude >= -500.0)
-    requires (altitude <= 11000.0)
     ensures  (result >= P_MIN)
     ensures  (result <= P_MAX)
 {
@@ -58,12 +54,11 @@ fn altitude_to_pressure(altitude: Real) -> Real
 // 1 (inherits from pressure_to_altitude) but the post-subtract
 // is chain-0.
 @target(fpga, clock_mhz = 100, precision = float64)
-fn qfe_altitude(static_pressure: Real, field_pressure: Real) -> Altitude
+fn qfe_altitude(
+    static_pressure: Real{p | P_MIN <= p && p <= P_MAX},
+    field_pressure:  Real{p | P_MIN <= p && p <= P_MAX},
+) -> Altitude
     where chain_order <= 1
-    requires (static_pressure >= P_MIN)
-    requires (static_pressure <= P_MAX)
-    requires (field_pressure >= P_MIN)
-    requires (field_pressure <= P_MAX)
 {
     let pa = T0_OVER_L * (1.0 - pow(static_pressure / P0, RL_OVER_G));
     let pf = T0_OVER_L * (1.0 - pow(field_pressure / P0, RL_OVER_G));

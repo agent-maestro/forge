@@ -33,36 +33,25 @@ type Thrust = Real where chain_order <= 0
 @target(fpga, clock_mhz = 250, precision = float32)
 @verify(lean, theorem = "gross_thrust_nonneg_for_positive_mass_flow")
 fn gross_thrust(
-    mass_flow: Real,
-    exhaust_velocity: Real,
-    exit_pressure: Real,
-    ambient_pressure: Real,
-    exit_area: Real,
+    mass_flow:        Real{m | MDOT_MIN <= m && m <= MDOT_MAX},
+    exhaust_velocity: Real{v | 0.0 <= v && v <= VEL_MAX},
+    exit_pressure:    Real{p | P_MIN <= p && p <= P_MAX},
+    ambient_pressure: Real{p | P_MIN <= p && p <= P_MAX},
+    exit_area:        Real{a | AREA_MIN <= a && a <= AREA_MAX},
 ) -> Thrust
     where chain_order <= 0
-    requires (mass_flow >= MDOT_MIN)
-    requires (mass_flow <= MDOT_MAX)
-    requires (exhaust_velocity >= 0.0)
-    requires (exhaust_velocity <= VEL_MAX)
-    requires (exit_pressure >= P_MIN)
-    requires (exit_pressure <= P_MAX)
-    requires (ambient_pressure >= P_MIN)
-    requires (ambient_pressure <= P_MAX)
-    requires (exit_area >= AREA_MIN)
-    requires (exit_area <= AREA_MAX)
 {
     mass_flow * exhaust_velocity + (exit_pressure - ambient_pressure) * exit_area
 }
 
 @target(fpga, clock_mhz = 250, precision = float32)
 @verify(lean, theorem = "net_thrust_zero_when_velocity_match")
-fn net_thrust(gross: Real, mass_flow: Real, freestream_velocity: Real) -> Thrust
+fn net_thrust(
+    gross:               Real{g | abs(g) <= MDOT_MAX * VEL_MAX + P_MAX * AREA_MAX},
+    mass_flow:           Real{m | MDOT_MIN <= m && m <= MDOT_MAX},
+    freestream_velocity: Real{v | 0.0 <= v && v <= VEL_MAX},
+) -> Thrust
     where chain_order <= 0
-    requires (abs(gross) <= MDOT_MAX * VEL_MAX + P_MAX * AREA_MAX)
-    requires (mass_flow >= MDOT_MIN)
-    requires (mass_flow <= MDOT_MAX)
-    requires (freestream_velocity >= 0.0)
-    requires (freestream_velocity <= VEL_MAX)
 {
     gross - mass_flow * freestream_velocity
 }
@@ -72,12 +61,11 @@ fn net_thrust(gross: Real, mass_flow: Real, freestream_velocity: Real) -> Thrust
 // Chain order 0.
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "isp_inverse_proportional_to_mass_flow")
-fn specific_impulse(thrust: Real, mass_flow: Real) -> Real
+fn specific_impulse(
+    thrust:    Real{t | 0.0 <= t && t <= 1.0e7},
+    mass_flow: Real{m | 0.001 <= m && m <= MDOT_MAX},
+) -> Real
     where chain_order <= 0
-    requires (thrust >= 0.0)
-    requires (thrust <= 1.0e7)
-    requires (mass_flow >= 0.001)
-    requires (mass_flow <= MDOT_MAX)
     ensures  (result >= 0.0)
 {
     thrust / (mass_flow * G_GRAVITY)

@@ -33,14 +33,11 @@ type EtaAngle     = Real where chain_order <= 2
 @target(fpga, clock_mhz = 100, precision = float32)
 @verify(lean, theorem = "eta_zero_when_aligned")
 fn eta_angle(
-    cross_track: Real,
-    along_track: Real,
-    heading: Real,
+    cross_track: Real{x | abs(x) <= RANGE_MAX},
+    along_track: Real{y | abs(y) <= RANGE_MAX},
+    heading:     Real{h | abs(h) <= 6.2832},
 ) -> EtaAngle
     where chain_order <= 2
-    requires (abs(cross_track) <= RANGE_MAX)
-    requires (abs(along_track) <= RANGE_MAX)
-    requires (abs(heading) <= 6.2832)
 {
     atan2(cross_track, along_track) - heading
 }
@@ -48,16 +45,11 @@ fn eta_angle(
 @target(fpga, clock_mhz = 100, precision = float32)
 @verify(lean, theorem = "l1_lateral_accel_zero_at_eta_zero")
 fn l1_lateral_accel(
-    speed: Real,
-    eta: Real,
-    l1_distance: Real,
+    speed:       Real{v | 0.0 <= v && v <= SPEED_MAX},
+    eta:         Real{e | abs(e) <= ETA_MAX},
+    l1_distance: Real{l | L1_MIN <= l && l <= L1_MAX},
 ) -> LateralAccel
     where chain_order <= 2
-    requires (speed >= 0.0)
-    requires (speed <= SPEED_MAX)
-    requires (abs(eta) <= ETA_MAX)
-    requires (l1_distance >= L1_MIN)
-    requires (l1_distance <= L1_MAX)
 {
     2.0 * speed * speed * sin(eta) / l1_distance
 }
@@ -69,17 +61,11 @@ fn l1_lateral_accel(
 @target(fpga, clock_mhz = 200, precision = float32)
 @verify(lean, theorem = "cross_track_zero_on_line")
 fn cross_track_distance(
-    px: Real, py: Real,
-    x1: Real, y1: Real,
-    x2: Real, y2: Real,
+    px: Real{p | abs(p) <= RANGE_MAX}, py: Real{p | abs(p) <= RANGE_MAX},
+    x1: Real{p | abs(p) <= RANGE_MAX}, y1: Real{p | abs(p) <= RANGE_MAX},
+    x2: Real{p | abs(p) <= RANGE_MAX}, y2: Real{p | abs(p) <= RANGE_MAX},
 ) -> Real
     where chain_order <= 1
-    requires (abs(px) <= RANGE_MAX)
-    requires (abs(py) <= RANGE_MAX)
-    requires (abs(x1) <= RANGE_MAX)
-    requires (abs(y1) <= RANGE_MAX)
-    requires (abs(x2) <= RANGE_MAX)
-    requires (abs(y2) <= RANGE_MAX)
 {
     let dx = x2 - x1;
     let dy = y2 - y1;

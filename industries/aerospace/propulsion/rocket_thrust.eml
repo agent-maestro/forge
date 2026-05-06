@@ -37,16 +37,11 @@ type Isp      = Real where chain_order <= 0
 @target(fpga, clock_mhz = 250, precision = float64)
 @verify(lean, theorem = "tsiolkovsky_dv_monotone_in_mass_ratio")
 fn tsiolkovsky_dv(
-    exhaust_velocity: Real,
-    initial_mass: Real,
-    final_mass: Real,
+    exhaust_velocity: Real{v | 0.0 <= v && v <= VEL_MAX},
+    initial_mass:     Real{m | MASS_MIN <= m && m <= MASS_MAX},
+    final_mass:       Real{m | m >= MASS_MIN},
 ) -> DeltaV
     where chain_order <= 1
-    requires (exhaust_velocity >= 0.0)
-    requires (exhaust_velocity <= VEL_MAX)
-    requires (initial_mass >= MASS_MIN)
-    requires (initial_mass <= MASS_MAX)
-    requires (final_mass >= MASS_MIN)
     requires (final_mass <= initial_mass)
     ensures  (result >= 0.0)
 {
@@ -60,23 +55,13 @@ fn tsiolkovsky_dv(
 @target(fpga, clock_mhz = 250, precision = float32)
 @verify(lean, theorem = "rocket_gross_thrust_nonneg_for_positive_mass_flow")
 fn rocket_gross_thrust(
-    mass_flow: Real,
-    exhaust_velocity: Real,
-    exit_pressure: Real,
-    ambient_pressure: Real,
-    exit_area: Real,
+    mass_flow:        Real{m | 0.0 <= m && m <= 1.0e4},
+    exhaust_velocity: Real{v | 0.0 <= v && v <= VEL_MAX},
+    exit_pressure:    Real{p | 0.0 <= p && p <= 1.0e8},
+    ambient_pressure: Real{p | 0.0 <= p && p <= 1.0e6},
+    exit_area:        Real{a | 1.0e-3 <= a && a <= 1.0e2},
 ) -> Thrust
     where chain_order <= 0
-    requires (mass_flow >= 0.0)
-    requires (mass_flow <= 1.0e4)
-    requires (exhaust_velocity >= 0.0)
-    requires (exhaust_velocity <= VEL_MAX)
-    requires (exit_pressure >= 0.0)
-    requires (exit_pressure <= 1.0e8)
-    requires (ambient_pressure >= 0.0)
-    requires (ambient_pressure <= 1.0e6)
-    requires (exit_area >= 1.0e-3)
-    requires (exit_area <= 1.0e2)
 {
     mass_flow * exhaust_velocity + (exit_pressure - ambient_pressure) * exit_area
 }
@@ -85,12 +70,11 @@ fn rocket_gross_thrust(
 // Chain order 0.
 @target(fpga, clock_mhz = 500, precision = float32)
 @verify(lean, theorem = "rocket_isp_inverse_proportional_to_mass_flow")
-fn rocket_specific_impulse(thrust: Real, mass_flow: Real) -> Isp
+fn rocket_specific_impulse(
+    thrust:    Real{t | 0.0 <= t && t <= 1.0e8},
+    mass_flow: Real{m | 0.001 <= m && m <= 1.0e4},
+) -> Isp
     where chain_order <= 0
-    requires (thrust >= 0.0)
-    requires (thrust <= 1.0e8)
-    requires (mass_flow >= 0.001)
-    requires (mass_flow <= 1.0e4)
     ensures  (result >= 0.0)
     ensures  (result <= ISP_MAX)
 {

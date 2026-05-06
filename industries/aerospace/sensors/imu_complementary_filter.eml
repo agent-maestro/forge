@@ -29,22 +29,14 @@ type AttitudeAngle = Real where chain_order <= 1
 @target(fpga, clock_mhz = 200, precision = float32)
 @verify(lean, theorem = "complementary_filter_bounded_drift")
 fn pitch_update(
-    pitch_prev: Real,
-    gyro_y: Real,
-    accel_x: Real,
-    accel_z: Real,
-    dt: Real,
-    alpha: Real,
+    pitch_prev: Real{p | abs(p) <= 3.1416},
+    gyro_y:     Real{g | abs(g) <= RATE_MAX},
+    accel_x:    Real{a | abs(a) <= 16.0 * G_REF},
+    accel_z:    Real{a | abs(a) <= 16.0 * G_REF},
+    dt:         Real{t | 0.0 < t && t <= DT_MAX},
+    alpha:      Real{a | 0.0 <= a && a <= 1.0},
 ) -> AttitudeAngle
     where chain_order <= 1
-    requires (abs(pitch_prev) <= 3.1416)
-    requires (abs(gyro_y) <= RATE_MAX)
-    requires (abs(accel_x) <= 16.0 * G_REF)
-    requires (abs(accel_z) <= 16.0 * G_REF)
-    requires (dt > 0.0)
-    requires (dt <= DT_MAX)
-    requires (alpha >= 0.0)
-    requires (alpha <= 1.0)
 {
     let gyro_step = pitch_prev + gyro_y * dt;
     let accel_pitch = atan2(accel_x, accel_z);
@@ -56,22 +48,14 @@ fn pitch_update(
 @target(fpga, clock_mhz = 200, precision = float32)
 @verify(lean, theorem = "complementary_filter_roll_bounded_drift")
 fn roll_update(
-    roll_prev: Real,
-    gyro_x: Real,
-    accel_y: Real,
-    accel_z: Real,
-    dt: Real,
-    alpha: Real,
+    roll_prev: Real{r | abs(r) <= 3.1416},
+    gyro_x:    Real{g | abs(g) <= RATE_MAX},
+    accel_y:   Real{a | abs(a) <= 16.0 * G_REF},
+    accel_z:   Real{a | abs(a) <= 16.0 * G_REF},
+    dt:        Real{t | 0.0 < t && t <= DT_MAX},
+    alpha:     Real{a | 0.0 <= a && a <= 1.0},
 ) -> AttitudeAngle
     where chain_order <= 1
-    requires (abs(roll_prev) <= 3.1416)
-    requires (abs(gyro_x) <= RATE_MAX)
-    requires (abs(accel_y) <= 16.0 * G_REF)
-    requires (abs(accel_z) <= 16.0 * G_REF)
-    requires (dt > 0.0)
-    requires (dt <= DT_MAX)
-    requires (alpha >= 0.0)
-    requires (alpha <= 1.0)
 {
     let gyro_step = roll_prev + gyro_x * dt;
     let accel_roll = atan2(accel_y, accel_z);
@@ -84,10 +68,8 @@ fn roll_update(
 // filter should drop alpha toward 1 to ride on gyro alone.
 // This gate returns the gain-modulation factor in [0, 1].
 @target(fpga, clock_mhz = 300, precision = float32)
-fn accel_trust(accel_mag: Real) -> Real
+fn accel_trust(accel_mag: Real{a | 0.0 <= a && a <= 16.0 * G_REF}) -> Real
     where chain_order <= 0
-    requires (accel_mag >= 0.0)
-    requires (accel_mag <= 16.0 * G_REF)
     ensures  (result >= 0.0)
     ensures  (result <= 1.0)
 {
