@@ -165,12 +165,14 @@ def test_robotics_joint_xy_returns_tuple(profiler: Profiler):
 
 def test_medical_infusion_pump_has_three_requires(profiler: Profiler):
     """Class C IEC 62304 example: explicit input domain on every
-    parameter (4 requires actually -- 3 from the doc plus
-    abs(rate_integral))."""
+    parameter. Phase F migration folded the four single-variable
+    requires clauses into parameter refinements -- the test now
+    counts refined params instead of raw requires."""
     mod = parse_file(REPO_ROOT / "industries/medical/devices/infusion_pump.eml")
     profiler.profile_module(mod)
     fn = next(f for f in mod.functions if f.name == "motor_command")
-    assert len(fn.requires) >= 3
+    refined_params = [p for p in fn.params if p.refinement is not None]
+    assert len(refined_params) >= 3
     assert len(fn.ensures) >= 1
 
 

@@ -57,8 +57,9 @@ def test_demo_compiles(filename, profiler, backend):
 def test_autopilot_emits_asserts_from_requires_ensures(profiler, backend):
     out = _compile(AUTOPILOT, profiler, backend)
 
-    # Three requires become three entry-asserts.
-    assert out.count("requires violated") == 3
+    # Three input refinements become three entry-asserts (Phase F
+    # migrated the prior requires clauses into parameter refinements).
+    assert out.count("refinement violated") == 3
     assert "abs(pitch_setpoint) < 1.5708" in out
     assert "abs(pitch_measured) < 1.5708" in out
     assert "abs(pitch_integral) < 5.0" in out  # INTEGRAL_LIMIT inlined

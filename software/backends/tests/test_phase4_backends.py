@@ -59,7 +59,9 @@ class TestJavaBackend:
     def test_javadoc_emits_pre_post_and_verify(self):
         mod = _profile(AUTOPILOT)
         out = JavaBackend().compile(mod)
-        assert "@forge.requires" in out
+        # Phase F migrated the input requires clauses to parameter
+        # refinements; these now lower to runtime guards in the body
+        # rather than @forge.requires javadoc lines.
         assert "@forge.ensures" in out
         assert "@forge.verify lean theorem=autopilot_command_within_limits" in out
 
@@ -147,7 +149,10 @@ class TestGoBackend:
     def test_requires_emits_panic_guard(self):
         mod = _profile(AUTOPILOT)
         out = GoBackend().compile(mod)
-        assert 'panic("autopilot_step: requires' in out
+        # Phase F migrated input requires clauses to parameter
+        # refinements; the panic message tag flipped to
+        # "refinement violated".
+        assert 'panic("autopilot_step: refinement violated' in out
 
     def test_function_doc_comment(self):
         mod = _profile(AUTOPILOT)

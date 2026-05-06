@@ -84,10 +84,16 @@ def test_autopilot_step_carries_verify_annotation(autopilot_module):
 
 
 def test_autopilot_step_has_requires_and_ensures(autopilot_module):
-    """The DO-178C example -- 3 requires, 1 ensures."""
+    """The DO-178C example -- 3 input domains (now refinements after
+    Phase F migration), 1 ensures."""
     fn = next(f for f in autopilot_module.functions
               if f.name == "autopilot_step")
-    assert len(fn.requires) == 3
+    # Three single-variable input bounds were folded into parameter
+    # refinements during the Phase F migration; only the multi-variable
+    # / cross-parameter clauses remain in fn.requires (zero here).
+    refined_params = [p for p in fn.params if p.refinement is not None]
+    assert len(refined_params) == 3
+    assert len(fn.requires) == 0
     assert len(fn.ensures) == 1
 
 

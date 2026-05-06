@@ -96,9 +96,13 @@ def test_foc_d_axis_meets_asil_c_chain_order_bound(foc_module):
 
 
 def test_foc_d_axis_has_safety_clauses(foc_module):
-    """3 requires + 1 ensures (per ISO 26262 §6.4.2)."""
+    """3 input domains + 1 ensures (per ISO 26262 §6.4.2). Phase F
+    migration folded the three single-variable requires clauses into
+    parameter refinements."""
     fn = next(f for f in foc_module.functions if f.name == "foc_d_axis")
-    assert len(fn.requires) == 3
+    refined_params = [p for p in fn.params if p.refinement is not None]
+    assert len(refined_params) == 3
+    assert len(fn.requires) == 0
     assert len(fn.ensures) == 1
 
 

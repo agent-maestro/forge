@@ -61,10 +61,12 @@ def test_autopilot_namespace_and_doxygen(
     assert "namespace forge::autopilot" in out
     assert "}  // namespace forge::autopilot" in out
 
-    # Doxygen contracts derived from requires/ensures.
-    assert "@pre" in out
+    # Doxygen contracts derived from ensures (the post). Phase F
+    # migrated the input requires clauses to parameter refinements,
+    # which lower to runtime asserts in the function body rather
+    # than @pre lines in the Doxygen header.
     assert "@post" in out
-    assert "std::abs(pitch_setpoint)" in out
+    assert "std::abs(pitch_setpoint)" in out  # asserted via refinement
     assert "std::abs(result)" in out  # `result` kept verbatim in @post
 
     # @verify cross-link surfaces.

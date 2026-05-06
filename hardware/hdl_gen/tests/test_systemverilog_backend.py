@@ -95,13 +95,17 @@ fn f(x: Real) -> Real { x }'''
 def test_autopilot_emits_sva_properties(profiler, backend):
     out = _allocate_and_compile_file(AUTOPILOT, profiler, backend)
 
-    # Three requires → three assume properties.
-    assert "property pre_autopilot_step_1" in out
-    assert "property pre_autopilot_step_2" in out
-    assert "property pre_autopilot_step_3" in out
-    assert out.count("assume property") >= 3
+    # Phase F migration: three input requires clauses became
+    # parameter refinements, which lower to inline `assert property`
+    # bound checks in the SV body rather than to top-of-module
+    # `pre_<fn>_<n>` `assume property` blocks. The ensures still
+    # emits a separate `post_<fn>_<n>` block.
+    assert out.count("assert property") >= 3
+    assert "$abs($signed(pitch_setpoint))" in out
+    assert "$abs($signed(pitch_measured))" in out
+    assert "$abs($signed(pitch_integral))" in out
 
-    # One ensures → one assert property.
+    # One ensures → one assert property block.
     assert "property post_autopilot_step_1" in out
     assert "assert property (post_autopilot_step_1)" in out
     assert "$error(\"autopilot_step: ensures #1 violated\")" in out
@@ -109,8 +113,7 @@ def test_autopilot_emits_sva_properties(profiler, backend):
     # Clocking is derived from the design clock.
     assert "@(posedge clk) disable iff (rst)" in out
 
-    # Pre uses valid_in, Post uses valid_out (different antecedents).
-    assert "valid_in |->" in out
+    # The post block still uses valid_out as antecedent.
     assert "valid_out |->" in out
 
 

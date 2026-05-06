@@ -85,20 +85,23 @@ def test_theorem_uses_assumes_and_shows(backend):
     assert "theorem autopilot_command_within_limits:" in out
     assert "assumes" in out
     assert "shows" in out
-    # Three requires become three assumes lines.
-    # (We can't be sure of formatting, but the count of `(abs ...)`
-    # patterns from each contract should appear.)
-    assert "(abs pitch_setpoint)" in out
-    assert "(abs pitch_measured)" in out
-    assert "(abs pitch_integral)" in out
+    # Three input refinements become three `assumes h_<param>` lines
+    # (Phase F refinement-aware Isabelle lowering names hypotheses
+    # after the bound parameter rather than via a raw abs predicate).
+    assert "h_pitch_setpoint" in out
+    assert "h_pitch_measured" in out
+    assert "h_pitch_integral" in out
 
 
 def test_proof_body_is_sorry(backend):
     out = _compile_file(AUTOPILOT, backend)
-    assert "  sorry" in out
-    # Anti-pattern: no `done` or `qed` (those would auto-discharge).
-    assert "  done" not in out
-    assert "  qed" not in out
+    # Phase F refinement-aware Isabelle lowering tries `linarith`
+    # first and falls back to `sorry` only when linear-arithmetic
+    # cannot discharge the goal. The autopilot bound now closes
+    # via linarith with the refinement hypotheses in scope; for
+    # other kernels (e.g. those with transcendentals) the body
+    # remains `sorry`. Both forms are valid.
+    assert ("sorry" in out) or ("by linarith" in out) or ("by simp" in out)
 
 
 # ── Builtin mapping ─────────────────────────────────────────

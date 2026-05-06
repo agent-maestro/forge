@@ -300,19 +300,39 @@ def test_no_requires_no_warning():
 # ── Real-world fixture: binomial_tree.eml ────────────────────────────────────
 
 
+# Inline fixture mirroring the pre-Phase-F shape of risk_neutral_prob:
+# transcendental sqrt(dt) inside two `requires` clauses. Phase F
+# migrated the real binomial_tree.eml fixture to `assume` (which is
+# exactly the lint's recommended migration), so these tests now use
+# an inline source to keep the lint behaviour under test.
+_BINOMIAL_TREE_PRE_PHASE_F = """
+const VOL_MIN: Real = 1.0e-6
+const VOL_MAX: Real = 5.0
+const DT_MIN: Real = 1.0e-6
+const DT_MAX: Real = 10.0
+
+fn risk_neutral_prob(rate: Real, vol: Real, dt: Real) -> Real
+    requires (vol >= VOL_MIN)
+    requires (vol <= VOL_MAX)
+    requires (dt >= DT_MIN)
+    requires (dt <= DT_MAX)
+    requires (rate * dt < vol * sqrt(dt))
+    requires (rate * dt > -vol * sqrt(dt))
+{ rate }
+"""
+
+
 @pytest.mark.integration
 def test_binomial_tree_fixture_warns_on_sqrt():
-    """binomial_tree.eml: risk_neutral_prob has 2 requires using sqrt(dt)."""
-    if not BINOMIAL_TREE.exists():
-        pytest.skip(f"fixture not found: {BINOMIAL_TREE}")
+    """Pre-Phase-F binomial_tree shape: risk_neutral_prob has 2
+    requires using sqrt(dt). The lint tool must surface both."""
     lint_module, LintWarning = _import_lint()
-    from lang.parser import parse_file
-    mod = parse_file(BINOMIAL_TREE)
+    mod = _parse(_BINOMIAL_TREE_PRE_PHASE_F)
     warnings = lint_module(mod)
     # risk_neutral_prob has exactly 2 requires clauses that use sqrt(dt)
     assert len(warnings) == 2, (
-        f"expected 2 warnings from binomial_tree.eml, got {len(warnings)}: "
-        f"{[w.message for w in warnings]}"
+        f"expected 2 warnings from binomial_tree pre-Phase-F shape, "
+        f"got {len(warnings)}: {[w.message for w in warnings]}"
     )
     for w in warnings:
         assert "sqrt" in w.message
@@ -321,12 +341,9 @@ def test_binomial_tree_fixture_warns_on_sqrt():
 
 @pytest.mark.integration
 def test_binomial_tree_warnings_mention_filename():
-    """Each warning message or metadata should reference the source file context."""
-    if not BINOMIAL_TREE.exists():
-        pytest.skip(f"fixture not found: {BINOMIAL_TREE}")
+    """Each warning message or metadata should reference the source line."""
     lint_module, LintWarning = _import_lint()
-    from lang.parser import parse_file
-    mod = parse_file(BINOMIAL_TREE)
+    mod = _parse(_BINOMIAL_TREE_PRE_PHASE_F)
     warnings = lint_module(mod)
     assert len(warnings) >= 1
     # Each warning should have a positive line number
@@ -358,13 +375,14 @@ def test_cli_no_lint_flag_produces_no_stderr_warnings(tmp_path):
 
 @pytest.mark.integration
 def test_cli_lint_flag_produces_warnings_on_stderr(tmp_path):
-    """With --lint, eml-compile on binomial_tree.eml writes warnings to stderr."""
-    if not BINOMIAL_TREE.exists():
-        pytest.skip(f"fixture not found: {BINOMIAL_TREE}")
+    """With --lint, eml-compile on a kernel with transcendental
+    `requires` clauses writes warnings to stderr."""
+    fixture = tmp_path / "binomial_tree_pre_phase_f.eml"
+    fixture.write_text(_BINOMIAL_TREE_PRE_PHASE_F)
     import subprocess, sys
     result = subprocess.run(
         [sys.executable, "-m", "tools.cli.main",
-         str(BINOMIAL_TREE), "--target", "c", "--lint"],
+         str(fixture), "--target", "c", "--lint"],
         capture_output=True, text=True,
         cwd=str(FORGE_ROOT),
     )
@@ -382,12 +400,12 @@ def test_cli_lint_flag_produces_warnings_on_stderr(tmp_path):
 @pytest.mark.integration
 def test_cli_lint_flag_produces_assume_suggestion_on_stderr(tmp_path):
     """With --lint, warning text must suggest `assume` migration."""
-    if not BINOMIAL_TREE.exists():
-        pytest.skip(f"fixture not found: {BINOMIAL_TREE}")
+    fixture = tmp_path / "binomial_tree_pre_phase_f.eml"
+    fixture.write_text(_BINOMIAL_TREE_PRE_PHASE_F)
     import subprocess, sys
     result = subprocess.run(
         [sys.executable, "-m", "tools.cli.main",
-         str(BINOMIAL_TREE), "--target", "c", "--lint"],
+         str(fixture), "--target", "c", "--lint"],
         capture_output=True, text=True,
         cwd=str(FORGE_ROOT),
     )
