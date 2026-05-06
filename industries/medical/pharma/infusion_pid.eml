@@ -29,29 +29,16 @@ type PumpRate = Real where chain_order <= 0
 @target(fpga, clock_mhz = 200, precision = float64)
 @verify(lean, theorem = "infusion_pid_within_pump_limit")
 fn infusion_pid_step(
-    error: Real,
-    integral: Real,
-    derivative: Real,
-    kp: Real,
-    ki: Real,
-    kd: Real,
-    integral_limit: Real,
-    rate_max: Real,
+    error:          Real{e  | abs(e) <= ERR_MAX},
+    integral:       Real{i  | abs(i) <= I_LIMIT_MAX},
+    derivative:     Real{d  | abs(d) <= ERR_MAX},
+    kp:             Real{kp | 0.0 <= kp && kp <= KP_MAX},
+    ki:             Real{ki | 0.0 <= ki && ki <= KI_MAX},
+    kd:             Real{kd | 0.0 <= kd && kd <= KD_MAX},
+    integral_limit: Real{il | 0.0 <= il && il <= I_LIMIT_MAX},
+    rate_max:       Real{rm | 0.0 <= rm && rm <= RATE_MAX},
 ) -> PumpRate
     where chain_order <= 0
-    requires (abs(error) <= ERR_MAX)
-    requires (abs(integral) <= I_LIMIT_MAX)
-    requires (abs(derivative) <= ERR_MAX)
-    requires (kp >= 0.0)
-    requires (kp <= KP_MAX)
-    requires (ki >= 0.0)
-    requires (ki <= KI_MAX)
-    requires (kd >= 0.0)
-    requires (kd <= KD_MAX)
-    requires (integral_limit >= 0.0)
-    requires (integral_limit <= I_LIMIT_MAX)
-    requires (rate_max >= 0.0)
-    requires (rate_max <= RATE_MAX)
     ensures  (result >= 0.0)
 {
     let i_sat = clamp(integral, -integral_limit, integral_limit);
@@ -67,20 +54,13 @@ fn infusion_pid_step(
 @target(fpga, clock_mhz = 400, precision = float64)
 @verify(lean, theorem = "infusion_integral_held_under_saturation")
 fn infusion_integral_step(
-    integral_prev: Real,
-    error: Real,
-    error_prev: Real,
-    dt: Real,
-    saturation_active: Real,
+    integral_prev:     Real{ip | abs(ip) <= I_LIMIT_MAX},
+    error:             Real{e  | abs(e) <= ERR_MAX},
+    error_prev:        Real{ep | abs(ep) <= ERR_MAX},
+    dt:                Real{t  | 0.0 <= t && t <= 1.0},
+    saturation_active: Real{s  | 0.0 <= s && s <= 1.0},
 ) -> Real
     where chain_order <= 0
-    requires (abs(integral_prev) <= I_LIMIT_MAX)
-    requires (abs(error) <= ERR_MAX)
-    requires (abs(error_prev) <= ERR_MAX)
-    requires (dt >= 0.0)
-    requires (dt <= 1.0)
-    requires (saturation_active >= 0.0)
-    requires (saturation_active <= 1.0)
 {
     let trapezoid = 0.5 * (error + error_prev) * dt;
     integral_prev + (1.0 - saturation_active) * trapezoid
@@ -93,12 +73,11 @@ fn infusion_integral_step(
 // over-drive the pump on transient sensor dropouts.
 @target(fpga, clock_mhz = 500, precision = float64)
 @verify(lean, theorem = "bis_error_bounded")
-fn bis_error(target_bis: Real, measured_bis: Real) -> Real
+fn bis_error(
+    target_bis:   Real{t | 20.0 <= t && t <= 80.0},
+    measured_bis: Real{m | 0.0  <= m && m <= 100.0},
+) -> Real
     where chain_order <= 0
-    requires (target_bis >= 20.0)
-    requires (target_bis <= 80.0)
-    requires (measured_bis >= 0.0)
-    requires (measured_bis <= 100.0)
 {
     clamp(target_bis - measured_bis, -50.0, 50.0)
 }

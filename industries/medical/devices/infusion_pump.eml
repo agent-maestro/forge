@@ -28,14 +28,10 @@ type StableSignal = Real where chain_order <= 2
 @target(fpga, clock_mhz = 50, precision = float32)
 @verify(lean, theorem = "infusion_motor_command_safe")
 fn motor_command(
-    prescribed_rate: Real,
-    measured_rate: Real,
-    rate_integral: Real,
+    prescribed_rate: Real{p | RATE_MIN <= p && p <= RATE_MAX},
+    measured_rate:   Real{m | abs(m) < RATE_MAX},
+    rate_integral:   Real{i | abs(i) < 100.0},
 ) -> Real
-    requires (RATE_MIN <= prescribed_rate)
-    requires (prescribed_rate <= RATE_MAX)
-    requires (abs(measured_rate) < RATE_MAX)
-    requires (abs(rate_integral) < 100.0)
     ensures  (MOTOR_MIN <= result)
     ensures  (result <= MOTOR_MAX)
 {

@@ -29,23 +29,13 @@ type PlasmaConcentration = Real where chain_order <= 2
 @target(fpga, clock_mhz = 200, precision = float64)
 @verify(lean, theorem = "plasma_concentration_nonneg")
 fn plasma_concentration(
-    coef_a: Real,
-    rate_alpha: Real,
-    coef_b: Real,
-    rate_beta: Real,
-    time_min: Real,
+    coef_a:     Real{a | 0.0 <= a && a <= COEF_MAX},
+    rate_alpha: Real{r | RATE_MIN <= r && r <= RATE_MAX},
+    coef_b:     Real{b | 0.0 <= b && b <= COEF_MAX},
+    rate_beta:  Real{r | RATE_MIN <= r && r <= RATE_MAX},
+    time_min:   Real{t | 0.0 <= t && t <= T_MAX},
 ) -> PlasmaConcentration
     where chain_order <= 2
-    requires (coef_a >= 0.0)
-    requires (coef_a <= COEF_MAX)
-    requires (rate_alpha >= RATE_MIN)
-    requires (rate_alpha <= RATE_MAX)
-    requires (coef_b >= 0.0)
-    requires (coef_b <= COEF_MAX)
-    requires (rate_beta >= RATE_MIN)
-    requires (rate_beta <= RATE_MAX)
-    requires (time_min >= 0.0)
-    requires (time_min <= T_MAX)
     ensures  (result >= 0.0)
 {
     coef_a * exp(-rate_alpha * time_min)
@@ -57,20 +47,12 @@ fn plasma_concentration(
 @target(fpga, clock_mhz = 500, precision = float64)
 @verify(lean, theorem = "auc_inf_finite_for_positive_rates")
 fn auc_inf(
-    coef_a: Real,
-    rate_alpha: Real,
-    coef_b: Real,
-    rate_beta: Real,
+    coef_a:     Real{a | 0.0 <= a && a <= COEF_MAX},
+    rate_alpha: Real{r | RATE_MIN <= r && r <= RATE_MAX},
+    coef_b:     Real{b | 0.0 <= b && b <= COEF_MAX},
+    rate_beta:  Real{r | RATE_MIN <= r && r <= RATE_MAX},
 ) -> Real
     where chain_order <= 0
-    requires (coef_a >= 0.0)
-    requires (coef_a <= COEF_MAX)
-    requires (rate_alpha >= RATE_MIN)
-    requires (rate_alpha <= RATE_MAX)
-    requires (coef_b >= 0.0)
-    requires (coef_b <= COEF_MAX)
-    requires (rate_beta >= RATE_MIN)
-    requires (rate_beta <= RATE_MAX)
     ensures  (result >= 0.0)
 {
     coef_a / rate_alpha + coef_b / rate_beta
@@ -83,20 +65,12 @@ fn auc_inf(
 @target(fpga, clock_mhz = 400, precision = float64)
 @verify(lean, theorem = "effect_site_tracks_central_compartment")
 fn effect_site_step(
-    ce_prev: Real,
-    central_c: Real,
-    rate_keo: Real,
-    dt: Real,
+    ce_prev:   Real{c | 0.0 <= c && c <= COEF_MAX},
+    central_c: Real{c | 0.0 <= c && c <= COEF_MAX},
+    rate_keo:  Real{r | RATE_MIN <= r && r <= RATE_MAX},
+    dt:        Real{t | 0.0 <= t && t <= 1.0},
 ) -> PlasmaConcentration
     where chain_order <= 0
-    requires (ce_prev >= 0.0)
-    requires (ce_prev <= COEF_MAX)
-    requires (central_c >= 0.0)
-    requires (central_c <= COEF_MAX)
-    requires (rate_keo >= RATE_MIN)
-    requires (rate_keo <= RATE_MAX)
-    requires (dt >= 0.0)
-    requires (dt <= 1.0)
     ensures  (result >= 0.0)
 {
     let updated = ce_prev + dt * rate_keo * (central_c - ce_prev);
