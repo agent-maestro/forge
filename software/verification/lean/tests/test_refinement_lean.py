@@ -537,13 +537,17 @@ fn f(x: Real) -> Real
         assert "sorry" in out
 
     def test_pid_controller_c_backend_post_e3(self):
-        """pid_controller.eml --target c output MD5 stable post-Phase-E.3.
+        """pid_controller.eml --target c output MD5 stable post-Phase-F.
 
         Pre-E.3 hash was e864a6de6e6697c29ef0be4fd06a797b (C dropped
         requires clauses).  Phase E.3 wired requires->assert() in the C
-        backend, so pid's output now includes precondition guards and
-        the hash changed once.  Post-E.3 must remain stable across
-        further phases.
+        backend, so pid's output included precondition guards (hash
+        3ae9cb6715bf8b5d05c05b12cfc38ff0).  Phase F migrated pid's three
+        single-variable input bounds from `requires` clauses to refinement
+        types on the parameters; the C-backend message tag flipped from
+        "requires (...)" to "refinement violated on <param>: (...)" but
+        the semantic guard is identical.  Post-F hash must remain stable
+        across further phases.
         """
         import subprocess
         import hashlib
@@ -552,7 +556,7 @@ fn f(x: Real) -> Real
             capture_output=True, text=True
         )
         md5 = hashlib.md5(result.stdout.encode()).hexdigest()
-        assert md5 == "3ae9cb6715bf8b5d05c05b12cfc38ff0", (
+        assert md5 == "aa3b12fbd0c31c49dc9f81ed8d28022a", (
             f"C backend MD5 changed to {md5} -- codegen drift detected!"
         )
 

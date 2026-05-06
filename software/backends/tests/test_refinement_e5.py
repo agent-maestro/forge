@@ -560,9 +560,15 @@ class TestAadlRefinementGuards:
         assert "refinement obligation:" in out
 
     def test_pid_produces_output(self):
+        # Phase F migrated pid_controller's three single-variable requires
+        # clauses to refinement types on the parameters, so the AADL backend
+        # now correctly emits Refinement_Predicate properties for each. This
+        # test still verifies "the file compiles cleanly" but flips the
+        # invariant from "no refinements" to "three refinements present".
         out = _compile_file(PID, AadlBackend())
-        # pid has no refinements; AADL output should not inject spurious props
-        assert "Refinement_Predicate" not in out
+        assert "Refinement_Predicate" in out
+        # All three migrated parameters carry refinement properties
+        assert out.count("Refinement_Predicate") == 3
 
     def test_norefinement_kernels_no_refinement_property(self):
         for src in (_SRC_NOREFINEMENT_1, _SRC_NOREFINEMENT_2, _SRC_NOREFINEMENT_3):

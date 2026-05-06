@@ -328,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
                              "text. Recommended for CI dashboards "
                              "and agents.")
     parser.add_argument("--version", action="version",
-                        version="eml-compile 0.1.0")
+                        version="eml-compile 0.4.0")
     args = parser.parse_args(argv)
 
     if not args.source:

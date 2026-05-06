@@ -6,6 +6,15 @@
 // rockets. Chain order 0 (a linear combination of the inputs).
 // The interesting part is the @verify contract: the output is
 // always clamped to the actuator's physical range.
+//
+// Phase F migration: the three single-variable input bounds that
+// were previously expressed as `requires (abs(x) <= 100.0)` clauses
+// are now refinement types directly on the parameters. Semantics
+// are equivalent -- every backend lowers refinements to the same
+// guard form (`assert`, `require`, hypothesis, ...) the old
+// `requires` produced -- but the contract now lives at the type,
+// where dimensional + value bounds belong, instead of trailing
+// the signature.
 
 module pid_controller;
 
@@ -17,11 +26,10 @@ const OUT_MIN: Real = -1.0
 const OUT_MAX: Real =  1.0
 
 @verify(lean, theorem = "pid_output_clamped")
-fn pid(error: Real, integral: Real, derivative: Real) -> Real
+fn pid(error:      Real{e | abs(e) <= 100.0},
+       integral:   Real{i | abs(i) <= 100.0},
+       derivative: Real{d | abs(d) <= 100.0}) -> Real
     where chain_order <= 0
-    requires (abs(error)      <= 100.0)
-    requires (abs(integral)   <= 100.0)
-    requires (abs(derivative) <= 100.0)
     ensures  (result >= OUT_MIN)
     ensures  (result <= OUT_MAX)
 {

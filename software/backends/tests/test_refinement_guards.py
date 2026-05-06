@@ -70,28 +70,30 @@ PID = REPO_ROOT / "examples" / "pid_controller.eml"
 # Hashes use the absolute REPO_ROOT path (the same resolution _compile_file
 # uses via Path.resolve()), because source_file is embedded in each backend's
 # header comment and changes the hash when the path form changes.
-# These must remain byte-identical after Phase E.1 (no refinements in pid).
+#
+# Phase F (2026-05-05) migrated pid_controller.eml from three single-variable
+# `requires (abs(x) <= K)` clauses to refinement types on the parameters.
+# The semantic guard is identical at every backend (same boolean predicate,
+# same conditional), but the message tag flips from `requires (...)` to
+# `refinement violated on <param>: (...)`, so every PID baseline drifted.
+# The dict below carries the post-Phase-F hashes; the test class names still
+# read `test_pid_no_refinements_md5_unchanged` for git-blame continuity even
+# though the fixture now exercises three refinement guards.
 _PID_BASELINES: dict[str, str] = {
-    "go":         "69fcee46d664c714c0c34a18ccd75bc8",
-    "kotlin":     "7d0aae109315eeca0517142deb58da8f",
-    "javascript": "a6d9a89433255bc01494d58c9c0184f3",
-    "csharp":     "112271b922b2229905658697bc52ea34",
-    "swift":      "924e7de84feb2f911829e0fd8685529f",
-    "luau":       "380d3c4414809c3fccff0fcd96650025",
-    # Phase E.2 baselines: collected pre-E.2 from d471b56 HEAD.
-    # These use the absolute REPO_ROOT path (resolved via parents[3]),
-    # matching the _compile_file helper's parse_file(path) behaviour.
-    "cpp":   "17993b9354148d5426e279171fc1f96d",
-    "java":  "db05f8dd4d0864b448525b22eeb99cff",
-    "hlsl":  "3a63bfe5be8d5609f58125cd46427828",
-    "glsl":  "da94b69b002f48dea5b56ecba51aacf3",
-    "wgsl":  "5dda302ca78648da8bc71ec7d347afd6",
-    "metal": "a2bef23f5e2a3885153fba781dad6b61",
-    # llvm: Phase E.3 added requires->@llvm.assume IR emission, so pid
-    # hash drifts from the E.2 baseline (pid has requires clauses).
-    # Refinement-only kernels still match Phase E.2 behavior.
-    "llvm":  "1e784cee6a263606d539d32baa0e36a9",
-    "matlab":     "aa1698e3d253da46362808531b8bae13",
+    "go":         "140ace099348b562f63de4c1c1239edb",
+    "kotlin":     "34a52d7869b0a4a867256817058e20bc",
+    "javascript": "c341cf370485d533a085972c52e12fa8",
+    "csharp":     "ccdda03dd7cab428068fe9852ee32fb6",
+    "swift":      "4f368988fbb25707cd7bb977052fd821",
+    "luau":       "b48ab057786dd5a676481a5273b0203e",
+    "cpp":        "0cd47a2b4e39bf83ca6594cdf144603e",
+    "java":       "f83f11e6a3abd1a5b8c258aec3c2f4aa",
+    "hlsl":       "5bea2d10e1cdac369c44200a286cf6de",
+    "glsl":       "9ec66ae384a6039f7f5f0eaa67034483",
+    "wgsl":       "f47d5260ef84a9f11acf26f1afa15724",
+    "metal":      "5396fc45a193e3a900dbf46fced7ce93",
+    "llvm":       "e95329ab3cd943fd2b63ee116bd9d327",
+    "matlab":     "042329239552a033461dd93e277a3514",
 }
 
 # Phase E.3 PID baselines: collected AFTER implementation (pid_controller has
@@ -1253,9 +1255,11 @@ class TestRustRefinementGuards:
         assert 'assert!(' not in obligation_line
 
     def test_requires_clause_emits_assert(self):
-        # pid_controller has requires clauses; after E.3 they must emit
-        # assert!() guards (not be silently dropped).
-        out = _compile_file(PID, RustBackend())
+        # Phase E.3 wired requires->assert!() in the Rust backend.
+        # Phase F migrated pid_controller's requires clauses to refinements,
+        # so this test now exercises _SRC_REQUIRES (a small inline fixture
+        # that retains a pure requires clause) to keep verifying the path.
+        out = _compile(_SRC_REQUIRES, RustBackend())
         assert 'assert!(' in out
         # The requires guard message uses the "requires" tag
         assert 'requires' in out
@@ -1346,7 +1350,11 @@ class TestCRefinementGuards:
         assert 'assert(' not in obligation_line
 
     def test_requires_clause_emits_assert(self):
-        out = _compile_file(PID, CBackend())
+        # Phase E.3 wired requires->assert() in the C backend.
+        # Phase F migrated pid_controller's requires clauses to refinements,
+        # so this test now exercises _SRC_REQUIRES (a small inline fixture
+        # that retains a pure requires clause) to keep verifying the path.
+        out = _compile(_SRC_REQUIRES, CBackend())
         assert 'assert(' in out
         assert 'requires' in out
 

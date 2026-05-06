@@ -1,16 +1,53 @@
 # Verify guide
 
-Walking through `@verify`, contracts, the Lean output, and how to discharge `sorry` placeholders.
+Walking through `@verify`, refinement types, `requires` / `ensures`
+contracts, the Lean output, and how to discharge `sorry` placeholders.
 
 ## Why verify?
 
-Forge generates a Lean 4 file alongside every other target. With contracts, that file is not just a translation — it is a **theorem statement** that, if proven, gives you a machine-checked guarantee that your kernel satisfies its specification.
+Forge generates a Lean 4 file alongside every other target. With
+contracts, that file is not just a translation — it is a **theorem
+statement** that, if proven, gives you a machine-checked guarantee
+that your kernel satisfies its specification.
 
-This is the difference between "we tested it on 10 million inputs" and "we proved it for all real inputs in the precondition domain."
+This is the difference between "we tested it on 10 million inputs"
+and "we proved it for all real inputs in the precondition domain."
+
+## Two contract forms
+
+Forge supports two ways to express a contract:
+
+1. **Refinement types** (Phase C, *primary form*). Single-variable
+   bounds belong on the parameter or return type:
+
+   ```eml
+   fn lerp(a: Real, b: Real, t: Real{p | 0.0 <= p && p <= 1.0}) -> Real { ... }
+   ```
+
+2. **`requires` / `ensures` clauses** (still supported). Use these
+   for multi-variable invariants and any condition involving
+   transcendentals (which the refinement predicate sub-language
+   intentionally rejects):
+
+   ```eml
+   fn implicit_volatility(rate: Real, dt: Real, vol: Real) -> Real
+       requires (rate * dt < vol * sqrt(dt))
+   { ... }
+   ```
+
+Both forms lower to the same per-backend guard or hypothesis form
+(see [Per-backend lowering table](#what-backends-respect-contracts)).
+The auto-splicer (behind `--strict-refinements`) folds single-
+variable `requires` clauses into refinements automatically — see
+[units-and-refinements.md](units-and-refinements.md#auto-splicer-behavior)
+for migration tips.
 
 ## Writing a verifiable kernel
 
-Start with a function that has clear pre- and post-conditions. A bounded PID controller is the canonical example.
+A bounded PID controller is the canonical example. Phase F migrates
+single-variable input bounds to refinement types directly on the
+parameters; the multi-variable `ensures` clauses on the output
+stay as-is:
 
 ```eml
 module bounded_pid;
@@ -20,11 +57,10 @@ const KI: Real = 0.2;
 const KD: Real = 0.3;
 
 @verify
-fn pid_bounded(error: Real, integral: Real, derivative: Real) -> Real
+fn pid_bounded(error:      Real{e | -1.0 <= e && e <= 1.0},
+               integral:   Real{i | -1.0 <= i && i <= 1.0},
+               derivative: Real{d | -1.0 <= d && d <= 1.0}) -> Real
     where chain_order <= 0
-    requires (-1.0 <= error      && error      <= 1.0)
-    requires (-1.0 <= integral   && integral   <= 1.0)
-    requires (-1.0 <= derivative && derivative <= 1.0)
     ensures  (-1.5 <= result && result <= 1.5)
 {
     KP * error + KI * integral + KD * derivative
@@ -33,9 +69,22 @@ fn pid_bounded(error: Real, integral: Real, derivative: Real) -> Real
 
 Anatomy:
 
-- **`@verify`** marks this function for strict verification: the Lean output gets a full `theorem pid_bounded_correct : ...` statement instead of just an axiom.
-- **`requires`** clauses define the precondition. Together they constrain `(error, integral, derivative) ∈ [-1, 1]³`.
-- **`ensures`** says: under those preconditions, the return value lies in `[-1.5, 1.5]`. Why 1.5? Because `1.0 + 0.2 + 0.3 = 1.5` is the worst case when all three inputs are at their bounds and the same sign.
+- **`@verify`** marks this function for strict verification: the
+  Lean output gets a full `theorem pid_bounded_correct : ...`
+  statement instead of just an axiom.
+- **Refinement types** on each parameter constrain
+  `(error, integral, derivative) ∈ [-1, 1]³`. Each refinement
+  becomes a hypothesis `(h_error : ...)`, `(h_integral : ...)`,
+  `(h_derivative : ...)` on the generated theorem.
+- **`ensures`** says: under those preconditions, the return value
+  lies in `[-1.5, 1.5]`. Why 1.5? Because `1.0 + 0.2 + 0.3 = 1.5`
+  is the worst case when all three inputs are at their bounds and
+  the same sign.
+
+The pre-Phase-F equivalent — three `requires (-1.0 <= x && x <= 1.0)`
+clauses — still works and produces an equivalent theorem. Refinement
+types are recommended for new kernels because the contract lives at
+the type, where the unit / value bounds belong.
 
 ## Compiling to Lean
 
@@ -156,11 +205,15 @@ When MachLib has a lemma matching your kernel's shape, Forge inserts a direct `a
 
 For a complete public example with a working Lean proof, see `examples/pid_controller.eml`. The kernel is a textbook PID controller with:
 
-- Three `requires` clauses bounding the error, integral, and derivative inputs.
+- **Refinement types** on the three input parameters
+  (`abs(error) <= 100.0`, etc.). The generated theorem carries
+  three named hypotheses `h_error`, `h_integral`, `h_derivative`.
 - Two `ensures` clauses bounding the output to `[OUT_MIN, OUT_MAX]`.
 - A chain-order-0 body that `eml_auto` discharges automatically.
 
-`lake build` on the emitted Lean file completes in seconds with no `sorry`.
+`lake build` on the emitted Lean file completes in seconds with no
+`sorry`. For the Phase C demo combining units + refinements, see
+`examples/audio_pole_refined.eml`.
 
 Pre-verified domain kernels (DO-178C avionics, ISO 26262 powertrain, IEC 62304 medical, etc.) ship with Forge Pro — see <https://monogateforge.com/get-started>.
 

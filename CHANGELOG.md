@@ -7,6 +7,113 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] — 2026-05-05 (Phases A–F: units + refinement types)
+
+The "types catch what the docs say" release. Six phases shipped end
+to end add a dimensional unit system (Phase A/B), refinement types
+on parameters and return positions (Phase C), Lean lowering of
+refinements as theorem hypotheses + conclusions (Phase D), the
+auto-splicer that folds single-variable `requires` / `ensures` into
+refinements (Phase C addendum), and refinement-aware lowering across
+all 33 backends (Phase E.1–E.5). Phase F migrates three canonical
+kernels to the new syntax, bumps the version, and ships docs.
+
+### Added
+
+- **Phase A — units of measurement.** `unit Hz = 1/s;` declarations
+  with full SI base units (s, m, kg, A, K, mol, cd) plus derived
+  units (Hz, N, Pa, J, W, V, C, Ω, …). Bracketed unit annotations
+  on every type position: `Real[Hz]`, `Real[m/s^2]`, `Int[count]`.
+  Dimensional inference resolves multiplications, divisions, and
+  power literals; mismatches surface as `UnitTypeError` at
+  compile time. A complete `lang/unit_types/` module with 1 800+
+  test lines.
+- **Phase B — dimensional type checker.** Pre-optimizer pass that
+  walks every binop / call site / assignment / return and asserts
+  unit equality (literal coercion is allowed: any numeric literal
+  can become any unit). Catches Mars-Climate-Orbiter bugs at the
+  type level: `velocity + mass` no longer compiles.
+- **Phase C — refinement types.** `Real{x | P(x)}` syntax on
+  parameters and return positions. Predicate sub-language allows
+  arithmetic, comparison, boolean combinators, `abs`, `min`, `max`
+  — but not transcendentals (those would require an SMT solver).
+  Combined form `Real[Hz]{f | f <= 22000}` carries both the
+  dimension and the value bound. Refinement entailment library
+  (`lang/refinements/entail.py`) decides interval ⊆ interval
+  syntactically; non-decidable cases are recorded as deferred
+  obligations.
+- **Phase C addendum — refinement auto-splicer.** Behind
+  `--strict-refinements`, single-variable `requires (P(x))` clauses
+  are folded into the parameter's refinement; single-variable
+  `ensures (Q(result))` clauses become the return refinement.
+  Multi-variable clauses (e.g. `rate * dt < vol * sqrt(dt)`) stay
+  as `requires`. With the flag OFF, behaviour is byte-identical to
+  pre-Phase-C — auto-splicing is opt-in.
+- **Phase C addendum — alias refinement expansion.** `type
+  AudibleFreq = Real[Hz]{f | 20.0 <= f && f <= 22000.0};` propagates
+  the alias's unit + refinement onto every parameter that names
+  it. Always-on (not flag-gated). Cycle detection raises
+  `RefinementError`.
+- **Phase D — Lean refinement lowering.** Parameter refinements
+  emit `(h_<param> : <pred>)` hypotheses on `theorem name_correct`;
+  return refinements emit as the theorem conclusion. Lean
+  `refinement_emit.py` handles binder alpha-renaming so the
+  generated Lean is consistent with the function signature. Proof
+  bodies try `linarith` first, fall back to `sorry` when the
+  conclusion has transcendental shape.
+- **Phase E.1–E.5 — refinement-aware lowering across 33 backends.**
+  Every codegen target lowers `Real{x | P}` to its native guard
+  form: `assert(...)` (C, C++, MATLAB), `debug_assert!(...)` (Rust),
+  `assert ..., "..."` (Python), `require(...)` (Kotlin, Solidity),
+  `precondition(...)` (Swift), `if (!P) throw …` (Java), explicit
+  `if`/return-default in shaders (HLSL, GLSL, GLSL ES, WGSL,
+  Metal), runtime checks in JavaScript and Go, comment-only
+  documentation in Verilog / VHDL / Chisel, `Pre =>` aspects in
+  Ada/SPARK, `assumes`/`shows` in Coq + Isabelle, and NatSpec on
+  Solidity contracts. Total: 19 codegen guard backends + 6
+  formal-verification hypothesis backends + 8 documentation-only
+  backends.
+- **Phase F kernel migrations** — three canonical kernels rewritten
+  to demonstrate the new syntax end-to-end:
+  - `examples/pid_controller.eml` — three `requires (abs(x) <=
+    100.0)` clauses become `Real{e | abs(e) <= 100.0}` on the
+    parameters.
+  - `1op/public/play/eml/gravity_surfer.eml` — `up_hold`,
+    `down_hold`, `dash_held`, and `t` switch to refinements; multi-
+    variable invariants stay as-is.
+  - `monogate-research/exploration/cat_vision/eml/rod_sensitivity.eml`
+    — wavelength input gets a physiologically meaningful range
+    refinement; the `[0, 1]` `ensures` becomes a return
+    refinement.
+
+### Changed
+
+- `eml-compile --version` now prints `0.4.0`.
+- `examples/audio_pole_refined.eml` is the canonical Phase C demo
+  (units + refinement + multi-variable `requires`).
+- `pid_controller.eml` C-backend MD5 changed from
+  `3ae9cb6715bf8b5d05c05b12cfc38ff0` (pre-F) to
+  `aa3b12fbd0c31c49dc9f81ed8d28022a` (post-F migration). The
+  semantic guard is identical; only the message tag flipped from
+  `requires (...)` to `refinement violated on <param>: (...)`.
+  Pinned in
+  `software/verification/lean/tests/test_refinement_lean.py::TestNonRegression::test_pid_controller_c_backend_post_e3`.
+
+### Documentation
+
+- New `docs/units-and-refinements.md` — focused guide covering the
+  Mars Climate Orbiter motivation, unit declarations, refinement
+  syntax, the auto-splicer, per-backend lowering tables, and
+  migration tips.
+- `docs/language-reference.md` — new "Types" subsection with
+  unit-bracketed types, refinement types, and the predicate
+  sub-language constraints.
+- `docs/verify-guide.md` — refinements documented as the primary
+  contract form; `requires` / `ensures` retained for multi-
+  variable invariants.
+
+---
+
 ## [0.1.0] — 2026-05-02 (initial public release)
 
 First public release on PyPI. `pip install monogate-forge`.
