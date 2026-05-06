@@ -64,6 +64,40 @@ from lang.parser.ast_nodes import (
 )
 
 
+# ── Phase E.1: refinement guard helpers ──────────────────────────────────────
+
+
+def _substitute_var(node: ASTNode, old: str, new: str) -> ASTNode:
+    """Return a new ASTNode tree with every VAR named *old* replaced by *new*.
+
+    Immutable: the original tree is never modified.
+    """
+    if node.kind == NodeKind.VAR and node.value == old:
+        return ASTNode(
+            kind=NodeKind.VAR, value=new, children=[],
+            type_annotation=node.type_annotation,
+            chain_constraint=node.chain_constraint,
+            line=node.line, col=node.col,
+        )
+    new_children = [_substitute_var(c, old, new) for c in node.children]
+    return ASTNode(
+        kind=node.kind, value=node.value, children=new_children,
+        type_annotation=node.type_annotation,
+        chain_constraint=node.chain_constraint,
+        line=node.line, col=node.col,
+    )
+
+
+def _var_names(node: ASTNode) -> set[str]:
+    """Collect every VAR name that appears anywhere in *node*."""
+    names: set[str] = set()
+    if node.kind == NodeKind.VAR:
+        names.add(str(node.value))
+    for c in node.children:
+        names.update(_var_names(c))
+    return names
+
+
 # Swift sources `Foundation` math globals (`sin`, `cos`, `exp`,
 # `log`, `sqrt`, `pow`, `abs`, etc.) directly into scope on
 # `import Foundation`. We emit the bare names; this matches how
@@ -338,6 +372,49 @@ class SwiftBackend:
             f"}}",
         ]
 
+    # ── Phase E.1: refinement guards ──────────────────────────
+
+    def _emit_refinement_guards(self, fn: EMLFunction) -> list[str]:
+        """Return one precondition line per refined parameter (Phase E.1).
+
+        Binder-substitution: the refinement's binder is alpha-renamed to
+        the parameter name before emission.  Cross-param refinements are
+        emitted as comment-only obligation lines.
+        """
+        out: list[str] = []
+        param_names = {p.name for p in fn.params}
+        for p in fn.params:
+            if p.refinement is None:
+                continue
+            ref = p.refinement
+            pred = _substitute_var(ref.predicate, ref.binder, p.name)
+            pred_vars = _var_names(pred)
+            other_params_in_pred = (pred_vars - {p.name}) & param_names
+            if other_params_in_pred:
+                try:
+                    cond_str = self._emit_expr(pred)
+                except CompileError as e:
+                    cond_str = f"<unsupported: {e}>"
+                out.append(
+                    f"{self.indent}// refinement obligation: "
+                    f"{fn.name}: {p.name}: {cond_str}"
+                )
+                continue
+            try:
+                cond = self._emit_expr(pred)
+                msg = (
+                    f"{fn.name}: refinement violated on {p.name}: {cond}"
+                )
+                msg = msg.replace("\\", "\\\\").replace('"', '\\"')
+                out.append(
+                    f"{self.indent}precondition({cond}, \"{msg}\")"
+                )
+            except CompileError as e:
+                out.append(
+                    f"{self.indent}// refinement: unsupported ({e})"
+                )
+        return out
+
     # ── Function emit ─────────────────────────────────────────
 
     def _emit_function(self, fn: EMLFunction) -> list[str]:
@@ -359,6 +436,9 @@ class SwiftBackend:
             f"@inline(__always) public func "
             f"{_safe_ident(fn.name)}({params}) -> {ret} {{"
         )
+
+        # Phase E.1: refinement guards fire BEFORE requires guards.
+        out.extend(self._emit_refinement_guards(fn))
 
         # Preconditions via Swift's `precondition()` -- always
         # checked, including in release builds (matching Kotlin's
