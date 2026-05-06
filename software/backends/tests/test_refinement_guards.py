@@ -34,6 +34,14 @@ from software.backends.csharp_backend import CSharpBackend
 from software.backends.swift_backend import SwiftBackend
 from software.backends.luau_backend import LuauBackend
 from software.backends.matlab_backend import MatlabBackend
+# Phase E.2 backends
+from software.backends.cpp_backend import CppBackend
+from software.backends.java_backend import JavaBackend
+from software.backends.hlsl_backend import HLSLBackend
+from software.backends.glsl_backend import GLSLBackend
+from software.backends.wgsl_backend import WGSLBackend
+from software.backends.metal_backend import MetalBackend
+from software.backends.llvm_backend import LLVMBackend
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -51,6 +59,16 @@ _PID_BASELINES: dict[str, str] = {
     "csharp":     "112271b922b2229905658697bc52ea34",
     "swift":      "924e7de84feb2f911829e0fd8685529f",
     "luau":       "380d3c4414809c3fccff0fcd96650025",
+    # Phase E.2 baselines: collected pre-E.2 from d471b56 HEAD.
+    # These use the absolute REPO_ROOT path (resolved via parents[3]),
+    # matching the _compile_file helper's parse_file(path) behaviour.
+    "cpp":   "17993b9354148d5426e279171fc1f96d",
+    "java":  "db05f8dd4d0864b448525b22eeb99cff",
+    "hlsl":  "3a63bfe5be8d5609f58125cd46427828",
+    "glsl":  "da94b69b002f48dea5b56ecba51aacf3",
+    "wgsl":  "5dda302ca78648da8bc71ec7d347afd6",
+    "metal": "a2bef23f5e2a3885153fba781dad6b61",
+    "llvm":  "6be7ddaf36683ab0bb58063c3c23402d",
     "matlab":     "aa1698e3d253da46362808531b8bae13",
 }
 
@@ -692,3 +710,422 @@ class TestRefinementBeforeRequires:
             if "precondition(" in ln and "requires" in ln
         )
         assert ref_idx < req_idx
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Phase E.2a: C++ backend -- assert() runtime guards
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestCppRefinementGuards:
+    """Phase E.2: refinement-derived assert() guards for the C++ backend."""
+
+    def setup_method(self):
+        self.b = CppBackend()
+
+    def test_single_refined_param_emits_assert(self):
+        out = _compile(_SRC_SINGLE, self.b)
+        assert 'assert(' in out
+        assert 'refinement violated on x' in out
+
+    def test_conjunction_refinement_emits_single_assert(self):
+        out = _compile(_SRC_CONJ, self.b)
+        assert 'refinement violated on x' in out
+        assert out.count('refinement violated on x') == 1
+
+    def test_abs_refinement_emits_std_abs(self):
+        out = _compile(_SRC_ABS, self.b)
+        assert 'std::abs(x)' in out
+        assert 'refinement violated on x' in out
+
+    def test_multiple_refined_params_emit_n_asserts(self):
+        out = _compile(_SRC_MULTI, self.b)
+        assert 'refinement violated on error' in out
+        assert 'refinement violated on integral' in out
+        assert 'refinement violated on derivative' in out
+        i_error = out.index('refinement violated on error')
+        i_integral = out.index('refinement violated on integral')
+        i_deriv = out.index('refinement violated on derivative')
+        assert i_error < i_integral < i_deriv
+
+    def test_splicer_parity_requires_vs_refinement(self):
+        out_req = _compile(_SRC_REQUIRES, CppBackend())
+        out_ref = _compile(_SRC_REFINE, CppBackend())
+        assert 'std::abs(x)' in out_req
+        assert 'std::abs(x)' in out_ref
+        assert 'refinement violated on' in out_ref
+
+    def test_cross_param_refinement_emits_comment_only(self):
+        out = _compile(_SRC_CROSS, self.b)
+        assert 'refinement obligation:' in out
+        obligation_line = next(
+            ln for ln in out.splitlines() if 'refinement obligation:' in ln
+        )
+        assert 'assert(' not in obligation_line
+
+    def test_pid_no_refinements_md5_unchanged(self):
+        out = _compile_file(PID, CppBackend())
+        assert _md5(out) == _PID_BASELINES['cpp']
+
+    def test_norefinement_kernels_unchanged(self):
+        for src in (_SRC_NOREFINEMENT_1, _SRC_NOREFINEMENT_2, _SRC_NOREFINEMENT_3):
+            out = _compile(src, CppBackend())
+            assert 'refinement violated' not in out
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Phase E.2a: Java backend -- IllegalArgumentException runtime guards
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestJavaRefinementGuards:
+    """Phase E.2: refinement-derived IllegalArgumentException guards for Java."""
+
+    def setup_method(self):
+        self.b = JavaBackend()
+
+    def test_single_refined_param_emits_guard(self):
+        out = _compile(_SRC_SINGLE, self.b)
+        assert 'throw new IllegalArgumentException(' in out
+        assert 'refinement violated on x' in out
+
+    def test_conjunction_refinement_emits_single_guard(self):
+        out = _compile(_SRC_CONJ, self.b)
+        assert 'refinement violated on x' in out
+        assert out.count('refinement violated on x') == 1
+
+    def test_abs_refinement_emits_math_abs(self):
+        out = _compile(_SRC_ABS, self.b)
+        assert 'Math.abs(x)' in out
+        assert 'refinement violated on x' in out
+
+    def test_multiple_refined_params_emit_n_guards(self):
+        out = _compile(_SRC_MULTI, self.b)
+        assert 'refinement violated on error' in out
+        assert 'refinement violated on integral' in out
+        assert 'refinement violated on derivative' in out
+        i_error = out.index('refinement violated on error')
+        i_integral = out.index('refinement violated on integral')
+        i_deriv = out.index('refinement violated on derivative')
+        assert i_error < i_integral < i_deriv
+
+    def test_splicer_parity_requires_vs_refinement(self):
+        out_req = _compile(_SRC_REQUIRES, JavaBackend())
+        out_ref = _compile(_SRC_REFINE, JavaBackend())
+        assert 'Math.abs(x)' in out_req
+        assert 'Math.abs(x)' in out_ref
+        assert 'refinement violated on' in out_ref
+
+    def test_cross_param_refinement_emits_comment_only(self):
+        out = _compile(_SRC_CROSS, self.b)
+        assert 'refinement obligation:' in out
+        obligation_line = next(
+            ln for ln in out.splitlines() if 'refinement obligation:' in ln
+        )
+        assert 'throw' not in obligation_line
+
+    def test_pid_no_refinements_md5_unchanged(self):
+        out = _compile_file(PID, JavaBackend())
+        assert _md5(out) == _PID_BASELINES['java']
+
+    def test_norefinement_kernels_unchanged(self):
+        for src in (_SRC_NOREFINEMENT_1, _SRC_NOREFINEMENT_2, _SRC_NOREFINEMENT_3):
+            out = _compile(src, JavaBackend())
+            assert 'refinement violated' not in out
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Phase E.2b: HLSL backend -- doc-comment only
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestHLSLRefinementGuards:
+    """Phase E.2: refinement doc-comments for the HLSL backend."""
+
+    def setup_method(self):
+        self.b = HLSLBackend()
+
+    def test_single_refined_param_emits_comment(self):
+        out = _compile(_SRC_SINGLE, self.b)
+        assert 'forge.refinement:' in out
+        assert 'refinement violated on x' in out
+
+    def test_conjunction_refinement_emits_single_comment(self):
+        out = _compile(_SRC_CONJ, self.b)
+        assert 'refinement violated on x' in out
+        assert out.count('refinement violated on x') == 1
+
+    def test_abs_refinement_emits_abs(self):
+        out = _compile(_SRC_ABS, self.b)
+        assert 'abs(x)' in out
+        assert 'refinement violated on x' in out
+
+    def test_multiple_refined_params_emit_n_comments(self):
+        out = _compile(_SRC_MULTI, self.b)
+        assert 'refinement violated on error' in out
+        assert 'refinement violated on integral' in out
+        assert 'refinement violated on derivative' in out
+        i_error = out.index('refinement violated on error')
+        i_integral = out.index('refinement violated on integral')
+        i_deriv = out.index('refinement violated on derivative')
+        assert i_error < i_integral < i_deriv
+
+    def test_splicer_parity_requires_vs_refinement(self):
+        out_req = _compile(_SRC_REQUIRES, HLSLBackend())
+        out_ref = _compile(_SRC_REFINE, HLSLBackend())
+        assert 'abs(x)' in out_req
+        assert 'abs(x)' in out_ref
+        assert 'forge.requires:' in out_req
+        assert 'forge.refinement:' in out_ref
+
+    def test_cross_param_refinement_emits_comment_only(self):
+        out = _compile(_SRC_CROSS, self.b)
+        assert 'refinement obligation:' in out
+
+    def test_pid_no_refinements_md5_unchanged(self):
+        out = _compile_file(PID, HLSLBackend())
+        assert _md5(out) == _PID_BASELINES['hlsl']
+
+    def test_norefinement_kernels_unchanged(self):
+        for src in (_SRC_NOREFINEMENT_1, _SRC_NOREFINEMENT_2, _SRC_NOREFINEMENT_3):
+            out = _compile(src, HLSLBackend())
+            assert 'refinement violated' not in out
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Phase E.2b: GLSL backend -- doc-comment only
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestGLSLRefinementGuards:
+    """Phase E.2: refinement doc-comments for the GLSL backend."""
+
+    def setup_method(self):
+        self.b = GLSLBackend()
+
+    def test_single_refined_param_emits_comment(self):
+        out = _compile(_SRC_SINGLE, self.b)
+        assert 'forge.refinement:' in out
+        assert 'refinement violated on x' in out
+
+    def test_conjunction_refinement_emits_single_comment(self):
+        out = _compile(_SRC_CONJ, self.b)
+        assert 'refinement violated on x' in out
+        assert out.count('refinement violated on x') == 1
+
+    def test_abs_refinement_emits_abs(self):
+        out = _compile(_SRC_ABS, self.b)
+        assert 'abs(x)' in out
+        assert 'refinement violated on x' in out
+
+    def test_multiple_refined_params_emit_n_comments(self):
+        out = _compile(_SRC_MULTI, self.b)
+        assert 'refinement violated on error' in out
+        assert 'refinement violated on integral' in out
+        assert 'refinement violated on derivative' in out
+        i_error = out.index('refinement violated on error')
+        i_integral = out.index('refinement violated on integral')
+        i_deriv = out.index('refinement violated on derivative')
+        assert i_error < i_integral < i_deriv
+
+    def test_splicer_parity_requires_vs_refinement(self):
+        out_req = _compile(_SRC_REQUIRES, GLSLBackend())
+        out_ref = _compile(_SRC_REFINE, GLSLBackend())
+        assert 'abs(x)' in out_req
+        assert 'abs(x)' in out_ref
+        assert 'forge.requires:' in out_req
+        assert 'forge.refinement:' in out_ref
+
+    def test_cross_param_refinement_emits_comment_only(self):
+        out = _compile(_SRC_CROSS, self.b)
+        assert 'refinement obligation:' in out
+
+    def test_pid_no_refinements_md5_unchanged(self):
+        out = _compile_file(PID, GLSLBackend())
+        assert _md5(out) == _PID_BASELINES['glsl']
+
+    def test_norefinement_kernels_unchanged(self):
+        for src in (_SRC_NOREFINEMENT_1, _SRC_NOREFINEMENT_2, _SRC_NOREFINEMENT_3):
+            out = _compile(src, GLSLBackend())
+            assert 'refinement violated' not in out
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Phase E.2b: WGSL backend -- doc-comment only
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestWGSLRefinementGuards:
+    """Phase E.2: refinement doc-comments for the WGSL backend."""
+
+    def setup_method(self):
+        self.b = WGSLBackend()
+
+    def test_single_refined_param_emits_comment(self):
+        out = _compile(_SRC_SINGLE, self.b)
+        assert 'forge.refinement:' in out
+        assert 'refinement violated on x' in out
+
+    def test_conjunction_refinement_emits_single_comment(self):
+        out = _compile(_SRC_CONJ, self.b)
+        assert 'refinement violated on x' in out
+        assert out.count('refinement violated on x') == 1
+
+    def test_abs_refinement_emits_abs(self):
+        out = _compile(_SRC_ABS, self.b)
+        assert 'abs(x)' in out
+        assert 'refinement violated on x' in out
+
+    def test_multiple_refined_params_emit_n_comments(self):
+        out = _compile(_SRC_MULTI, self.b)
+        assert 'refinement violated on error' in out
+        assert 'refinement violated on integral' in out
+        assert 'refinement violated on derivative' in out
+        i_error = out.index('refinement violated on error')
+        i_integral = out.index('refinement violated on integral')
+        i_deriv = out.index('refinement violated on derivative')
+        assert i_error < i_integral < i_deriv
+
+    def test_splicer_parity_requires_vs_refinement(self):
+        out_req = _compile(_SRC_REQUIRES, WGSLBackend())
+        out_ref = _compile(_SRC_REFINE, WGSLBackend())
+        assert 'abs(x)' in out_req
+        assert 'abs(x)' in out_ref
+        assert 'forge.requires:' in out_req
+        assert 'forge.refinement:' in out_ref
+
+    def test_cross_param_refinement_emits_comment_only(self):
+        out = _compile(_SRC_CROSS, self.b)
+        assert 'refinement obligation:' in out
+
+    def test_pid_no_refinements_md5_unchanged(self):
+        out = _compile_file(PID, WGSLBackend())
+        assert _md5(out) == _PID_BASELINES['wgsl']
+
+    def test_norefinement_kernels_unchanged(self):
+        for src in (_SRC_NOREFINEMENT_1, _SRC_NOREFINEMENT_2, _SRC_NOREFINEMENT_3):
+            out = _compile(src, WGSLBackend())
+            assert 'refinement violated' not in out
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Phase E.2b: Metal backend -- doc-comment only
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestMetalRefinementGuards:
+    """Phase E.2: refinement doc-comments for the Metal backend."""
+
+    def setup_method(self):
+        self.b = MetalBackend()
+
+    def test_single_refined_param_emits_comment(self):
+        out = _compile(_SRC_SINGLE, self.b)
+        assert 'forge.refinement:' in out
+        assert 'refinement violated on x' in out
+
+    def test_conjunction_refinement_emits_single_comment(self):
+        out = _compile(_SRC_CONJ, self.b)
+        assert 'refinement violated on x' in out
+        assert out.count('refinement violated on x') == 1
+
+    def test_abs_refinement_emits_abs(self):
+        out = _compile(_SRC_ABS, self.b)
+        assert 'abs(x)' in out
+        assert 'refinement violated on x' in out
+
+    def test_multiple_refined_params_emit_n_comments(self):
+        out = _compile(_SRC_MULTI, self.b)
+        assert 'refinement violated on error' in out
+        assert 'refinement violated on integral' in out
+        assert 'refinement violated on derivative' in out
+        i_error = out.index('refinement violated on error')
+        i_integral = out.index('refinement violated on integral')
+        i_deriv = out.index('refinement violated on derivative')
+        assert i_error < i_integral < i_deriv
+
+    def test_splicer_parity_requires_vs_refinement(self):
+        out_req = _compile(_SRC_REQUIRES, MetalBackend())
+        out_ref = _compile(_SRC_REFINE, MetalBackend())
+        assert 'abs(x)' in out_req
+        assert 'abs(x)' in out_ref
+        assert 'forge.requires:' in out_req
+        assert 'forge.refinement:' in out_ref
+
+    def test_cross_param_refinement_emits_comment_only(self):
+        out = _compile(_SRC_CROSS, self.b)
+        assert 'refinement obligation:' in out
+
+    def test_pid_no_refinements_md5_unchanged(self):
+        out = _compile_file(PID, MetalBackend())
+        assert _md5(out) == _PID_BASELINES['metal']
+
+    def test_norefinement_kernels_unchanged(self):
+        for src in (_SRC_NOREFINEMENT_1, _SRC_NOREFINEMENT_2, _SRC_NOREFINEMENT_3):
+            out = _compile(src, MetalBackend())
+            assert 'refinement violated' not in out
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Phase E.2c: LLVM backend -- @llvm.assume intrinsic
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestLLVMRefinementGuards:
+    """Phase E.2: refinement @llvm.assume hints for the LLVM backend."""
+
+    def setup_method(self):
+        self.b = LLVMBackend()
+
+    def test_single_refined_param_emits_assume(self):
+        out = _compile(_SRC_SINGLE, self.b)
+        assert 'call void @llvm.assume(' in out
+        assert 'refinement violated on x' in out
+
+    def test_conjunction_refinement_emits_single_assume(self):
+        out = _compile(_SRC_CONJ, self.b)
+        assert 'call void @llvm.assume(' in out
+        assert out.count('refinement violated on x') == 1
+
+    def test_abs_refinement_emits_fabs(self):
+        out = _compile(_SRC_ABS, self.b)
+        assert 'llvm.fabs' in out
+        assert 'refinement violated on x' in out
+
+    def test_multiple_refined_params_emit_n_assumes(self):
+        out = _compile(_SRC_MULTI, self.b)
+        assert 'refinement violated on error' in out
+        assert 'refinement violated on integral' in out
+        assert 'refinement violated on derivative' in out
+        assert out.count('call void @llvm.assume(') >= 3
+        i_error = out.index('refinement violated on error')
+        i_integral = out.index('refinement violated on integral')
+        i_deriv = out.index('refinement violated on derivative')
+        assert i_error < i_integral < i_deriv
+
+    def test_splicer_parity_requires_vs_refinement(self):
+        out_ref = _compile(_SRC_REFINE, LLVMBackend())
+        assert 'call void @llvm.assume(' in out_ref
+        assert 'refinement violated on' in out_ref
+
+    def test_cross_param_refinement_emits_comment_only(self):
+        out = _compile(_SRC_CROSS, self.b)
+        assert 'refinement obligation:' in out
+        obligation_line = next(
+            ln for ln in out.splitlines() if 'refinement obligation:' in ln
+        )
+        assert 'llvm.assume' not in obligation_line
+
+    def test_llvm_assume_declare_in_prelude(self):
+        out = _compile(_SRC_SINGLE, self.b)
+        assert 'declare void @llvm.assume(i1)' in out
+
+    def test_pid_no_refinements_md5_unchanged(self):
+        out = _compile_file(PID, LLVMBackend())
+        assert _md5(out) == _PID_BASELINES['llvm']
+
+    def test_norefinement_kernels_unchanged(self):
+        for src in (_SRC_NOREFINEMENT_1, _SRC_NOREFINEMENT_2, _SRC_NOREFINEMENT_3):
+            out = _compile(src, LLVMBackend())
+            assert 'refinement violated' not in out
+            assert 'llvm.assume' not in out

@@ -71,6 +71,49 @@ def _llvm_type(eml_type: str) -> str:
     return _TYPE_TO_LLVM.get(eml_type, "double")
 
 
+# ── Phase E.2: refinement guard helpers ──────────────────────────────────────
+
+
+def _substitute_var(node: ASTNode, old: str, new: str) -> ASTNode:
+    """Return a new ASTNode tree with every VAR named *old* replaced by *new*.
+
+    Immutable: the original tree is never modified.
+    """
+    if node.kind == NodeKind.VAR and node.value == old:
+        return ASTNode(
+            kind=NodeKind.VAR, value=new, children=[],
+            type_annotation=node.type_annotation,
+            chain_constraint=node.chain_constraint,
+            line=node.line, col=node.col,
+        )
+    new_children = [_substitute_var(c, old, new) for c in node.children]
+    return ASTNode(
+        kind=node.kind, value=node.value, children=new_children,
+        type_annotation=node.type_annotation,
+        chain_constraint=node.chain_constraint,
+        line=node.line, col=node.col,
+    )
+
+
+def _var_names(node: ASTNode) -> set[str]:
+    """Collect every VAR name that appears anywhere in *node*."""
+    names: set[str] = set()
+    if node.kind == NodeKind.VAR:
+        names.add(str(node.value))
+    for c in node.children:
+        names.update(_var_names(c))
+    return names
+
+
+def _has_refinements(funcs: list) -> bool:
+    """Return True if any function in *funcs* has at least one refined param."""
+    return any(
+        any(p.refinement is not None for p in fn.params)
+        for fn in funcs
+        if not fn.is_extern
+    )
+
+
 class CompileError(Exception):
     """Raised when the LLVM backend can't translate a node."""
 
@@ -138,6 +181,10 @@ class LLVMBackend:
             lines.append(f'target triple = "{self.target_triple}"')
         lines.append("")
         lines.extend(self._emit_externs(mod.functions))
+        # Phase E.2: declare @llvm.assume only when refinements are present.
+        if _has_refinements(list(mod.functions)):
+            lines.append("declare void @llvm.assume(i1)")
+            lines.append("declare double @llvm.fabs.f64(double)")
         lines.append("")
 
         # Tuple-return struct types -- LLVM uses anonymous literal
@@ -247,6 +294,103 @@ class LLVMBackend:
             return f"{v:.17e}"
         raise CompileError(f"unsupported literal: {v!r}")
 
+    # ── Phase E.2: refinement guards ─────────────────────────
+
+    def _emit_refinement_guards(
+        self, fn: EMLFunction, st: _EmitState,
+    ) -> list[str]:
+        """Emit @llvm.assume(i1 %cond) for each refined parameter.
+
+        Binder-substitution: the refinement binder is alpha-renamed to the
+        parameter name before code generation.
+
+        ABS in refinement predicates is lowered to @llvm.fabs.f64 rather
+        than the mg_abs libmonogate call -- canonical optimizer hint.
+
+        Cross-param refinements emit a comment-only obligation line.
+        """
+        out: list[str] = []
+        param_names = {p.name for p in fn.params}
+        for n, p in enumerate(fn.params):
+            if p.refinement is None:
+                continue
+            ref = p.refinement
+            pred = _substitute_var(ref.predicate, ref.binder, p.name)
+            pred_vars = _var_names(pred)
+            other_params_in_pred = (pred_vars - {p.name}) & param_names
+            if other_params_in_pred:
+                try:
+                    # Emit a comment for cross-param refinements.
+                    pred_str = self._emit_refinement_pred_str(pred, st)
+                except CompileError as e:
+                    pred_str = f"<unsupported: {e}>"
+                out.append(
+                    f"  ; refinement obligation: "
+                    f"{fn.name}: {p.name}: {pred_str}"
+                )
+                continue
+            try:
+                cond_reg, cond_lns = self._emit_refinement_pred(pred, st)
+                msg = (
+                    f"{fn.name}: refinement violated on {p.name}"
+                )
+                out.extend(cond_lns)
+                out.append(f"  ; {msg}")
+                out.append(f"  call void @llvm.assume(i1 {cond_reg})")
+            except CompileError as e:
+                out.append(
+                    f"  ; refinement: unsupported ({e})"
+                )
+        return out
+
+    def _emit_refinement_pred(
+        self, node: ASTNode, st: _EmitState,
+    ) -> tuple[str, list[str]]:
+        """Lower a refinement predicate node to (bool_reg, ir_lines).
+
+        This mirrors _emit_expr but routes ABS to @llvm.fabs.f64 (the
+        canonical optimizer-visible fabs) rather than mg_abs.
+        """
+        kind = node.kind
+
+        if kind == NodeKind.ABS:
+            # Use @llvm.fabs.f64 for abs in refinements.
+            arg_reg, arg_lns = self._emit_refinement_pred(node.children[0], st)
+            r = st.fresh()
+            lns = arg_lns + [
+                f"  {r} = call double @llvm.fabs.f64(double {arg_reg})"
+            ]
+            return r, lns
+
+        # For all other nodes, fall back to the regular emitter.
+        return self._emit_expr(node, st)
+
+    def _emit_refinement_pred_str(
+        self, node: ASTNode, st: _EmitState,
+    ) -> str:
+        """Return a human-readable string for a predicate (for comments)."""
+        kind = node.kind
+        if kind == NodeKind.LITERAL:
+            v = node.value
+            if isinstance(v, bool):
+                return "1" if v else "0"
+            if isinstance(v, float):
+                return repr(v)
+            return str(v)
+        if kind == NodeKind.VAR:
+            return str(node.value)
+        if kind == NodeKind.ABS:
+            inner = self._emit_refinement_pred_str(node.children[0], st)
+            return f"fabs({inner})"
+        if kind == NodeKind.BINOP:
+            l = self._emit_refinement_pred_str(node.children[0], st)
+            r = self._emit_refinement_pred_str(node.children[1], st)
+            return f"({l} {node.value} {r})"
+        if kind == NodeKind.UNARYOP:
+            sub = self._emit_refinement_pred_str(node.children[0], st)
+            return f"({node.value}{sub})"
+        return "<expr>"
+
     # ── Function emit ────────────────────────────────────────
 
     def _emit_function(self, fn: EMLFunction) -> list[str]:
@@ -281,6 +425,9 @@ class LLVMBackend:
             body_lines.append(f"  {slot} = alloca {ty}")
             body_lines.append(f"  store {ty} %{p.name}, {ty}* {slot}")
             st.locals[p.name] = (slot, ty)
+
+        # Phase E.2: refinement guards fire before the body.
+        body_lines.extend(self._emit_refinement_guards(fn, st))
 
         struct_name = (
             self._tuple_type_name(fn.name) if fn.return_tuple_types else None
