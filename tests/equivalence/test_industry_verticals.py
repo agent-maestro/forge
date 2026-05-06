@@ -69,13 +69,20 @@ VERTICAL_CASES: list[tuple[str, str, list[tuple[float, ...]], float]] = [
         1e-9,    # tanh involved -> looser tolerance
     ),
     # Medical -- motor_command(prescribed_rate, measured_rate, rate_integral)
+    # All vectors must satisfy the kernel's `requires` clauses:
+    #   RATE_MIN (0.1) <= prescribed_rate <= RATE_MAX (999.0)
+    #   abs(measured_rate) < RATE_MAX
+    #   abs(rate_integral) < 100.0
+    # Pre-Phase-E.3 the Rust backend silently dropped requires, so
+    # (0.0, 0.5, -0.5) -- which violates RATE_MIN -- ran out of domain.
+    # Replaced with 0.5 (KVO just above the minimum).
     (
         "medical/devices/infusion_pump.eml",
         "motor_command",
         [
             (5.0, 5.0, 0.0),
             (10.0, 8.0, 1.5),
-            (0.0, 0.5, -0.5),
+            (0.5, 0.5, -0.5),
         ],
         1e-12,
     ),
