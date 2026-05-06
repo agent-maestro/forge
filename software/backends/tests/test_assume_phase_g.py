@@ -13,7 +13,7 @@ Design contracts under test:
   5. SOLIDITY: comment-only line.
 
 Non-regression:
-  - C backend: pid_controller.eml MD5 stays 6d5d972be783cbe62afd05c97e334774
+  - C backend: pid_controller.eml MD5 stays 51eeabe2546169ccd991e1a7f342557d
   - `requires` semantics unchanged in every backend.
 
 Shared EML fixture (all targets):
@@ -32,6 +32,7 @@ Cross-backend: at least 3 backends per cost-class verified.
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 
 import pytest
@@ -74,8 +75,24 @@ def _compile_verification(src: str, backend) -> str:
     return backend.compile_module(mod)
 
 
+_SOURCE_FILE_RE = re.compile(
+    r'(Source file:|source_filename =|@source\s+file)\s*"?[^\n"]*',
+)
+
+
+def _strip_source_paths(text: str) -> str:
+    """Strip embedded absolute source-file paths from a backend's header.
+
+    Backends embed the resolved kernel path (e.g.
+    `// Source file: /home/runner/work/forge/...`) which differs
+    between dev and CI.  Canonicalise before hashing so the
+    baseline is stable across machines.
+    """
+    return _SOURCE_FILE_RE.sub(r"\1 <canonicalized>", text)
+
+
 def _md5(text: str) -> str:
-    return hashlib.md5(text.encode()).hexdigest()
+    return hashlib.md5(_strip_source_paths(text).encode()).hexdigest()
 
 
 # ── EML fixtures ──────────────────────────────────────────────────────────────
@@ -153,11 +170,12 @@ class TestCBackendAssume:
         """Non-regression: pid_controller.eml C MD5 stays fixed.
 
         Phase G is a no-op for files with no assume clauses.
-        The MD5 is environment-specific (depends on absolute source_file path).
+        Path-canonicalised via _md5() so the baseline is stable across
+    dev and CI environments.
         """
         from software.backends.c_backend import CBackend
         out = _compile_file(PID, CBackend())
-        assert _md5(out) == "6d5d972be783cbe62afd05c97e334774", \
+        assert _md5(out) == "51eeabe2546169ccd991e1a7f342557d", \
             "C backend MD5 changed -- pid_controller.eml regression"
 
 
@@ -646,12 +664,13 @@ class TestSolidityBackendAssume:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_c_backend_pid_md5_unchanged():
-    """The C backend MD5 for pid_controller.eml must stay 6d5d972be783cbe62afd05c97e334774.
+    """The C backend MD5 for pid_controller.eml must stay 51eeabe2546169ccd991e1a7f342557d.
 
     Phase G is a no-op for files with no assume clauses.
-    The MD5 is environment-specific (depends on absolute source_file path).
+    Path-canonicalised via _md5() so the baseline is stable across
+    dev and CI environments.
     """
     from software.backends.c_backend import CBackend
     out = _compile_file(PID, CBackend())
-    assert _md5(out) == "6d5d972be783cbe62afd05c97e334774", \
-        f"C backend regression: MD5={_md5(out)} (expected 6d5d972be783cbe62afd05c97e334774)"
+    assert _md5(out) == "51eeabe2546169ccd991e1a7f342557d", \
+        f"C backend regression: MD5={_md5(out)} (expected 51eeabe2546169ccd991e1a7f342557d)"

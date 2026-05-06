@@ -556,12 +556,21 @@ fn f(x: Real) -> Real
         """
         import subprocess
         import hashlib
+        import re
         result = subprocess.run(
             ["python", "-m", "tools.cli.main", "examples/pid_controller.eml", "--target", "c"],
             capture_output=True, text=True
         )
-        md5 = hashlib.md5(result.stdout.encode()).hexdigest()
-        assert md5 == "aa3b12fbd0c31c49dc9f81ed8d28022a", (
+        # Path-canonicalise: the CLI resolves the relative path to an
+        # absolute one and embeds it in the file header, which differs
+        # between dev and CI.  Strip before hashing so the baseline is
+        # stable across machines.
+        _src_re = re.compile(
+            r'(Source file:|source_filename =|@source\s+file)\s*"?[^\n"]*'
+        )
+        canon = _src_re.sub(r"\1 <canonicalized>", result.stdout)
+        md5 = hashlib.md5(canon.encode()).hexdigest()
+        assert md5 == "51eeabe2546169ccd991e1a7f342557d", (
             f"C backend MD5 changed to {md5} -- codegen drift detected!"
         )
 
