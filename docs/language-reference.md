@@ -68,6 +68,105 @@ fn polar_to_xy(r: Real, theta: Real) -> (Real, Real)
 
 Backends that lack tuple returns (C, HLSL, Metal, Java) auto-emit a result struct.
 
+### Unit-bracketed types: `Real[unit]`
+
+Any type can carry a dimensional **unit annotation** in square
+brackets:
+
+```eml
+unit Hz = 1/s;
+
+const SAMPLE_RATE: Real[Hz] = 48000.0;
+
+fn audio_pole(f: Real[Hz], fs: Real[Hz]) -> Real
+    where chain_order <= 1
+{
+    exp(-3.14159265358979 * f / fs)
+}
+```
+
+The unit checker (Phase B) walks every binop / call / assignment /
+return *before* the optimizer runs and rejects programs that mix
+dimensions:
+
+```eml
+let bad = SAMPLE_RATE + 9.81;   // Real[Hz] + Real[m/s^2] -- UnitTypeError
+```
+
+Numeric literals coerce freely: `48000.0` becomes `Real[Hz]` when
+the context requires a frequency. Division by a same-dimensioned
+value produces `Real[1]` (dimensionless). Unit declarations are
+expressions over the seven SI base units (`s`, `m`, `kg`, `A`,
+`K`, `mol`, `cd`) plus the standard derived units already
+known to the unit table.
+
+### Refinement types: `Real{x | P(x)}`
+
+A **refinement type** attaches a value-level predicate to any
+base type:
+
+```eml
+fn lerp(a: Real, b: Real, t: Real{p | 0.0 <= p && p <= 1.0}) -> Real
+    where chain_order <= 0
+{
+    a + (b - a) * t
+}
+```
+
+The binder (`p` here) names the value the predicate constrains.
+Inside the predicate body you can use:
+
+- arithmetic (`+ - * / %`)
+- comparison (`== != < <= > >=`)
+- boolean combinators (`&& || !`)
+- the builtins `abs(x)`, `min(a, b)`, `max(a, b)`
+- module-level constants
+
+You **cannot** call transcendentals (`exp`, `sin`, `ln`, `sqrt`,
+…) from a predicate — the sub-language is deliberately decidable
+so that the auto-splicer and Lean lowering can stay sound without
+an SMT solver. Constraints involving transcendentals belong in a
+`requires` clause.
+
+Return positions can also carry a refinement:
+
+```eml
+fn rod_sensitivity(wavelength_nm: Real{w | 300.0 <= w && w <= 800.0})
+    -> Real{r | 0.0 <= r && r <= 1.0}
+    where chain_order <= 1
+{
+    exp(-((wavelength_nm - 498.0) * (wavelength_nm - 498.0)) / (2.0 * 50.0 * 50.0))
+}
+```
+
+On a Lean target the parameter refinement becomes a hypothesis
+`(h_wavelength_nm : ...)` and the return refinement becomes the
+theorem's conclusion. On every codegen target the refinement
+lowers to a runtime guard (`assert`, `require`, `precondition`,
+…); see [verify-guide.md](verify-guide.md#what-backends-respect-contracts)
+for the per-backend table.
+
+### Combined: `Real[unit]{binder | predicate}`
+
+A type can carry both a unit and a refinement. The order is
+fixed:
+
+```eml
+type AudibleFreq = Real[Hz]{f | 20.0 <= f && f <= 22000.0};
+
+fn audio_pole(f: AudibleFreq, fs: Real[Hz]{x | x > 0.0}) -> Real
+    where chain_order <= 1
+    requires (fs > f)
+{
+    exp(-3.14159265358979 * f / fs)
+}
+```
+
+Type aliases that carry a unit and/or a refinement propagate both
+fields onto every parameter that names the alias. See
+[units-and-refinements.md](units-and-refinements.md) for a focused
+guide to the unit + refinement system.
+
 ## Constants
 
 ```eml
