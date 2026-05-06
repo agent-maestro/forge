@@ -37,12 +37,11 @@ type StepValue  = Real where chain_order <= 1
 // bounded by the vol+dt requires, so no overflow even at fp32.
 @target(fpga, clock_mhz = 250, precision = float64)
 @verify(lean, theorem = "binomial_up_factor_strictly_above_one")
-fn up_factor(vol: Real, dt: Real) -> StepFactor
+fn up_factor(
+    vol: Real{v | VOL_MIN <= v && v <= VOL_MAX},
+    dt:  Real{t | DT_MIN <= t && t <= DT_MAX},
+) -> StepFactor
     where chain_order <= 2
-    requires (vol >= VOL_MIN)
-    requires (vol <= VOL_MAX)
-    requires (dt >= DT_MIN)
-    requires (dt <= DT_MAX)
     ensures  (result > 1.0)
 {
     exp(vol * sqrt(dt))
@@ -52,12 +51,11 @@ fn up_factor(vol: Real, dt: Real) -> StepFactor
 // Chain order 2 inherits from up_factor's exp(sqrt) chain.
 @target(fpga, clock_mhz = 250, precision = float64)
 @verify(lean, theorem = "binomial_down_factor_below_one")
-fn down_factor(vol: Real, dt: Real) -> StepFactor
+fn down_factor(
+    vol: Real{v | VOL_MIN <= v && v <= VOL_MAX},
+    dt:  Real{t | DT_MIN <= t && t <= DT_MAX},
+) -> StepFactor
     where chain_order <= 2
-    requires (vol >= VOL_MIN)
-    requires (vol <= VOL_MAX)
-    requires (dt >= DT_MIN)
-    requires (dt <= DT_MAX)
     ensures  (result < 1.0)
     ensures  (result > 0.0)
 {
@@ -69,14 +67,14 @@ fn down_factor(vol: Real, dt: Real) -> StepFactor
 // enforce that interior. Chain order 1.
 @target(fpga, clock_mhz = 250, precision = float64)
 @verify(lean, theorem = "risk_neutral_prob_in_unit_interval")
-fn risk_neutral_prob(rate: Real, vol: Real, dt: Real) -> Real
+fn risk_neutral_prob(
+    rate: Real,
+    vol:  Real{v | VOL_MIN <= v && v <= VOL_MAX},
+    dt:   Real{t | DT_MIN <= t && t <= DT_MAX},
+) -> Real
     where chain_order <= 1
-    requires (vol >= VOL_MIN)
-    requires (vol <= VOL_MAX)
-    requires (dt >= DT_MIN)
-    requires (dt <= DT_MAX)
-    requires (rate * dt < vol * sqrt(dt))     // u > exp(r*dt) so p < 1
-    requires (rate * dt > -vol * sqrt(dt))    // d < exp(r*dt) so p > 0
+    assume   (rate * dt < vol * sqrt(dt))     // u > exp(r*dt) so p < 1
+    assume   (rate * dt > -vol * sqrt(dt))    // d < exp(r*dt) so p > 0
     ensures  (result > 0.0)
     ensures  (result < 1.0)
 {
@@ -91,19 +89,13 @@ fn risk_neutral_prob(rate: Real, vol: Real, dt: Real) -> Real
 @target(fpga, clock_mhz = 500, precision = float64)
 @verify(lean, theorem = "binomial_step_back_convex_combination")
 fn step_back(
-    rate: Real,
-    dt: Real,
-    p: Real,
-    value_up: Real,
-    value_down: Real,
+    rate:       Real,
+    dt:         Real{t | DT_MIN <= t && t <= DT_MAX},
+    p:          Real{p | 0.0 <= p && p <= 1.0},
+    value_up:   Real{v | v >= 0.0},
+    value_down: Real{v | v >= 0.0},
 ) -> StepValue
     where chain_order <= 1
-    requires (p >= 0.0)
-    requires (p <= 1.0)
-    requires (dt >= DT_MIN)
-    requires (dt <= DT_MAX)
-    requires (value_up >= 0.0)
-    requires (value_down >= 0.0)
     ensures  (result >= 0.0)
 {
     exp(-rate * dt) * (p * value_up + (ONE - p) * value_down)

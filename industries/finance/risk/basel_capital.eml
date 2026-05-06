@@ -27,17 +27,11 @@ type CapitalCharge = Real where chain_order <= 1
 @target(fpga, clock_mhz = 250, precision = float64)
 @verify(lean, theorem = "capital_max_dominates_average")
 fn frtb_capital_charge(
-    var_average: Real,
-    var_max: Real,
-    multiplier: Real,
+    var_average: Real{v | 0.0 <= v && v <= CAP_MAX},
+    var_max:     Real{v | 0.0 <= v && v <= CAP_MAX},
+    multiplier:  Real{m | MC_MIN <= m && m <= MC_MAX},
 ) -> CapitalCharge
     where chain_order <= 0
-    requires (var_average >= 0.0)
-    requires (var_average <= CAP_MAX)
-    requires (var_max >= 0.0)
-    requires (var_max <= CAP_MAX)
-    requires (multiplier >= MC_MIN)
-    requires (multiplier <= MC_MAX)
 {
     let dominating = clamp(var_max, var_average, CAP_MAX);
     multiplier * dominating
@@ -46,14 +40,10 @@ fn frtb_capital_charge(
 @target(fpga, clock_mhz = 200, precision = float64)
 @verify(lean, theorem = "stressed_unstressed_pythagorean")
 fn ima_total_capital(
-    capital_unstressed: Real,
-    capital_stressed: Real,
+    capital_unstressed: Real{c | 0.0 <= c && c <= CAP_MAX},
+    capital_stressed:   Real{c | 0.0 <= c && c <= CAP_MAX},
 ) -> CapitalCharge
     where chain_order <= 1
-    requires (capital_unstressed >= 0.0)
-    requires (capital_unstressed <= CAP_MAX)
-    requires (capital_stressed >= 0.0)
-    requires (capital_stressed <= CAP_MAX)
     ensures  (result >= 0.0)
 {
     sqrt(capital_unstressed * capital_unstressed + capital_stressed * capital_stressed)
@@ -67,17 +57,11 @@ fn ima_total_capital(
 @target(fpga, clock_mhz = 500, precision = float64)
 @verify(lean, theorem = "diversification_pair_signed_by_rho")
 fn diversification_pair(
-    cap_i: Real,
-    cap_j: Real,
-    rho: Real,
+    cap_i: Real{c | 0.0 <= c && c <= CAP_MAX},
+    cap_j: Real{c | 0.0 <= c && c <= CAP_MAX},
+    rho:   Real{r | RHO_MIN <= r && r <= RHO_MAX},
 ) -> CapitalCharge
     where chain_order <= 0
-    requires (cap_i >= 0.0)
-    requires (cap_i <= CAP_MAX)
-    requires (cap_j >= 0.0)
-    requires (cap_j <= CAP_MAX)
-    requires (rho >= RHO_MIN)
-    requires (rho <= RHO_MAX)
 {
     rho * cap_i * cap_j
 }
@@ -85,10 +69,10 @@ fn diversification_pair(
 // Final sqrt of the accumulated risk-correlated sum.
 @target(fpga, clock_mhz = 200, precision = float64)
 @verify(lean, theorem = "risk_finalize_nonneg")
-fn risk_aggregate_finalize(accumulated_sum: Real) -> CapitalCharge
+fn risk_aggregate_finalize(
+    accumulated_sum: Real{s | 0.0 <= s && s <= CAP_MAX * CAP_MAX},
+) -> CapitalCharge
     where chain_order <= 1
-    requires (accumulated_sum >= 0.0)
-    requires (accumulated_sum <= CAP_MAX * CAP_MAX)
     ensures  (result >= 0.0)
 {
     sqrt(accumulated_sum)

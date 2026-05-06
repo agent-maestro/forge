@@ -39,17 +39,12 @@ type Loss = Real where chain_order <= 1
 @target(fpga, clock_mhz = 500, precision = float64)
 @verify(lean, theorem = "parametric_var_nonneg_when_z_positive")
 fn parametric_var(
-    pnl_mean: Real,
-    pnl_stddev: Real,
-    portfolio_value: Real,
-    z_alpha: Real,
+    pnl_mean:        Real,
+    pnl_stddev:      Real{s | s >= 0.0},
+    portfolio_value: Real{v | 0.0 <= v && v <= PV_MAX},
+    z_alpha:         Real{z | 0.0 <= z && z <= Z_MAX},
 ) -> Loss
     where chain_order <= 0
-    requires (pnl_stddev >= 0.0)
-    requires (portfolio_value >= 0.0)
-    requires (portfolio_value <= PV_MAX)
-    requires (z_alpha >= 0.0)
-    requires (z_alpha <= Z_MAX)
 {
     -(pnl_mean - z_alpha * pnl_stddev) * portfolio_value
 }
@@ -69,20 +64,13 @@ fn standard_normal_pdf(z: Real) -> Real
 @target(fpga, clock_mhz = 250, precision = float64)
 @verify(lean, theorem = "expected_shortfall_at_least_var")
 fn expected_shortfall(
-    pnl_mean: Real,
-    pnl_stddev: Real,
-    portfolio_value: Real,
-    z_alpha: Real,
-    alpha: Real,
+    pnl_mean:        Real,
+    pnl_stddev:      Real{s | s >= 0.0},
+    portfolio_value: Real{v | 0.0 <= v && v <= PV_MAX},
+    z_alpha:         Real{z | 0.0 <= z && z <= Z_MAX},
+    alpha:           Real{a | ALPHA_MIN <= a && a <= ALPHA_MAX},
 ) -> Loss
     where chain_order <= 1
-    requires (pnl_stddev >= 0.0)
-    requires (portfolio_value >= 0.0)
-    requires (portfolio_value <= PV_MAX)
-    requires (z_alpha >= 0.0)
-    requires (z_alpha <= Z_MAX)
-    requires (alpha >= ALPHA_MIN)
-    requires (alpha <= ALPHA_MAX)
 {
     let phi_z = standard_normal_pdf(z_alpha);
     -(pnl_mean - phi_z / (ONE - alpha) * pnl_stddev) * portfolio_value

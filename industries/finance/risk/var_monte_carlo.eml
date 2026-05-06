@@ -28,15 +28,12 @@ type RiskSignal = Real where chain_order <= 1
 @target(fpga, clock_mhz = 200, precision = float64)
 @verify(lean, theorem = "parametric_var_monotone_in_sigma")
 fn parametric_var(
-    mean_return: Real,
-    stdev_return: Real,
-    horizon_days: Real,
-    inv_cdf: Real,
+    mean_return:  Real,
+    stdev_return: Real{s | s > 0.0},
+    horizon_days: Real{h | h > 0.0},
+    inv_cdf:      Real{c | c > 0.0},
 ) -> RiskSignal
     where chain_order <= 1
-    requires (stdev_return > 0.0)
-    requires (horizon_days > 0.0)
-    requires (inv_cdf > 0.0)
     ensures  (result > 0.0)
 {
     -mean_return * horizon_days + stdev_return * sqrt(horizon_days) * inv_cdf
@@ -51,12 +48,11 @@ fn parametric_var(
 @target(fpga, clock_mhz = 250, precision = float64)
 @verify(lean, theorem = "log_return_step_mean_drift")
 fn log_return_step(
-    mean_return: Real,
-    stdev_return: Real,
-    z: Real,
+    mean_return:  Real,
+    stdev_return: Real{s | s > 0.0},
+    z:            Real,
 ) -> RiskSignal
     where chain_order <= 0
-    requires (stdev_return > 0.0)
 {
     mean_return + stdev_return * z
 }

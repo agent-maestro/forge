@@ -55,21 +55,13 @@ fn bs_d2(
 @target(fpga, clock_mhz = 250, precision = float64)
 @verify(lean, theorem = "rho_call_nonneg")
 fn rho_call(
-    spot: Real,
-    strike: Real,
-    rate: Real,
-    vol: Real,
-    time_to_expiry: Real,
+    spot:           Real{s | s > 0.0},
+    strike:         Real{k | 0.0 < k && k <= STRIKE_MAX},
+    rate:           Real{r | -RATE_MAX <= r && r <= RATE_MAX},
+    vol:            Real{v | v > 0.0},
+    time_to_expiry: Real{t | TINY_T <= t && t <= T_MAX},
 ) -> GreekRho
     where chain_order <= 2
-    requires (spot > 0.0)
-    requires (strike > 0.0)
-    requires (strike <= STRIKE_MAX)
-    requires (vol > 0.0)
-    requires (rate >= -RATE_MAX)
-    requires (rate <= RATE_MAX)
-    requires (time_to_expiry >= TINY_T)
-    requires (time_to_expiry <= T_MAX)
     ensures  (result >= 0.0)
 {
     let d2 = bs_d2(spot, strike, rate, vol, time_to_expiry);
@@ -82,21 +74,13 @@ fn rho_call(
 @target(fpga, clock_mhz = 250, precision = float64)
 @verify(lean, theorem = "rho_put_nonpos")
 fn rho_put(
-    spot: Real,
-    strike: Real,
-    rate: Real,
-    vol: Real,
-    time_to_expiry: Real,
+    spot:           Real{s | s > 0.0},
+    strike:         Real{k | 0.0 < k && k <= STRIKE_MAX},
+    rate:           Real{r | -RATE_MAX <= r && r <= RATE_MAX},
+    vol:            Real{v | v > 0.0},
+    time_to_expiry: Real{t | TINY_T <= t && t <= T_MAX},
 ) -> GreekRho
     where chain_order <= 2
-    requires (spot > 0.0)
-    requires (strike > 0.0)
-    requires (strike <= STRIKE_MAX)
-    requires (vol > 0.0)
-    requires (rate >= -RATE_MAX)
-    requires (rate <= RATE_MAX)
-    requires (time_to_expiry >= TINY_T)
-    requires (time_to_expiry <= T_MAX)
     ensures  (result <= 0.0)
 {
     let d2 = bs_d2(spot, strike, rate, vol, time_to_expiry);

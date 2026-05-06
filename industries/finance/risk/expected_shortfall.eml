@@ -31,25 +31,14 @@ type RiskSignal = Real where chain_order <= 0
 @target(fpga, clock_mhz = 500, precision = float64)
 @verify(lean, theorem = "es_increases_with_sigma")
 fn parametric_es(
-    mean_return: Real,
-    stdev_return: Real,
-    horizon_days: Real,
-    z_alpha: Real,
-    phi_at_z: Real,
-    alpha: Real,
+    mean_return:  Real{m | abs(m) <= 1.0},
+    stdev_return: Real{s | SIGMA_MIN <= s && s <= SIGMA_MAX},
+    horizon_days: Real{h | 1.0 <= h && h <= HORIZON_MAX},
+    z_alpha:      Real{z | 0.0 <= z && z <= 5.0},
+    phi_at_z:     Real{p | 0.0 <= p && p <= PHI_MAX},
+    alpha:        Real{a | ALPHA_MIN <= a && a <= ALPHA_MAX},
 ) -> RiskSignal
     where chain_order <= 0
-    requires (abs(mean_return) <= 1.0)
-    requires (stdev_return >= SIGMA_MIN)
-    requires (stdev_return <= SIGMA_MAX)
-    requires (horizon_days >= 1.0)
-    requires (horizon_days <= HORIZON_MAX)
-    requires (z_alpha >= 0.0)
-    requires (z_alpha <= 5.0)
-    requires (phi_at_z >= 0.0)
-    requires (phi_at_z <= PHI_MAX)
-    requires (alpha >= ALPHA_MIN)
-    requires (alpha <= ALPHA_MAX)
 {
     let scale = stdev_return * phi_at_z / (1.0 - alpha);
     -mean_return * horizon_days + scale * horizon_days
@@ -59,12 +48,11 @@ fn parametric_es(
 // sum and tail count, returns the realised ES estimate.
 @target(fpga, clock_mhz = 500, precision = float64)
 @verify(lean, theorem = "mc_es_zero_at_zero_count")
-fn mc_es_estimate(tail_loss_sum: Real, tail_count: Real) -> RiskSignal
+fn mc_es_estimate(
+    tail_loss_sum: Real{x | 0.0 <= x && x <= 1.0e12},
+    tail_count:    Real{n | 1.0 <= n && n <= 1.0e9},
+) -> RiskSignal
     where chain_order <= 0
-    requires (tail_loss_sum >= 0.0)
-    requires (tail_loss_sum <= 1.0e12)
-    requires (tail_count >= 1.0)
-    requires (tail_count <= 1.0e9)
     ensures  (result >= 0.0)
 {
     tail_loss_sum / tail_count
@@ -76,17 +64,11 @@ fn mc_es_estimate(tail_loss_sum: Real, tail_count: Real) -> RiskSignal
 // the MC estimator's tail aggregation.
 @target(fpga, clock_mhz = 500, precision = float64)
 fn tail_loss_accumulator(
-    prev_sum: Real,
-    path_loss: Real,
-    tail_threshold: Real,
+    prev_sum:       Real{x | 0.0 <= x && x <= 1.0e12},
+    path_loss:      Real{x | 0.0 <= x && x <= 1.0e9},
+    tail_threshold: Real{x | 0.0 <= x && x <= 1.0e9},
 ) -> Real
     where chain_order <= 0
-    requires (prev_sum >= 0.0)
-    requires (prev_sum <= 1.0e12)
-    requires (path_loss >= 0.0)
-    requires (path_loss <= 1.0e9)
-    requires (tail_threshold >= 0.0)
-    requires (tail_threshold <= 1.0e9)
 {
     let excess = clamp(path_loss - tail_threshold, 0.0, 1.0e9);
     prev_sum + clamp(excess / 0.001, 0.0, 1.0) * path_loss

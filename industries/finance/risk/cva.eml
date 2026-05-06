@@ -33,9 +33,11 @@ fn marginal_pd(cum_hazard_prev: Real, cum_hazard_now: Real) -> Real
 }
 
 // ── Discount factor under continuous compounding ─────────────
-fn discount_factor(rate: Real, time_to_t: Real) -> Real
+fn discount_factor(
+    rate:      Real,
+    time_to_t: Real{t | t >= 0.0},
+) -> Real
     where chain_order <= 1
-    requires (time_to_t >= 0.0)
 {
     exp(-rate * time_to_t)
 }
@@ -46,19 +48,15 @@ fn discount_factor(rate: Real, time_to_t: Real) -> Real
 @target(fpga, clock_mhz = 200, precision = float64)
 @verify(lean, theorem = "cva_cell_non_negative")
 fn cva_cell(
-    expected_exposure: Real,
-    cum_hazard_prev: Real,
-    cum_hazard_now: Real,
-    rate: Real,
-    time_to_t: Real,
-    lgd: Real,
+    expected_exposure: Real{e | e >= 0.0},
+    cum_hazard_prev:   Real,
+    cum_hazard_now:    Real,
+    rate:              Real,
+    time_to_t:         Real{t | t >= 0.0},
+    lgd:               Real{l | 0.0 <= l && l <= 1.0},
 ) -> RiskSignal
     where chain_order <= 1
-    requires (expected_exposure >= 0.0)
     requires (cum_hazard_prev <= cum_hazard_now)
-    requires (lgd >= 0.0)
-    requires (lgd <= 1.0)
-    requires (time_to_t >= 0.0)
     ensures  (result >= 0.0)
 {
     let pd      = marginal_pd(cum_hazard_prev, cum_hazard_now);

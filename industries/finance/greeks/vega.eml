@@ -33,16 +33,12 @@ fn d1(spot: Real, strike: Real, rate: Real, vol: Real, time_to_expiry: Real)
 @target(fpga, clock_mhz = 250, precision = float64)
 @verify(lean, theorem = "bs_vega_non_negative")
 fn bs_vega(
-    spot: Real,
-    strike: Real,
-    rate: Real,
-    vol: Real,
-    time_to_expiry: Real,
+    spot:           Real{s | s > 0.0},
+    strike:         Real{k | k > 0.0},
+    rate:           Real,
+    vol:            Real{v | v > 0.0},
+    time_to_expiry: Real{t | t > TINY_T},
 ) -> GreekSignal
-    requires (spot > 0.0)
-    requires (strike > 0.0)
-    requires (vol > 0.0)
-    requires (time_to_expiry > TINY_T)
     ensures  (result >= 0.0)
 {
     let d1_val = d1(spot, strike, rate, vol, time_to_expiry);
