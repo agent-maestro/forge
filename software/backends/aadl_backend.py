@@ -28,9 +28,81 @@ Reference: lang/spec/EML_LANG_DESIGN.md + Phase 4 backend roadmap.
 from __future__ import annotations
 
 from lang.parser.ast_nodes import (
+    ASTNode,
     EMLFunction,
     EMLModule,
+    NodeKind,
 )
+
+
+# ── Phase E.5: refinement guard helpers ──────────────────────────────────────
+
+
+def _substitute_var(node: ASTNode, old: str, new: str) -> ASTNode:
+    """Return a new ASTNode tree with every VAR named *old* replaced by *new*.
+
+    Immutable: the original tree is never modified.
+    """
+    if node.kind == NodeKind.VAR and node.value == old:
+        return ASTNode(
+            kind=NodeKind.VAR, value=new, children=[],
+            type_annotation=node.type_annotation,
+            chain_constraint=node.chain_constraint,
+            line=node.line, col=node.col,
+        )
+    new_children = [_substitute_var(c, old, new) for c in node.children]
+    return ASTNode(
+        kind=node.kind, value=node.value, children=new_children,
+        type_annotation=node.type_annotation,
+        chain_constraint=node.chain_constraint,
+        line=node.line, col=node.col,
+    )
+
+
+def _var_names(node: ASTNode) -> set[str]:
+    """Collect every VAR name that appears anywhere in *node*."""
+    names: set[str] = set()
+    if node.kind == NodeKind.VAR:
+        names.add(str(node.value))
+    for c in node.children:
+        names.update(_var_names(c))
+    return names
+
+
+def _pred_text(node: ASTNode) -> str:
+    """Render a predicate AST node as a plain-text expression string.
+
+    Used for AADL property values (metadata text, not executable code).
+    AADL predicates use abs(x) literally in property text per Hard Contract #3.
+    """
+    kind = node.kind
+    if kind == NodeKind.LITERAL:
+        v = node.value
+        if isinstance(v, bool):
+            return "true" if v else "false"
+        if isinstance(v, int):
+            return str(v)
+        if isinstance(v, float):
+            s = repr(v)
+            if "." not in s and "e" not in s and "E" not in s:
+                s += ".0"
+            return s
+        return repr(v)
+    if kind == NodeKind.VAR:
+        return str(node.value)
+    if kind == NodeKind.UNARYOP:
+        sub = _pred_text(node.children[0])
+        return f"({node.value}{sub})"
+    if kind == NodeKind.BINOP:
+        left = _pred_text(node.children[0])
+        right = _pred_text(node.children[1])
+        return f"({left} {node.value} {right})"
+    if kind == NodeKind.ABS:
+        sub = _pred_text(node.children[0])
+        return f"abs({sub})"
+    # Fallback: render as a function call
+    args = ", ".join(_pred_text(c) for c in node.children)
+    return f"{kind.name.lower()}({args})"
 
 
 def _package_name(mod: EMLModule) -> str:
@@ -168,6 +240,36 @@ class AadlBackend:
         parts = fn.name.split("_")
         return "".join(p[:1].upper() + p[1:].lower() for p in parts) + "_T"
 
+    def _emit_refinement_properties(self, fn: EMLFunction) -> list[str]:
+        """Emit Refinement_Predicate => "..." property annotations.
+
+        AADL is metadata-only; refinement predicates become property
+        annotations on the thread component declaration (not runtime checks).
+
+        Per Hard Contract #8: use Refinement_Predicate => "..."; in properties block.
+        Cross-param refinements emit a comment-only line.
+        """
+        param_names = {p.name for p in fn.params}
+        props: list[str] = []
+        for p in fn.params:
+            if p.refinement is None:
+                continue
+            ref = p.refinement
+            pred = _substitute_var(ref.predicate, ref.binder, p.name)
+            pred_vars = _var_names(pred)
+            other_params = (pred_vars - {p.name}) & param_names
+            if other_params:
+                pred_str = _pred_text(pred)
+                props.append(
+                    f"-- refinement obligation: {fn.name}: {p.name}: {pred_str}"
+                )
+                continue
+            pred_str = _pred_text(pred)
+            props.append(
+                f'Refinement_Predicate => "{fn.name}: {p.name}: {pred_str}";'
+            )
+        return props
+
     def _emit_thread_type(self, fn: EMLFunction) -> list[str]:
         ttype = self._thread_type_name(fn)
         out: list[str] = [f"thread {ttype}"]
@@ -185,10 +287,13 @@ class AadlBackend:
         # Properties: period from @target(fpga, clock_mhz=N), or
         # placeholder if absent. Compute_Execution_Time is bounded
         # via the profile's FPGA estimate when available.
+        # Phase E.5: also add Refinement_Predicate => "..." annotations.
         props: list[str] = self._derive_properties(fn)
-        if props:
+        ref_props = self._emit_refinement_properties(fn)
+        all_props = props + ref_props
+        if all_props:
             out.append("properties")
-            for prop in props:
+            for prop in all_props:
                 out.append(self.indent + prop)
         out.append(f"end {ttype};")
         return out

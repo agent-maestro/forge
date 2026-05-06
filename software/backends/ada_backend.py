@@ -59,6 +59,40 @@ from lang.parser.ast_nodes import (
 )
 
 
+# ── Phase E.5: refinement guard helpers ──────────────────────────────────────
+
+
+def _substitute_var(node: ASTNode, old: str, new: str) -> ASTNode:
+    """Return a new ASTNode tree with every VAR named *old* replaced by *new*.
+
+    Immutable: the original tree is never modified.
+    """
+    if node.kind == NodeKind.VAR and node.value == old:
+        return ASTNode(
+            kind=NodeKind.VAR, value=new, children=[],
+            type_annotation=node.type_annotation,
+            chain_constraint=node.chain_constraint,
+            line=node.line, col=node.col,
+        )
+    new_children = [_substitute_var(c, old, new) for c in node.children]
+    return ASTNode(
+        kind=node.kind, value=node.value, children=new_children,
+        type_annotation=node.type_annotation,
+        chain_constraint=node.chain_constraint,
+        line=node.line, col=node.col,
+    )
+
+
+def _var_names(node: ASTNode) -> set[str]:
+    """Collect every VAR name that appears anywhere in *node*."""
+    names: set[str] = set()
+    if node.kind == NodeKind.VAR:
+        names.add(str(node.value))
+    for c in node.children:
+        names.update(_var_names(c))
+    return names
+
+
 # Builtin NodeKind -> Ada elementary-functions name. The package
 # `Ada.Numerics.Long_Elementary_Functions` (specialised for
 # Long_Float) provides all of these.
@@ -311,18 +345,75 @@ class AdaBackend:
             f"{self.indent}({params}) return {ret_type}"
         )
 
+    # ── Phase E.5: refinement obligations collector ───────────────────────────
+
+    def _collect_refinement_pre_terms(
+        self, fn: EMLFunction,
+    ) -> tuple[list[str], list[str]]:
+        """Collect Pre => terms from refined parameters.
+
+        Returns (executable_terms, comment_obligations):
+          - executable_terms: list of Ada predicate strings to AND-then into Pre =>
+          - comment_obligations: cross-param refinements (comment-only)
+
+        The Ada expression emitter already maps && -> and then, == -> =, ! -> not,
+        abs(x) -> abs (x), so the predicates are natively Ada-syntactic.
+        """
+        param_names = {p.name for p in fn.params}
+        executable: list[str] = []
+        comments: list[str] = []
+        for p in fn.params:
+            if p.refinement is None:
+                continue
+            ref = p.refinement
+            pred = _substitute_var(ref.predicate, ref.binder, p.name)
+            pred_vars = _var_names(pred)
+            other_params = (pred_vars - {p.name}) & param_names
+            if other_params:
+                try:
+                    cond_str = self._emit_expr(pred)
+                except CompileError as e:
+                    cond_str = f"<unsupported: {e}>"
+                comments.append(
+                    f"-- refinement obligation: {fn.name}: {p.name}: {cond_str}"
+                )
+                continue
+            try:
+                term = self._emit_expr(pred)
+                executable.append(term)
+            except CompileError as e:
+                comments.append(
+                    f"-- refinement: unsupported ({e})"
+                )
+        return executable, comments
+
     # ── Pre/Post contract translation ─────────────────────────
 
     def _contract_lines(self, fn: EMLFunction) -> list[str]:
         out: list[str] = []
+
+        # Phase E.5: collect refinement Pre terms.
+        ref_terms, ref_comments = self._collect_refinement_pre_terms(fn)
+
+        # Merge requires + refinement Pre terms.
+        requires_terms: list[str] = []
         if fn.requires:
             try:
-                pre = " and then ".join(
-                    self._emit_expr(r) for r in fn.requires
-                )
-                out.append(f"Pre  => {pre}")
+                requires_terms = [self._emit_expr(r) for r in fn.requires]
             except CompileError as e:
-                out.append(f"Pre  => True  -- TODO: requires unsupported ({e})")
+                requires_terms = [f"True  -- TODO: requires unsupported ({e})"]
+
+        all_pre_terms = ref_terms + requires_terms
+        if all_pre_terms:
+            pre = " and then ".join(all_pre_terms)
+            out.append(f"Pre  => {pre}")
+        elif ref_comments:
+            # Only cross-param obligations: emit as comments (not a Pre =>)
+            pass
+
+        # Add cross-param refinement comments after the Pre => line.
+        out.extend(ref_comments)
+
         if fn.ensures:
             try:
                 # In Ada, the result attribute is `Function_Name'Result`.

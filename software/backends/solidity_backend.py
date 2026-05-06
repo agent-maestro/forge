@@ -76,6 +76,40 @@ from lang.parser.ast_nodes import (
 )
 
 
+# ── Phase E.5: refinement guard helpers ──────────────────────────────────────
+
+
+def _substitute_var(node: ASTNode, old: str, new: str) -> ASTNode:
+    """Return a new ASTNode tree with every VAR named *old* replaced by *new*.
+
+    Immutable: the original tree is never modified.
+    """
+    if node.kind == NodeKind.VAR and node.value == old:
+        return ASTNode(
+            kind=NodeKind.VAR, value=new, children=[],
+            type_annotation=node.type_annotation,
+            chain_constraint=node.chain_constraint,
+            line=node.line, col=node.col,
+        )
+    new_children = [_substitute_var(c, old, new) for c in node.children]
+    return ASTNode(
+        kind=node.kind, value=node.value, children=new_children,
+        type_annotation=node.type_annotation,
+        chain_constraint=node.chain_constraint,
+        line=node.line, col=node.col,
+    )
+
+
+def _var_names(node: ASTNode) -> set[str]:
+    """Collect every VAR name that appears anywhere in *node*."""
+    names: set[str] = set()
+    if node.kind == NodeKind.VAR:
+        names.add(str(node.value))
+    for c in node.children:
+        names.update(_var_names(c))
+    return names
+
+
 # Builtin NodeKind -> Solidity internal-helper function name. The
 # helpers themselves are emitted as `revert` stubs at the bottom of
 # the contract so the file always compiles; the user overrides them
@@ -279,6 +313,80 @@ class SolidityBackend:
         # has already folded what it can).
         return [f"{sol_type} constant {c.name} = {rhs};"]
 
+    # ── Phase E.5: refinement guards ─────────────────────────────────────────
+
+    def _emit_refinement_guards(self, fn: EMLFunction) -> list[str]:
+        """Return one require() line per refined parameter (Phase E.5).
+
+        Binder-substitution: the refinement's binder is alpha-renamed to
+        the actual parameter name before emission.
+
+        Cross-param refinements (predicate references another parameter)
+        are emitted as a comment-only obligation line.
+
+        ABS in predicates is rendered as an inline ternary (x < 0 ? -x : x)
+        since Solidity has no built-in abs for signed integers and calling
+        the stub from inside a require() would defeat the purpose.
+        """
+        out: list[str] = []
+        param_names = {p.name for p in fn.params}
+        for p in fn.params:
+            if p.refinement is None:
+                continue
+            ref = p.refinement
+            pred = _substitute_var(ref.predicate, ref.binder, p.name)
+            pred_vars = _var_names(pred)
+            other_params_in_pred = (pred_vars - {p.name}) & param_names
+            if other_params_in_pred:
+                try:
+                    cond_str = self._emit_pred_expr(pred)
+                except CompileError as e:
+                    cond_str = f"<unsupported: {e}>"
+                out.append(
+                    f"{self.indent}// refinement obligation: "
+                    f"{fn.name}: {p.name}: {cond_str}"
+                )
+                continue
+            try:
+                cond = self._emit_pred_expr(pred)
+                msg = f"{fn.name}: refinement violated on {p.name}: {cond}"
+                if len(msg) > 100:
+                    msg = msg[:97] + "..."
+                msg_safe = msg.replace('"', '\\"')
+                out.append(
+                    f'{self.indent}require({cond}, "{msg_safe}");'
+                )
+            except CompileError as e:
+                out.append(
+                    f"{self.indent}// refinement: unsupported ({e})"
+                )
+        return out
+
+    def _emit_pred_expr(self, node: ASTNode) -> str:
+        """Emit a predicate expression for use in a require() guard.
+
+        Same as _emit_expr but ABS uses inline ternary instead of the
+        _abs() stub, which avoids calling a revert-stub in a guard condition.
+        """
+        kind = node.kind
+        if kind == NodeKind.ABS:
+            sub = self._emit_pred_expr(node.children[0])
+            # Solidity has no signed-int abs; use inline ternary.
+            return f"({sub} < 0 ? -{sub} : {sub})"
+        if kind == NodeKind.BINOP:
+            left = self._emit_pred_expr(node.children[0])
+            right = self._emit_pred_expr(node.children[1])
+            return f"({left} {node.value} {right})"
+        if kind == NodeKind.UNARYOP:
+            sub = self._emit_pred_expr(node.children[0])
+            if node.value == "-":
+                return f"(-{sub})"
+            if node.value == "!":
+                return f"(!{sub})"
+            raise CompileError(f"unsupported unary op in predicate: {node.value!r}")
+        # For everything else, delegate to the normal expression emitter.
+        return self._emit_expr(node)
+
     # ── Functions ─────────────────────────────────────────────
 
     def _emit_function(
@@ -307,6 +415,9 @@ class SolidityBackend:
             f"function {sig_name}({params}) {visibility} pure "
             f"returns ({ret}) {{"
         )
+
+        # Phase E.5: refinement-derived guards fire BEFORE requires guards.
+        out.extend(self._emit_refinement_guards(fn))
 
         # `requires` lower to runtime guards via require(). Solidity's
         # require() takes an optional revert string -- we synthesise

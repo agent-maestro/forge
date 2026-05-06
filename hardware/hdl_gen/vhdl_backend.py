@@ -24,6 +24,87 @@ from lang.parser.ast_nodes import (
 )
 
 
+# ── Phase E.5: refinement guard helpers ──────────────────────────────────────
+
+
+def _substitute_var(node: ASTNode, old: str, new: str) -> ASTNode:
+    """Return a new ASTNode tree with every VAR named *old* replaced by *new*.
+
+    Immutable: the original tree is never modified.
+    """
+    if node.kind == NodeKind.VAR and node.value == old:
+        return ASTNode(
+            kind=NodeKind.VAR, value=new, children=[],
+            type_annotation=node.type_annotation,
+            chain_constraint=node.chain_constraint,
+            line=node.line, col=node.col,
+        )
+    new_children = [_substitute_var(c, old, new) for c in node.children]
+    return ASTNode(
+        kind=node.kind, value=node.value, children=new_children,
+        type_annotation=node.type_annotation,
+        chain_constraint=node.chain_constraint,
+        line=node.line, col=node.col,
+    )
+
+
+def _var_names(node: ASTNode) -> set[str]:
+    """Collect every VAR name that appears anywhere in *node*."""
+    names: set[str] = set()
+    if node.kind == NodeKind.VAR:
+        names.add(str(node.value))
+    for c in node.children:
+        names.update(_var_names(c))
+    return names
+
+
+_BINOP_VHDL_PRED: dict[str, str] = {
+    "+": "+", "-": "-", "*": "*", "/": "/",
+    "<": "<", ">": ">", "<=": "<=", ">=": ">=",
+    "==": "=", "!=": "/=",
+    "&&": "and", "||": "or",
+}
+
+
+def _vhdl_pred_expr(node: ASTNode) -> str:
+    """Render a predicate AST node as a VHDL boolean expression string.
+
+    Used for assert ... report guards (not synthesized). ABS uses
+    VHDL's built-in abs() operator per Hard Contract #3.
+    """
+    kind = node.kind
+    if kind == NodeKind.LITERAL:
+        v = node.value
+        if isinstance(v, bool):
+            return "true" if v else "false"
+        if isinstance(v, (int, float)):
+            s = repr(v)
+            if isinstance(v, float) and "." not in s and "e" not in s:
+                s += ".0"
+            return s
+        return repr(v)
+    if kind == NodeKind.VAR:
+        return str(node.value)
+    if kind == NodeKind.UNARYOP:
+        sub = _vhdl_pred_expr(node.children[0])
+        if node.value == "-":
+            return f"(- {sub})"
+        if node.value == "!":
+            return f"(not {sub})"
+        return f"({node.value}{sub})"
+    if kind == NodeKind.BINOP:
+        left = _vhdl_pred_expr(node.children[0])
+        right = _vhdl_pred_expr(node.children[1])
+        op = _BINOP_VHDL_PRED.get(node.value, node.value)
+        return f"({left} {op} {right})"
+    if kind == NodeKind.ABS:
+        sub = _vhdl_pred_expr(node.children[0])
+        # VHDL: abs() is a built-in operator per Hard Contract #3.
+        return f"abs({sub})"
+    args = ", ".join(_vhdl_pred_expr(c) for c in node.children)
+    return f"{kind.name.lower()}({args})"
+
+
 _BINOP_TO_VHDL: dict[str, str] = {
     "+": "+", "-": "-", "*": "*", "/": "/",
     "<": "<", ">": ">", "<=": "<=", ">=": ">=",
@@ -149,6 +230,42 @@ class VHDLBackend:
             )
         return "\n".join(lines)
 
+    def _emit_refinement_guards(self, fn: EMLFunction) -> str:
+        """Return VHDL assert ... report ... severity error; lines (Phase E.5).
+
+        Idiom: assert cond report "msg" severity error;
+        Placed inside the registered-output process (concurrent-assert also valid;
+        we use sequential for simplicity). Cross-param refinements emit comments.
+        ABS uses abs() built-in per Hard Contract #3.
+        """
+        param_names = {p.name for p in fn.params}
+        lines: list[str] = []
+        for p in fn.params:
+            if p.refinement is None:
+                continue
+            ref = p.refinement
+            pred = _substitute_var(ref.predicate, ref.binder, p.name)
+            pred_vars = _var_names(pred)
+            other_params = (pred_vars - {p.name}) & param_names
+            if other_params:
+                cond_str = _vhdl_pred_expr(pred)
+                lines.append(
+                    f"    -- refinement obligation: {fn.name}: {p.name}: {cond_str}"
+                )
+                continue
+            cond = _vhdl_pred_expr(pred)
+            msg = f"{fn.name}: refinement violated on {p.name}: {cond}"
+            lines.append(
+                f'    assert {cond} report "{msg}" severity error;'
+            )
+        if not lines:
+            return ""
+        return (
+            "\n    -- Refinement guards (Phase E.5)\n"
+            + "\n".join(lines)
+            + "\n"
+        )
+
     def _emit_function(
         self, fn: EMLFunction, plan: AllocationPlan,
     ) -> str:
@@ -181,6 +298,9 @@ class VHDLBackend:
         body_block = "\n\n".join(body_sections) if body_sections else (
             "    -- (constant body -- no intermediates)"
         )
+
+        # Phase E.5: refinement assert/report guards.
+        refinement_block = self._emit_refinement_guards(fn)
 
         return (
             f"-- Pipeline: {fn.name}\n"
@@ -219,6 +339,7 @@ class VHDLBackend:
             f"            end if;\n"
             f"        end if;\n"
             f"    end process;\n"
+            f"{refinement_block}"
             f"\n"
             f"end architecture rtl;\n"
         )

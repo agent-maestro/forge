@@ -28,6 +28,8 @@ from hardware.hdl_gen.verilog_backend import (
     _ModuleScope,
     _BINOP_TO_VERILOG,
     CompileError,
+    _substitute_var,
+    _var_names,
 )
 from hardware.hdl_gen.qformat import format_verilog_literal
 from lang.parser.ast_nodes import ASTNode, EMLFunction, NodeKind
@@ -104,6 +106,8 @@ class SystemVerilogBackend(VerilogBackend):
         )
 
         sva_block = self._emit_sva_properties(fn, qfmt)
+        # Phase E.5: refinement SVA assertions.
+        ref_sva_block = self._emit_refinement_sva(fn, qfmt)
 
         return (
             f"// Pipeline: {fn.name}\n"
@@ -132,8 +136,54 @@ class SystemVerilogBackend(VerilogBackend):
             f"            result    <= {output_wire};\n"
             f"        end\n"
             f"    end\n"
+            f"{ref_sva_block}"
             f"{sva_block}"
             f"endmodule\n"
+        )
+
+    # ── Phase E.5: refinement SVA assertions ──────────────────
+
+    def _emit_refinement_sva(self, fn: EMLFunction, qfmt) -> str:
+        """Emit SVA assertions for refined parameters (Phase E.5).
+
+        Idiom: assert property (cond) else $error("msg");
+        Cross-param refinements emit a comment-only line.
+        ABS uses $abs($signed(...)) per the existing SVA idiom.
+        """
+        param_names = {p.name for p in fn.params}
+        lines: list[str] = []
+        for p in fn.params:
+            if p.refinement is None:
+                continue
+            ref = p.refinement
+            pred = _substitute_var(ref.predicate, ref.binder, p.name)
+            pred_vars = _var_names(pred)
+            other_params = (pred_vars - {p.name}) & param_names
+            if other_params:
+                try:
+                    cond_str = self._sva_expr(pred, qfmt)
+                except CompileError as e:
+                    cond_str = f"<unsupported: {e}>"
+                lines.append(
+                    f"    // refinement obligation: {fn.name}: {p.name}: {cond_str}"
+                )
+                continue
+            try:
+                cond = self._sva_expr(pred, qfmt)
+                msg = f"{fn.name}: refinement violated on {p.name}: {cond}"
+                lines.append(
+                    f"    assert property ({cond})\n"
+                    f'        else $error("{msg}");'
+                )
+            except CompileError as e:
+                lines.append(f"    // refinement: unsupported ({e})")
+        if not lines:
+            return ""
+        return (
+            "\n"
+            "    // ── Refinement guards (Phase E.5) ──\n"
+            + "\n".join(lines)
+            + "\n"
         )
 
     # ── SVA property emitter ───────────────────────────────────
