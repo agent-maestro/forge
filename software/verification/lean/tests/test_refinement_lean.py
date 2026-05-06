@@ -512,12 +512,17 @@ fn f(x: Real) -> Real
         assert baseline_out == phase_d_out
         assert "trivial" in baseline_out
 
-    def test_all_non_trivial_theorems_get_linarith_attempt(self):
-        """Phase D: all theorems with non-True conclusions get linarith attempt.
+    def test_all_non_trivial_theorems_get_sorry_placeholder(self):
+        """Phase D: non-trivial theorems get a sorry placeholder.
 
-        Phase D improvement: MachLib.Forge's scope includes exp_nonneg,
-        max_nonneg_right, min_le_*, etc. that linarith can find automatically.
-        `first | linarith | sorry` closes many goals automatically.
+        An earlier draft used `first | linarith | sorry`, but linarith
+        is a Mathlib tactic and isn't available in core Lean 4 / Std.
+        Generated files import only MachLib (no Mathlib), so emitting
+        `linarith` produced "unknown tactic" errors.  The current
+        emission is just `sorry` -- the file type-checks cleanly with
+        a sorry-warning, refinement hypotheses are in scope for the
+        user (or a later MachLib-tactic-extension phase) to discharge
+        by hand.
         """
         src = '''module t;
 @verify(lean, theorem = "f_positive")
@@ -531,10 +536,10 @@ fn f(x: Real) -> Real
         Profiler().profile_module(mod)
         check_module(mod)
         out = LeanBackend().compile_module(mod)
-        # Phase D: all non-trivial conclusions get linarith attempt
-        assert "linarith" in out
-        # Still has sorry fallback (for goals linarith genuinely can't close)
+        # Sorry placeholder for non-trivial conclusions.
         assert "sorry" in out
+        # linarith should NOT appear -- it would be an "unknown tactic" error.
+        assert "linarith" not in out
 
     def test_pid_controller_c_backend_post_e3(self):
         """pid_controller.eml --target c output MD5 stable post-Phase-F.
