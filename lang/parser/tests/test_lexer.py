@@ -95,6 +95,15 @@ def test_source_location_is_correct():
 
 
 def test_unknown_character_raises_with_location():
+    # Phase A added '^' as CARET for unit exponentiation (e.g. s^2).
+    # Use '#' which remains an unrecognized character.
     with pytest.raises(LexError) as exc:
-        tokenize("fn ^ bad")
+        tokenize("fn # bad")
     assert "line 1:4" in str(exc.value)
+
+
+def test_caret_is_lexed_as_caret_token():
+    """Phase A: '^' is now CARET, used in unit expressions like s^2."""
+    toks = tokenize("s^2")
+    kinds = [t.kind for t in toks if t.kind != "EOF"]
+    assert kinds == ["IDENT", "CARET", "INT"]

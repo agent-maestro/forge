@@ -98,10 +98,33 @@ class ASTNode:
 
 
 @dataclass
+class EMLUnitDecl:
+    """A `unit NAME = <unit_expr>;` declaration.
+
+    `base_exponents` is an 8-tuple of integer exponents in SI base-unit
+    order: (m, kg, s, A, K, mol, cd, rad).  For example:
+      - Hz = s^-1          -> (0, 0, -1, 0, 0, 0, 0, 0)
+      - N  = kg*m*s^-2     -> (1, 1, -2, 0, 0, 0, 0, 0)
+
+    `scale` is a float multiplier relative to the canonical base
+    combination.  For SI-coherent units (Hz, N, Pa, …) scale == 1.0.
+    For prefixed or non-SI units (km, kHz, deg) scale != 1.0.
+    """
+    name: str
+    base_exponents: tuple  # length-8 tuple of ints: (m, kg, s, A, K, mol, cd, rad)
+    scale: float = 1.0
+    line: int = 0
+    col: int = 0
+
+
+@dataclass
 class Param:
     """A function parameter."""
     name: str
     type_name: str        # "Real" / "f64" / "u8" / etc. Or alias.
+    unit_expr: Optional[str] = None
+    """Source text of the bracketed unit annotation, e.g. "Hz", "m/s^2",
+    or None when no [unit] suffix is present."""
     line: int = 0
     col: int = 0
 
@@ -136,6 +159,10 @@ class EMLFunction:
     return_tuple_types: list[str] = field(default_factory=list)
     """When the function returns a tuple, this is the list of element
     types and `return_type` is "" -- mutually exclusive with `return_type`."""
+    return_unit_expr: Optional[str] = None
+    """Source text of the return type's bracketed unit annotation,
+    e.g. "Hz", "m/s^2", or None when no [unit] suffix is present."""
+
     return_constraint: Optional[dict] = None
     """Per the alias-level `where chain_order <op> N` constraint, if
     the return type is an alias such as `StableSignal`. {"op": "<=",
@@ -174,6 +201,8 @@ class EMLConstant:
     name: str
     type_name: str
     value: ASTNode
+    unit_expr: Optional[str] = None
+    """Source text of the bracketed unit annotation, e.g. "Hz", or None."""
     line: int = 0
     col: int = 0
 
@@ -226,6 +255,8 @@ class EMLModule:
     name: str
     """The `module <name>;` identifier, or "" if no module declaration."""
     imports: list[EMLImport] = field(default_factory=list)
+    unit_decls: list[EMLUnitDecl] = field(default_factory=list)
+    """Phase A: `unit NAME = <expr>;` declarations, in source order."""
     constants: list[EMLConstant] = field(default_factory=list)
     types: list[EMLTypeAlias] = field(default_factory=list)
     functions: list[EMLFunction] = field(default_factory=list)
