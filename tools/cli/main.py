@@ -301,6 +301,16 @@ def main(argv: list[str] | None = None) -> int:
                              "blocks. Same emit logic as "
                              "`tools/scripts/regen_discovered.py`, "
                              "but per-file at compile time.")
+    parser.add_argument("--strict-refinements", action="store_true",
+                        default=False,
+                        help="(Phase C) Enable the refinement auto-splicer. "
+                             "Single-variable `requires`/`ensures` clauses are "
+                             "folded into the corresponding parameter or return "
+                             "refinement type. Multi-variable clauses stay as-is. "
+                             "When this flag is OFF (the default), behaviour is "
+                             "byte-identical to pre-Phase-C. When ON, a one-line "
+                             "note appears in `--explain` output for each clause "
+                             "that was absorbed into a refinement.")
     parser.add_argument("--explain", action="store_true",
                         help="Print a per-function diff showing which "
                              "optimizer passes fired, before/after "
@@ -402,6 +412,33 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except ImportError:
         pass  # lang.unit_types not yet installed in older envs -- skip silently
+
+    # ── Phase C: refinement auto-splicer + refinement check ──────────
+    # The auto-splicer is gated behind --strict-refinements (default OFF).
+    # With the flag OFF, this block is a no-op; output is byte-identical
+    # to pre-Phase-C.  With the flag ON, single-variable requires/ensures
+    # clauses are folded into parameter/return refinements.
+    _refinement_splice_notes: list[str] = []
+    try:
+        from lang.refinements import (
+            auto_splice_module as _ref_splice,
+            check_module as _ref_check,
+            RefinementError,
+        )
+        _strict = getattr(args, "strict_refinements", False)
+        _ref_splice(mod, strict_mode=_strict)
+        # Collect splice notes for --explain output
+        if _strict:
+            for fn in mod.functions:
+                notes = getattr(fn, "_splice_notes", [])
+                for note in notes:
+                    _refinement_splice_notes.append(f"  [refinement-splicer] {fn.name}: {note}")
+        _ref_check(mod)
+    except RefinementError as e:
+        print(f"refinement error: {e}", file=sys.stderr)
+        return 1
+    except ImportError:
+        pass  # lang.refinements not yet installed -- skip silently
 
     profiler = Profiler()
     profiler.profile_module(mod)
@@ -524,6 +561,12 @@ def main(argv: list[str] | None = None) -> int:
             include_backend_stats=args.backend_stats,
             as_json=args.json,
         )
+        # Phase C: append splice notes when --strict-refinements was also used.
+        if _refinement_splice_notes:
+            print()
+            print("# Phase C refinement auto-splicer absorbed the following clauses:")
+            for note in _refinement_splice_notes:
+                print(note)
         return 0
 
     # ── --allocate -> run FPGA allocator + print plan ──────────

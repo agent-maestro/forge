@@ -1,0 +1,21 @@
+// audio_pole_refined.eml -- Phase C demo: refinement types + units.
+//
+// Shows the full Phase C feature set:
+//   - unit declarations
+//   - type aliases with unit + refinement
+//   - parameters with unit + refinement annotations
+//   - return type with refinement
+//   - requires clause (multi-variable, stays as-is)
+//   - where chain_order constraint
+
+unit Hz = 1/s;
+
+type AudibleFreq = Real[Hz]{f | 20.0 <= f && f <= 22000.0};
+
+fn audio_pole(f: AudibleFreq, fs: Real[Hz]{x | x > 0.0})
+    -> Real{r | 0.0 <= r && r < 1.0}
+    where chain_order <= 1
+    requires (fs > f)
+{
+    exp(-3.14159265358979 * f / fs)
+}

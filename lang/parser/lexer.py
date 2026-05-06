@@ -59,6 +59,10 @@ SINGLE_CHAR_OPS: dict[str, str] = {
     # It has no meaning in normal EML expressions; the parser only
     # consumes it inside a [unit_expr] suffix.
     "^": "CARET",
+    # Phase C: pipe is used as the separator in refinement predicates
+    # {binder | predicate}. It is NOT part of the || operator -- that is
+    # handled by the multi-char operator '||' above (OR token).
+    "|": "PIPE",
 }
 
 
