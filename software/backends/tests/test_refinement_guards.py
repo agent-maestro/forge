@@ -1,8 +1,8 @@
-"""Phase E.1 tests: refinement-derived runtime guards for the 7 wired backends.
+"""Phase E.1/E.2/E.3 tests: refinement-derived runtime guards.
 
 Tests written FIRST (RED) per TDD methodology before any implementation.
 
-Covers (per backend, 6 cases each = 42 total):
+Covers (per backend, 6 cases each = 42 total for E.1/E.2):
 1. Single refined param: Real{x | x >= 0.0} -> idiomatic guard on param name
 2. Conjunction refinement: Real{x | 0.0 <= x && x <= 1.0} -> single guard
 3. abs(x) <= k: emitted literally using target's abs idiom (NOT pre-rewritten)
@@ -11,8 +11,21 @@ Covers (per backend, 6 cases each = 42 total):
    produce identical guard semantics (byte-diff is message-tag only)
 6. Cross-param refinement: comment-only line, no executable guard
 
-Plus non-regression (1 per backend, 7 total):
+Plus non-regression (1 per backend, 7 total for E.1/E.2):
 - pid_controller.eml (no refinements) produces byte-identical MD5 to pre-baseline
+
+Phase E.3 (5 new backends):
+- Rust: assert!(cond, "msg") runtime guards
+- C: assert(cond && "msg") with #include <assert.h>
+- Python: if not (cond): raise ValueError("msg")
+- WASM: doc-only ;; forge.refinement: (no runtime assert in core WASM)
+- GDScript: assert(cond, "msg") (native)
+
+Non-regression contract for E.3:
+- pid_controller.eml hashes WILL change for these 5 backends because requires
+  clauses now produce output where before they were silent.
+- The smoke test for unchanged hashes uses _SRC_NOREFINEMENT_* fixtures
+  (no requires AND no refinements).
 """
 
 from __future__ import annotations
@@ -36,6 +49,12 @@ from software.backends.luau_backend import LuauBackend
 from software.backends.matlab_backend import MatlabBackend
 # Phase E.2 backends
 from software.backends.cpp_backend import CppBackend
+# Phase E.3 backends
+from software.backends.rust_backend import RustBackend
+from software.backends.c_backend import CBackend
+from software.backends.python_backend import PythonBackend
+from software.backends.wasm_backend import WASMBackend
+from software.backends.gdscript_backend import GDScriptBackend
 from software.backends.java_backend import JavaBackend
 from software.backends.hlsl_backend import HLSLBackend
 from software.backends.glsl_backend import GLSLBackend
@@ -68,8 +87,34 @@ _PID_BASELINES: dict[str, str] = {
     "glsl":  "da94b69b002f48dea5b56ecba51aacf3",
     "wgsl":  "5dda302ca78648da8bc71ec7d347afd6",
     "metal": "a2bef23f5e2a3885153fba781dad6b61",
-    "llvm":  "6be7ddaf36683ab0bb58063c3c23402d",
+    # llvm: Phase E.3 added requires->@llvm.assume IR emission, so pid
+    # hash drifts from the E.2 baseline (pid has requires clauses).
+    # Refinement-only kernels still match Phase E.2 behavior.
+    "llvm":  "1e784cee6a263606d539d32baa0e36a9",
     "matlab":     "aa1698e3d253da46362808531b8bae13",
+}
+
+# Phase E.3 PID baselines: collected AFTER implementation (pid_controller has
+# requires clauses, so hashes change vs pre-E.3 for all 5 new backends).
+# Placeholder values -- will be filled after GREEN pass.
+# WASM uses the IR text hash (not bytecode, which is empty without llc).
+_PID_BASELINES_PHASE_E3: dict[str, str] = {
+    "rust":      "PLACEHOLDER",
+    "c":         "PLACEHOLDER",
+    "python":    "PLACEHOLDER",
+    "wasm_ir":   "PLACEHOLDER",
+    "gdscript":  "PLACEHOLDER",
+}
+
+# Phase E.3 no-requires no-refinements baselines for _SRC_NOREFINEMENT_1.
+# These MUST match pre-E.3 output (no guard emission for clean kernels).
+# Collected from the pre-implementation run.
+_NOREFINEMENT1_BASELINES_E3: dict[str, str] = {
+    "rust":     "28533e01fe96951dee7b14c3ffe1ef44",
+    "c":        "37aaee69ee02603f4b3ee5bfed880deb",
+    "python":   "f2cfd024820732f148f4f79c055b44b3",
+    "wasm_ir":  "b2e35e847deee6a6f5d935268c5a79a7",
+    "gdscript": "c7f6ad1cb2f9424c4ed5c46fba40def0",
 }
 
 
@@ -83,6 +128,24 @@ def _compile_file(path: Path, backend) -> str:
     mod = parse_file(path)
     Profiler().profile_module(mod)
     return backend.compile(mod)
+
+
+def _compile_wasm_ir(src: str) -> str:
+    """Compile EML source via WASMBackend and return the LLVM IR text.
+
+    WASMBackend.compile() returns bytes (bytecode or empty); the IR
+    text is available via compile_full().ir. This helper exposes that
+    text so tests can inspect doc-comment annotations.
+    """
+    mod = parse_source(src)
+    Profiler().profile_module(mod)
+    return WASMBackend().compile_full(mod).ir
+
+
+def _compile_wasm_ir_file(path: Path) -> str:
+    mod = parse_file(path)
+    Profiler().profile_module(mod)
+    return WASMBackend().compile_full(mod).ir
 
 
 def _md5(text: str) -> str:
@@ -1129,3 +1192,405 @@ class TestLLVMRefinementGuards:
             out = _compile(src, LLVMBackend())
             assert 'refinement violated' not in out
             assert 'llvm.assume' not in out
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Phase E.3: Rust backend -- assert!(cond, "msg") runtime guards
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestRustRefinementGuards:
+    """Phase E.3: refinement-derived assert!() guards for the Rust backend.
+
+    Standard 8 tests + test_assert_uses_rust_macro = 9 total.
+    """
+
+    def setup_method(self):
+        self.b = RustBackend()
+
+    def test_single_refined_param_emits_guard(self):
+        out = _compile(_SRC_SINGLE, self.b)
+        # assert!(x >= 0.0, "f: refinement violated on x: x >= 0.0")
+        assert 'assert!(' in out
+        assert 'refinement violated on x' in out
+
+    def test_conjunction_refinement_emits_single_guard(self):
+        out = _compile(_SRC_CONJ, self.b)
+        assert 'refinement violated on x' in out
+        assert out.count('refinement violated on x') == 1
+
+    def test_abs_refinement_emits_mg_abs(self):
+        out = _compile(_SRC_ABS, self.b)
+        # Rust backend maps ABS to mg_abs via _BUILTIN_TO_RUST
+        assert 'mg_abs(x)' in out
+        assert 'refinement violated on x' in out
+
+    def test_multiple_refined_params_emit_n_guards(self):
+        out = _compile(_SRC_MULTI, self.b)
+        assert 'refinement violated on error' in out
+        assert 'refinement violated on integral' in out
+        assert 'refinement violated on derivative' in out
+        i_error = out.index('refinement violated on error')
+        i_integral = out.index('refinement violated on integral')
+        i_deriv = out.index('refinement violated on derivative')
+        assert i_error < i_integral < i_deriv
+
+    def test_splicer_parity_requires_vs_refinement(self):
+        out_req = _compile(_SRC_REQUIRES, RustBackend())
+        out_ref = _compile(_SRC_REFINE, RustBackend())
+        # Both contain mg_abs(x) in an assert!
+        assert 'mg_abs(x)' in out_req
+        assert 'mg_abs(x)' in out_ref
+        assert 'requires' in out_req
+        assert 'refinement violated on' in out_ref
+
+    def test_cross_param_refinement_emits_comment_only(self):
+        out = _compile(_SRC_CROSS, self.b)
+        assert 'refinement obligation:' in out
+        obligation_line = next(
+            ln for ln in out.splitlines() if 'refinement obligation:' in ln
+        )
+        assert 'assert!(' not in obligation_line
+
+    def test_requires_clause_emits_assert(self):
+        # pid_controller has requires clauses; after E.3 they must emit
+        # assert!() guards (not be silently dropped).
+        out = _compile_file(PID, RustBackend())
+        assert 'assert!(' in out
+        # The requires guard message uses the "requires" tag
+        assert 'requires' in out
+
+    def test_norefinement_no_requires_md5_unchanged(self):
+        # Kernels with NO requires AND NO refinements must produce
+        # byte-identical output before and after Phase E.3.
+        out = _compile(_SRC_NOREFINEMENT_1, RustBackend())
+        assert _md5(out) == _NOREFINEMENT1_BASELINES_E3['rust']
+
+    def test_norefinement_kernels_have_no_guards(self):
+        for src in (_SRC_NOREFINEMENT_1, _SRC_NOREFINEMENT_2, _SRC_NOREFINEMENT_3):
+            out = _compile(src, RustBackend())
+            assert 'refinement violated' not in out
+            assert 'assert!(' not in out
+
+    def test_assert_uses_rust_macro(self):
+        # Refinement guards MUST use assert!() (panicking macro), not
+        # debug_assert!() (which is stripped in release builds).
+        out = _compile(_SRC_SINGLE, self.b)
+        assert 'assert!(' in out
+        # No debug_assert! for refinements
+        assert 'debug_assert!(' not in out
+
+    def test_pid_pid_controller_md5_changed_from_pre_e3(self):
+        # pid_controller has requires; E.3 adds assert! output,
+        # so the hash MUST differ from the pre-E.3 value.
+        pre_e3_hash = "7dfff0b7db2ca8e3c357f10dae615002"
+        out = _compile_file(PID, RustBackend())
+        assert _md5(out) != pre_e3_hash
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Phase E.3: C backend -- assert(cond && "msg") with #include <assert.h>
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestCRefinementGuards:
+    """Phase E.3: refinement-derived assert() guards for the C backend.
+
+    Standard 8 tests + test_includes_assert_h_when_refinements_present = 9 total.
+    """
+
+    def setup_method(self):
+        self.b = CBackend()
+
+    def test_single_refined_param_emits_guard(self):
+        out = _compile(_SRC_SINGLE, self.b)
+        # assert((x >= 0.0) && "f: refinement violated on x: ...")
+        assert 'assert(' in out
+        assert 'refinement violated on x' in out
+
+    def test_conjunction_refinement_emits_single_guard(self):
+        out = _compile(_SRC_CONJ, self.b)
+        assert 'refinement violated on x' in out
+        assert out.count('refinement violated on x') == 1
+
+    def test_abs_refinement_emits_mg_abs(self):
+        out = _compile(_SRC_ABS, self.b)
+        # C backend maps ABS to mg_abs via _BUILTIN_TO_C
+        assert 'mg_abs(x)' in out
+        assert 'refinement violated on x' in out
+
+    def test_multiple_refined_params_emit_n_guards(self):
+        out = _compile(_SRC_MULTI, self.b)
+        assert 'refinement violated on error' in out
+        assert 'refinement violated on integral' in out
+        assert 'refinement violated on derivative' in out
+        i_error = out.index('refinement violated on error')
+        i_integral = out.index('refinement violated on integral')
+        i_deriv = out.index('refinement violated on derivative')
+        assert i_error < i_integral < i_deriv
+
+    def test_splicer_parity_requires_vs_refinement(self):
+        out_req = _compile(_SRC_REQUIRES, CBackend())
+        out_ref = _compile(_SRC_REFINE, CBackend())
+        assert 'mg_abs(x)' in out_req
+        assert 'mg_abs(x)' in out_ref
+        assert 'requires' in out_req
+        assert 'refinement violated on' in out_ref
+
+    def test_cross_param_refinement_emits_comment_only(self):
+        out = _compile(_SRC_CROSS, self.b)
+        assert 'refinement obligation:' in out
+        obligation_line = next(
+            ln for ln in out.splitlines() if 'refinement obligation:' in ln
+        )
+        assert 'assert(' not in obligation_line
+
+    def test_requires_clause_emits_assert(self):
+        out = _compile_file(PID, CBackend())
+        assert 'assert(' in out
+        assert 'requires' in out
+
+    def test_norefinement_no_requires_md5_unchanged(self):
+        # No-requires, no-refinements kernels must produce byte-identical output.
+        out = _compile(_SRC_NOREFINEMENT_1, CBackend())
+        assert _md5(out) == _NOREFINEMENT1_BASELINES_E3['c']
+
+    def test_norefinement_kernels_have_no_guards(self):
+        for src in (_SRC_NOREFINEMENT_1, _SRC_NOREFINEMENT_2, _SRC_NOREFINEMENT_3):
+            out = _compile(src, CBackend())
+            assert 'refinement violated' not in out
+
+    def test_includes_assert_h_when_refinements_present(self):
+        # #include <assert.h> must be injected when a function has either
+        # requires clauses or refined parameters.
+        out_ref = _compile(_SRC_SINGLE, CBackend())
+        assert '#include <assert.h>' in out_ref
+        out_req = _compile(_SRC_REQUIRES, CBackend())
+        assert '#include <assert.h>' in out_req
+
+    def test_no_assert_h_on_clean_kernel(self):
+        # When no requires and no refinements, #include <assert.h> must NOT
+        # be injected (avoids polluting clean kernel output).
+        out = _compile(_SRC_NOREFINEMENT_1, CBackend())
+        assert '#include <assert.h>' not in out
+
+    def test_pid_md5_changed_from_pre_e3(self):
+        pre_e3_hash = "ebbd8c95c46ef3b6e10c5a6574a4d8bd"
+        out = _compile_file(PID, CBackend())
+        assert _md5(out) != pre_e3_hash
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Phase E.3: Python backend -- if not (cond): raise ValueError("msg")
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestPythonRefinementGuards:
+    """Phase E.3: refinement-derived ValueError guards for the Python backend.
+
+    Standard 8 tests.
+    """
+
+    def setup_method(self):
+        self.b = PythonBackend()
+
+    def test_single_refined_param_emits_guard(self):
+        out = _compile(_SRC_SINGLE, self.b)
+        # if not (x >= 0.0): raise ValueError("f: refinement violated on x: ...")
+        assert 'raise ValueError(' in out
+        assert 'refinement violated on x' in out
+
+    def test_conjunction_refinement_emits_single_guard(self):
+        out = _compile(_SRC_CONJ, self.b)
+        assert 'refinement violated on x' in out
+        assert out.count('refinement violated on x') == 1
+
+    def test_abs_refinement_emits_bare_abs(self):
+        out = _compile(_SRC_ABS, self.b)
+        # Python: abs() built-in (no prefix)
+        assert 'abs(x)' in out
+        assert 'refinement violated on x' in out
+
+    def test_multiple_refined_params_emit_n_guards(self):
+        out = _compile(_SRC_MULTI, self.b)
+        assert 'refinement violated on error' in out
+        assert 'refinement violated on integral' in out
+        assert 'refinement violated on derivative' in out
+        i_error = out.index('refinement violated on error')
+        i_integral = out.index('refinement violated on integral')
+        i_deriv = out.index('refinement violated on derivative')
+        assert i_error < i_integral < i_deriv
+
+    def test_splicer_parity_requires_vs_refinement(self):
+        out_req = _compile(_SRC_REQUIRES, PythonBackend())
+        out_ref = _compile(_SRC_REFINE, PythonBackend())
+        assert 'abs(x)' in out_req
+        assert 'abs(x)' in out_ref
+        assert 'requires' in out_req
+        assert 'refinement violated on' in out_ref
+
+    def test_cross_param_refinement_emits_comment_only(self):
+        out = _compile(_SRC_CROSS, self.b)
+        assert 'refinement obligation:' in out
+        obligation_line = next(
+            ln for ln in out.splitlines() if 'refinement obligation:' in ln
+        )
+        assert 'raise' not in obligation_line
+
+    def test_norefinement_no_requires_md5_unchanged(self):
+        out = _compile(_SRC_NOREFINEMENT_1, PythonBackend())
+        assert _md5(out) == _NOREFINEMENT1_BASELINES_E3['python']
+
+    def test_norefinement_kernels_have_no_guards(self):
+        for src in (_SRC_NOREFINEMENT_1, _SRC_NOREFINEMENT_2, _SRC_NOREFINEMENT_3):
+            out = _compile(src, PythonBackend())
+            assert 'refinement violated' not in out
+            assert 'raise ValueError' not in out
+
+    def test_pid_md5_changed_from_pre_e3(self):
+        pre_e3_hash = "5cc64ca6b458d703d666db16762886da"
+        out = _compile_file(PID, PythonBackend())
+        assert _md5(out) != pre_e3_hash
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Phase E.3: WASM backend -- doc-only ;; forge.refinement: (no runtime assert)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestWASMRefinementGuards:
+    """Phase E.3: refinement doc-comments in WASM IR (doc-only tier).
+
+    WASM core has no assert construct; guards appear as ;; comments in the
+    LLVM IR text that the WASMBackend passes through.
+
+    Standard 8 tests -- mirrors the HLSL/GLSL/WGSL/Metal doc-only shape.
+    """
+
+    def test_single_refined_param_emits_comment(self):
+        out = _compile_wasm_ir(_SRC_SINGLE)
+        assert 'forge.refinement:' in out
+        assert 'refinement violated on x' in out
+
+    def test_conjunction_refinement_emits_single_comment(self):
+        out = _compile_wasm_ir(_SRC_CONJ)
+        assert 'refinement violated on x' in out
+        assert out.count('refinement violated on x') == 1
+
+    def test_abs_refinement_emits_abs_in_comment(self):
+        out = _compile_wasm_ir(_SRC_ABS)
+        # WASM doc-comment uses the raw predicate text -- abs(x) appears literally
+        assert 'abs(x)' in out
+        assert 'refinement violated on x' in out
+
+    def test_multiple_refined_params_emit_n_comments(self):
+        out = _compile_wasm_ir(_SRC_MULTI)
+        assert 'refinement violated on error' in out
+        assert 'refinement violated on integral' in out
+        assert 'refinement violated on derivative' in out
+        i_error = out.index('refinement violated on error')
+        i_integral = out.index('refinement violated on integral')
+        i_deriv = out.index('refinement violated on derivative')
+        assert i_error < i_integral < i_deriv
+
+    def test_splicer_parity_requires_vs_refinement(self):
+        out_req = _compile_wasm_ir(_SRC_REQUIRES)
+        out_ref = _compile_wasm_ir(_SRC_REFINE)
+        assert 'abs(x)' in out_req
+        assert 'abs(x)' in out_ref
+        assert 'forge.requires:' in out_req
+        assert 'forge.refinement:' in out_ref
+
+    def test_cross_param_refinement_emits_comment_only(self):
+        out = _compile_wasm_ir(_SRC_CROSS)
+        assert 'refinement obligation:' in out
+
+    def test_norefinement_no_requires_md5_unchanged(self):
+        mod = parse_source(_SRC_NOREFINEMENT_1)
+        Profiler().profile_module(mod)
+        ir = WASMBackend().compile_full(mod).ir
+        assert _md5(ir) == _NOREFINEMENT1_BASELINES_E3['wasm_ir']
+
+    def test_norefinement_kernels_have_no_refinement_comments(self):
+        for src in (_SRC_NOREFINEMENT_1, _SRC_NOREFINEMENT_2, _SRC_NOREFINEMENT_3):
+            out = _compile_wasm_ir(src)
+            assert 'refinement violated' not in out
+
+    def test_pid_ir_md5_changed_from_pre_e3(self):
+        pre_e3_hash = "27bc4e9167c60c785ed9213df59d5915"
+        out = _compile_wasm_ir_file(PID)
+        assert _md5(out) != pre_e3_hash
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Phase E.3: GDScript backend -- assert(cond, "msg") (native)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+class TestGDScriptRefinementGuards:
+    """Phase E.3: refinement-derived assert() guards for the GDScript backend.
+
+    GDScript 2.0 has a native two-arg assert(cond, "msg") form.
+    Standard 8 tests.
+    """
+
+    def setup_method(self):
+        self.b = GDScriptBackend()
+
+    def test_single_refined_param_emits_guard(self):
+        out = _compile(_SRC_SINGLE, self.b)
+        # assert(x >= 0.0, "f: refinement violated on x: x >= 0.0")
+        assert 'assert(' in out
+        assert 'refinement violated on x' in out
+
+    def test_conjunction_refinement_emits_single_guard(self):
+        out = _compile(_SRC_CONJ, self.b)
+        assert 'refinement violated on x' in out
+        assert out.count('refinement violated on x') == 1
+
+    def test_abs_refinement_emits_bare_abs(self):
+        out = _compile(_SRC_ABS, self.b)
+        # GDScript: abs() built-in
+        assert 'abs(x)' in out
+        assert 'refinement violated on x' in out
+
+    def test_multiple_refined_params_emit_n_guards(self):
+        out = _compile(_SRC_MULTI, self.b)
+        assert 'refinement violated on error' in out
+        assert 'refinement violated on integral' in out
+        assert 'refinement violated on derivative' in out
+        i_error = out.index('refinement violated on error')
+        i_integral = out.index('refinement violated on integral')
+        i_deriv = out.index('refinement violated on derivative')
+        assert i_error < i_integral < i_deriv
+
+    def test_splicer_parity_requires_vs_refinement(self):
+        out_req = _compile(_SRC_REQUIRES, GDScriptBackend())
+        out_ref = _compile(_SRC_REFINE, GDScriptBackend())
+        assert 'abs(x)' in out_req
+        assert 'abs(x)' in out_ref
+        assert 'requires' in out_req
+        assert 'refinement violated on' in out_ref
+
+    def test_cross_param_refinement_emits_comment_only(self):
+        out = _compile(_SRC_CROSS, self.b)
+        assert 'refinement obligation:' in out
+        obligation_line = next(
+            ln for ln in out.splitlines() if 'refinement obligation:' in ln
+        )
+        assert 'assert(' not in obligation_line
+
+    def test_norefinement_no_requires_md5_unchanged(self):
+        out = _compile(_SRC_NOREFINEMENT_1, GDScriptBackend())
+        assert _md5(out) == _NOREFINEMENT1_BASELINES_E3['gdscript']
+
+    def test_norefinement_kernels_have_no_guards(self):
+        for src in (_SRC_NOREFINEMENT_1, _SRC_NOREFINEMENT_2, _SRC_NOREFINEMENT_3):
+            out = _compile(src, GDScriptBackend())
+            assert 'refinement violated' not in out
+            assert 'assert(' not in out
+
+    def test_pid_md5_changed_from_pre_e3(self):
+        pre_e3_hash = "046c5af3d3d18348d58beac27a64899a"
+        out = _compile_file(PID, GDScriptBackend())
+        assert _md5(out) != pre_e3_hash

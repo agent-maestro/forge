@@ -331,8 +331,10 @@ class LLVMBackend:
                 continue
             try:
                 cond_reg, cond_lns = self._emit_refinement_pred(pred, st)
+                pred_str = self._emit_refinement_pred_str(pred, st)
                 msg = (
-                    f"{fn.name}: refinement violated on {p.name}"
+                    f"forge.refinement: {fn.name}: "
+                    f"refinement violated on {p.name}: {pred_str}"
                 )
                 out.extend(cond_lns)
                 out.append(f"  ; {msg}")
@@ -428,6 +430,22 @@ class LLVMBackend:
 
         # Phase E.2: refinement guards fire before the body.
         body_lines.extend(self._emit_refinement_guards(fn, st))
+
+        # Phase E.3 (LLVM): emit requires-clause comments + assume IR.
+        # Each requires clause becomes a `forge.requires:` comment plus a
+        # `call void @llvm.assume(i1 %cond)` so optimizer sees the same
+        # invariant the user asserted.
+        for r in fn.requires:
+            try:
+                cond_reg, cond_lns = self._emit_refinement_pred(r, st)
+                pred_str = self._emit_refinement_pred_str(r, st)
+                body_lines.extend(cond_lns)
+                body_lines.append(
+                    f"  ; forge.requires: {fn.name}: requires ({pred_str})"
+                )
+                body_lines.append(f"  call void @llvm.assume(i1 {cond_reg})")
+            except CompileError as e:
+                body_lines.append(f"  ; requires: unsupported ({e})")
 
         struct_name = (
             self._tuple_type_name(fn.name) if fn.return_tuple_types else None

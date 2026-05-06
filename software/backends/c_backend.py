@@ -38,6 +38,15 @@ For `fn park(...) -> (f64, f64)` we synthesize a struct type
 and the function returns that struct. Tuple literal `(v_d, v_q)`
 becomes `(park_result_t){v_d, v_q}`.
 
+Phase E.3: refinement-aware lowering.
+  - `requires` clauses lower to `assert(cond && "msg")` guards.
+  - Refined parameters lower to `assert(cond && "msg")` guards BEFORE requires.
+  - `#include <assert.h>` is injected into the file header IFF at least one
+    function in the module has requires clauses or refined parameters.
+    Clean kernels (neither) are byte-identical to pre-E.3 output.
+  - ABS maps to mg_abs (via the existing _BUILTIN_TO_C table), consistent
+    with the rest of the C backend's libmonogate dispatch.
+
 Reference: lang/spec/EML_LANG_DESIGN.md section 2.1.
 """
 
@@ -110,6 +119,52 @@ def _c_type(eml_type: str) -> str:
     return _TYPE_TO_C.get(eml_type, "double")
 
 
+# ── Phase E.3: refinement guard helpers ──────────────────────────────────────
+
+
+def _substitute_var(node: ASTNode, old: str, new: str) -> ASTNode:
+    """Return a new ASTNode tree with every VAR named *old* replaced by *new*.
+
+    Immutable: the original tree is never modified.
+    """
+    if node.kind == NodeKind.VAR and node.value == old:
+        return ASTNode(
+            kind=NodeKind.VAR, value=new, children=[],
+            type_annotation=node.type_annotation,
+            chain_constraint=node.chain_constraint,
+            line=node.line, col=node.col,
+        )
+    new_children = [_substitute_var(c, old, new) for c in node.children]
+    return ASTNode(
+        kind=node.kind, value=node.value, children=new_children,
+        type_annotation=node.type_annotation,
+        chain_constraint=node.chain_constraint,
+        line=node.line, col=node.col,
+    )
+
+
+def _var_names(node: ASTNode) -> set[str]:
+    """Collect every VAR name that appears anywhere in *node*."""
+    names: set[str] = set()
+    if node.kind == NodeKind.VAR:
+        names.add(str(node.value))
+    for c in node.children:
+        names.update(_var_names(c))
+    return names
+
+
+def _module_needs_assert(funcs: list) -> bool:
+    """Return True iff any function in the module has requires clauses or
+    refined parameters -- triggering #include <assert.h> injection."""
+    for fn in funcs:
+        if fn.requires:
+            return True
+        for p in fn.params:
+            if p.refinement is not None:
+                return True
+    return False
+
+
 class CompileError(Exception):
     """Raised on something the C backend genuinely cannot translate
     (e.g. a NodeKind it doesn't recognize)."""
@@ -151,8 +206,12 @@ class CBackend:
             '#include "libmonogate.h"',
             "#include <stdint.h>",
             "#include <math.h>",
-            "",
         ]
+        # Phase E.3: inject assert.h only when the module has requires
+        # clauses or refined parameters -- keeps clean kernels byte-identical.
+        if _module_needs_assert(mod.functions):
+            lines.append("#include <assert.h>")
+        lines.append("")
         # Tuple-return struct types come before any function signature.
         struct_decls = self._emit_tuple_structs(mod.functions)
         if struct_decls:
@@ -199,6 +258,49 @@ class CBackend:
             f"{self._emit_expr(c.value)};"
         ]
 
+    # ── Phase E.3: refinement guards ─────────────────────────────
+
+    def _emit_refinement_guards(self, fn: EMLFunction) -> list[str]:
+        """Return one assert() line per refined parameter (Phase E.3).
+
+        C idiom: assert(cond && "message") -- the string literal is
+        non-NULL so `&& "msg"` is always truthy; it merely embeds the
+        message in the assertion failure output via assert's __FILE__/
+        __LINE__ machinery.
+
+        Cross-param refinements emit a comment-only obligation line.
+        """
+        out: list[str] = []
+        param_names = {p.name for p in fn.params}
+        for p in fn.params:
+            if p.refinement is None:
+                continue
+            ref = p.refinement
+            pred = _substitute_var(ref.predicate, ref.binder, p.name)
+            pred_vars = _var_names(pred)
+            other_params_in_pred = (pred_vars - {p.name}) & param_names
+            if other_params_in_pred:
+                try:
+                    cond_str = self._emit_expr(pred)
+                except CompileError as e:
+                    cond_str = f"<unsupported: {e}>"
+                out.append(
+                    f"{self.indent}/* refinement obligation: "
+                    f"{fn.name}: {p.name}: {cond_str} */"
+                )
+                continue
+            try:
+                cond = self._emit_expr(pred)
+                msg = f"{fn.name}: refinement violated on {p.name}: {cond}"
+                out.append(
+                    f'{self.indent}assert(({cond}) && "{msg}");'
+                )
+            except CompileError as e:
+                out.append(
+                    f"{self.indent}/* refinement: unsupported ({e}) */"
+                )
+        return out
+
     def _emit_function(self, fn: EMLFunction) -> list[str]:
         # Record drift risk so _emit_expr can route TANH (and any
         # future drift-prone NodeKind) to the libmonogate _route variant.
@@ -234,6 +336,19 @@ class CBackend:
             f"{_c_type(p.type_name)} {p.name}" for p in fn.params
         ) or "void"
         out.append(f"{ret_type} {fn.name}({params_c}) {{")
+
+        # Phase E.3: refinement-derived guards fire BEFORE requires guards.
+        out.extend(self._emit_refinement_guards(fn))
+
+        # `requires` lower to assert(cond && "msg") guards.
+        for r in fn.requires:
+            try:
+                cond = self._emit_expr(r)
+                out.append(
+                    f'{self.indent}assert(({cond}) && "{fn.name}: requires ({cond})");'
+                )
+            except CompileError as e:
+                out.append(f"{self.indent}/* requires: unsupported ({e}) */")
 
         # Body -- pass the struct name when returning a tuple so the
         # final expression gets the C99 cast `(name){...}`.
