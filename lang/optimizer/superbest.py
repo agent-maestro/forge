@@ -128,6 +128,17 @@ def superbest_function(fn: EMLFunction) -> EMLFunction:
     if any(len(repr(float(f))) > 8 for f in floats):
         return fn
 
+    # Fast chain-order pre-filter (eml_genome.predict_pfaffian_r,
+    # 98.6 % accurate, 3-13× faster than eml_cost.analyze). The four
+    # SuperBEST families all bottom out at chain order ≤ 2; if the
+    # closed-form predicts > 4 (≤ 2 with the +2 safety margin), the
+    # slow `recommend_form` call cannot match and we should bail.
+    # When eml_genome isn't installed, this is a no-op.
+    from ._chain_order_fast import estimate_chain_order
+    co_estimate = estimate_chain_order(expr)
+    if co_estimate is not None and co_estimate > 4:
+        return fn
+
     # Skip when the body has free symbols beyond the function's
     # parameters. Those are user-named module-level constants
     # (e.g. finance/black_scholes.eml's `SQRT_2_OVER_PI`,
