@@ -33,17 +33,11 @@ type ToolLife = Real where chain_order <= 1
 @target(fpga, clock_mhz = 200, precision = float32)
 @verify(lean, theorem = "tool_life_decreases_with_speed")
 fn tool_life_minutes(
-    cutting_speed: Real,
-    taylor_n: Real,
-    taylor_c: Real,
+    cutting_speed: Real{v | V_MIN <= v && v <= V_MAX},
+    taylor_n:      Real{n | N_MIN <= n && n <= N_MAX},
+    taylor_c:      Real{c | C_MIN <= c && c <= C_MAX},
 ) -> ToolLife
     where chain_order <= 1
-    requires (cutting_speed >= V_MIN)
-    requires (cutting_speed <= V_MAX)
-    requires (taylor_n >= N_MIN)
-    requires (taylor_n <= N_MAX)
-    requires (taylor_c >= C_MIN)
-    requires (taylor_c <= C_MAX)
     ensures  (result >= 0.0)
 {
     pow(taylor_c / cutting_speed, 1.0 / taylor_n)
@@ -54,17 +48,11 @@ fn tool_life_minutes(
 @target(fpga, clock_mhz = 200, precision = float32)
 @verify(lean, theorem = "max_speed_decreases_with_target_life")
 fn max_cutting_speed(
-    target_life_minutes: Real,
-    taylor_n: Real,
-    taylor_c: Real,
+    target_life_minutes: Real{t | T_MIN <= t && t <= T_MAX},
+    taylor_n:            Real{n | N_MIN <= n && n <= N_MAX},
+    taylor_c:            Real{c | C_MIN <= c && c <= C_MAX},
 ) -> Real
     where chain_order <= 1
-    requires (target_life_minutes >= T_MIN)
-    requires (target_life_minutes <= T_MAX)
-    requires (taylor_n >= N_MIN)
-    requires (taylor_n <= N_MAX)
-    requires (taylor_c >= C_MIN)
-    requires (taylor_c <= C_MAX)
     ensures  (result >= 0.0)
 {
     taylor_c / pow(target_life_minutes, taylor_n)
@@ -77,29 +65,15 @@ fn max_cutting_speed(
 @target(fpga, clock_mhz = 200, precision = float32)
 @verify(lean, theorem = "extended_taylor_consistent_with_classical")
 fn extended_tool_life(
-    cutting_speed: Real,
-    feed_rate: Real,
-    depth_of_cut: Real,
-    taylor_n: Real,
-    feed_exponent: Real,
-    depth_exponent: Real,
-    taylor_c: Real,
+    cutting_speed:  Real{v | V_MIN <= v && v <= V_MAX},
+    feed_rate:      Real{f | 0.001 <= f && f <= 1.0},
+    depth_of_cut:   Real{d | 0.001 <= d && d <= 100.0},
+    taylor_n:       Real{n | N_MIN <= n && n <= N_MAX},
+    feed_exponent:  Real{e | 0.0 <= e && e <= 1.0},
+    depth_exponent: Real{e | 0.0 <= e && e <= 1.0},
+    taylor_c:       Real{c | C_MIN <= c && c <= C_MAX},
 ) -> ToolLife
     where chain_order <= 1
-    requires (cutting_speed >= V_MIN)
-    requires (cutting_speed <= V_MAX)
-    requires (feed_rate >= 0.001)
-    requires (feed_rate <= 1.0)
-    requires (depth_of_cut >= 0.001)
-    requires (depth_of_cut <= 100.0)
-    requires (taylor_n >= N_MIN)
-    requires (taylor_n <= N_MAX)
-    requires (feed_exponent >= 0.0)
-    requires (feed_exponent <= 1.0)
-    requires (depth_exponent >= 0.0)
-    requires (depth_exponent <= 1.0)
-    requires (taylor_c >= C_MIN)
-    requires (taylor_c <= C_MAX)
     ensures  (result >= 0.0)
 {
     let denom = cutting_speed

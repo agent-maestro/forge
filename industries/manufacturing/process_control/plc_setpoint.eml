@@ -34,12 +34,10 @@ type StableSignal = Real where chain_order <= 0
 @target(fpga, clock_mhz = 50, precision = float32)
 @verify(lean, theorem = "plc_actuator_command_safe")
 fn actuator_command(
-    setpoint: Real, measured: Real, integral: Real,
+    setpoint: Real{s | ACTUATOR_MIN <= s && s <= ACTUATOR_MAX},
+    measured: Real{m | abs(m) < 1.0e6},
+    integral: Real{i | abs(i) < 1.0e3},
 ) -> Real
-    requires (ACTUATOR_MIN <= setpoint)
-    requires (setpoint <= ACTUATOR_MAX)
-    requires (abs(measured) < 1.0e6)
-    requires (abs(integral) < 1.0e3)
     ensures  (ACTUATOR_MIN - 1.0 <= result)
     ensures  (result <= ACTUATOR_MAX + 1.0)
 {

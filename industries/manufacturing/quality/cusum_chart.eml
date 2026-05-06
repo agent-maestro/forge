@@ -28,21 +28,13 @@ type CusumState = Real where chain_order <= 0
 @target(fpga, clock_mhz = 500, precision = float64)
 @verify(lean, theorem = "cusum_high_step_nonneg")
 fn cusum_high_step(
-    s_high_prev: Real,
-    sample: Real,
-    target: Real,
-    sigma: Real,
-    reference_k: Real,
+    s_high_prev: Real{s | 0.0 <= s && s <= VALUE_MAX},
+    sample:      Real{x | abs(x) <= VALUE_MAX},
+    target:      Real{t | abs(t) <= VALUE_MAX},
+    sigma:       Real{s | SIGMA_MIN <= s && s <= SIGMA_MAX},
+    reference_k: Real{k | 0.0 <= k && k <= K_MAX},
 ) -> CusumState
     where chain_order <= 0
-    requires (s_high_prev >= 0.0)
-    requires (s_high_prev <= VALUE_MAX)
-    requires (abs(sample) <= VALUE_MAX)
-    requires (abs(target) <= VALUE_MAX)
-    requires (sigma >= SIGMA_MIN)
-    requires (sigma <= SIGMA_MAX)
-    requires (reference_k >= 0.0)
-    requires (reference_k <= K_MAX)
     ensures  (result >= 0.0)
 {
     let z = (sample - target) / sigma;
@@ -52,21 +44,13 @@ fn cusum_high_step(
 @target(fpga, clock_mhz = 500, precision = float64)
 @verify(lean, theorem = "cusum_low_step_nonneg")
 fn cusum_low_step(
-    s_low_prev: Real,
-    sample: Real,
-    target: Real,
-    sigma: Real,
-    reference_k: Real,
+    s_low_prev:  Real{s | 0.0 <= s && s <= VALUE_MAX},
+    sample:      Real{x | abs(x) <= VALUE_MAX},
+    target:      Real{t | abs(t) <= VALUE_MAX},
+    sigma:       Real{s | SIGMA_MIN <= s && s <= SIGMA_MAX},
+    reference_k: Real{k | 0.0 <= k && k <= K_MAX},
 ) -> CusumState
     where chain_order <= 0
-    requires (s_low_prev >= 0.0)
-    requires (s_low_prev <= VALUE_MAX)
-    requires (abs(sample) <= VALUE_MAX)
-    requires (abs(target) <= VALUE_MAX)
-    requires (sigma >= SIGMA_MIN)
-    requires (sigma <= SIGMA_MAX)
-    requires (reference_k >= 0.0)
-    requires (reference_k <= K_MAX)
     ensures  (result >= 0.0)
 {
     let z = (sample - target) / sigma;
@@ -77,14 +61,12 @@ fn cusum_low_step(
 // else 0.0. Used by the host's process-control SCADA.
 @target(fpga, clock_mhz = 500, precision = float64)
 @verify(lean, theorem = "cusum_alarm_zero_when_in_control")
-fn cusum_alarm(s_high: Real, s_low: Real, decision_h: Real) -> Real
+fn cusum_alarm(
+    s_high:     Real{s | 0.0 <= s && s <= VALUE_MAX},
+    s_low:      Real{s | 0.0 <= s && s <= VALUE_MAX},
+    decision_h: Real{h | 0.001 <= h && h <= H_MAX},
+) -> Real
     where chain_order <= 0
-    requires (s_high >= 0.0)
-    requires (s_high <= VALUE_MAX)
-    requires (s_low >= 0.0)
-    requires (s_low <= VALUE_MAX)
-    requires (decision_h >= 0.001)
-    requires (decision_h <= H_MAX)
     ensures  (result >= 0.0)
     ensures  (result <= 1.0)
 {
@@ -101,12 +83,11 @@ fn cusum_alarm(s_high: Real, s_low: Real, decision_h: Real) -> Real
 // the host; this gate is the linearised approximation).
 @target(fpga, clock_mhz = 500, precision = float64)
 @verify(lean, theorem = "arl_increases_with_decision_interval")
-fn arl_approx(decision_h: Real, reference_k: Real) -> Real
+fn arl_approx(
+    decision_h:  Real{h | 0.001 <= h && h <= H_MAX},
+    reference_k: Real{k | 0.001 <= k && k <= K_MAX},
+) -> Real
     where chain_order <= 0
-    requires (decision_h >= 0.001)
-    requires (decision_h <= H_MAX)
-    requires (reference_k >= 0.001)
-    requires (reference_k <= K_MAX)
     ensures  (result >= 0.0)
 {
     decision_h * decision_h / (2.0 * reference_k * reference_k)

@@ -31,18 +31,12 @@ type ControlLimit = Real where chain_order <= 1
 @target(fpga, clock_mhz = 200, precision = float64)
 @verify(lean, theorem = "ucl_above_centerline")
 fn upper_control_limit(
-    centerline: Real,
-    sigma: Real,
-    subgroup_size: Real,
-    sigma_factor: Real,
+    centerline:    Real,
+    sigma:         Real{s | SIGMA_MIN <= s && s <= SIGMA_MAX},
+    subgroup_size: Real{n | N_MIN <= n && n <= N_MAX},
+    sigma_factor:  Real{l | L_MIN <= l && l <= L_MAX},
 ) -> ControlLimit
     where chain_order <= 1
-    requires (sigma >= SIGMA_MIN)
-    requires (sigma <= SIGMA_MAX)
-    requires (subgroup_size >= N_MIN)
-    requires (subgroup_size <= N_MAX)
-    requires (sigma_factor >= L_MIN)
-    requires (sigma_factor <= L_MAX)
 {
     centerline + sigma_factor * sigma / sqrt(subgroup_size)
 }
@@ -50,18 +44,12 @@ fn upper_control_limit(
 @target(fpga, clock_mhz = 200, precision = float64)
 @verify(lean, theorem = "lcl_below_centerline")
 fn lower_control_limit(
-    centerline: Real,
-    sigma: Real,
-    subgroup_size: Real,
-    sigma_factor: Real,
+    centerline:    Real,
+    sigma:         Real{s | SIGMA_MIN <= s && s <= SIGMA_MAX},
+    subgroup_size: Real{n | N_MIN <= n && n <= N_MAX},
+    sigma_factor:  Real{l | L_MIN <= l && l <= L_MAX},
 ) -> ControlLimit
     where chain_order <= 1
-    requires (sigma >= SIGMA_MIN)
-    requires (sigma <= SIGMA_MAX)
-    requires (subgroup_size >= N_MIN)
-    requires (subgroup_size <= N_MAX)
-    requires (sigma_factor >= L_MIN)
-    requires (sigma_factor <= L_MAX)
 {
     centerline - sigma_factor * sigma / sqrt(subgroup_size)
 }
@@ -74,14 +62,12 @@ fn lower_control_limit(
 @target(fpga, clock_mhz = 400, precision = float64)
 @verify(lean, theorem = "cpk_zero_when_at_spec_boundary")
 fn process_capability(
-    mean: Real,
-    sigma: Real,
+    mean:             Real,
+    sigma:            Real{s | SIGMA_MIN <= s && s <= SIGMA_MAX},
     lower_spec_limit: Real,
     upper_spec_limit: Real,
 ) -> Real
     where chain_order <= 0
-    requires (sigma >= SIGMA_MIN)
-    requires (sigma <= SIGMA_MAX)
     requires (lower_spec_limit < upper_spec_limit)
     requires (mean >= lower_spec_limit)
     requires (mean <= upper_spec_limit)
@@ -100,15 +86,11 @@ fn process_capability(
 @verify(lean, theorem = "z_score_zero_at_target")
 fn subgroup_z_score(
     subgroup_mean: Real,
-    target: Real,
-    sigma: Real,
-    subgroup_size: Real,
+    target:        Real,
+    sigma:         Real{s | SIGMA_MIN <= s && s <= SIGMA_MAX},
+    subgroup_size: Real{n | N_MIN <= n && n <= N_MAX},
 ) -> Real
     where chain_order <= 1
-    requires (sigma >= SIGMA_MIN)
-    requires (sigma <= SIGMA_MAX)
-    requires (subgroup_size >= N_MIN)
-    requires (subgroup_size <= N_MAX)
 {
     (subgroup_mean - target) * sqrt(subgroup_size) / sigma
 }
