@@ -70,6 +70,40 @@ from lang.parser.ast_nodes import (
 )
 
 
+# ── Phase E.1: refinement guard helpers ──────────────────────────────────────
+
+
+def _substitute_var(node: ASTNode, old: str, new: str) -> ASTNode:
+    """Return a new ASTNode tree with every VAR named *old* replaced by *new*.
+
+    Immutable: the original tree is never modified.
+    """
+    if node.kind == NodeKind.VAR and node.value == old:
+        return ASTNode(
+            kind=NodeKind.VAR, value=new, children=[],
+            type_annotation=node.type_annotation,
+            chain_constraint=node.chain_constraint,
+            line=node.line, col=node.col,
+        )
+    new_children = [_substitute_var(c, old, new) for c in node.children]
+    return ASTNode(
+        kind=node.kind, value=node.value, children=new_children,
+        type_annotation=node.type_annotation,
+        chain_constraint=node.chain_constraint,
+        line=node.line, col=node.col,
+    )
+
+
+def _var_names(node: ASTNode) -> set[str]:
+    """Collect every VAR name that appears anywhere in *node*."""
+    names: set[str] = set()
+    if node.kind == NodeKind.VAR:
+        names.add(str(node.value))
+    for c in node.children:
+        names.update(_var_names(c))
+    return names
+
+
 # Builtin NodeKind -> System.Math method name.
 _BUILTIN_TO_CSHARP: dict[NodeKind, str] = {
     NodeKind.EXP:   "Math.Exp",
@@ -348,6 +382,45 @@ class CSharpBackend:
     def _final_expression(body: ASTNode) -> ASTNode:
         return body.children[-1]
 
+    # ── Phase E.1: refinement advisory lines ─────────────────
+
+    def _refinement_doc_lines(self, fn: EMLFunction) -> list[str]:
+        """Return advisory XML-doc lines for refined parameters (Phase E.1).
+
+        C# follows the advisory-only pattern: no runtime checks are emitted
+        (matching the treatment of `requires`). Refinements appear as
+        ``forge.refinement: <param>: <predicate>`` lines in <remarks>.
+
+        Cross-param refinements become
+        ``// refinement obligation: <fn>: <param>: <cond>``.
+        """
+        lines: list[str] = []
+        param_names = {p.name for p in fn.params}
+        for p in fn.params:
+            if p.refinement is None:
+                continue
+            ref = p.refinement
+            pred = _substitute_var(ref.predicate, ref.binder, p.name)
+            pred_vars = _var_names(pred)
+            other_params_in_pred = (pred_vars - {p.name}) & param_names
+            if other_params_in_pred:
+                try:
+                    cond_str = _xml_escape(self._emit_expr(pred))
+                except CompileError as e:
+                    cond_str = f"&lt;unsupported: {e}&gt;"
+                lines.append(
+                    f"refinement obligation: {fn.name}: {p.name}: {cond_str}"
+                )
+                continue
+            try:
+                cond_str = _xml_escape(self._emit_expr(pred))
+                lines.append(
+                    f"forge.refinement violated on {p.name}: {cond_str}"
+                )
+            except CompileError as e:
+                lines.append(f"refinement: unsupported ({e})")
+        return lines
+
     # ── XML doc comment ───────────────────────────────────────
 
     def _xmldoc(self, fn: EMLFunction) -> list[str]:
@@ -373,7 +446,8 @@ class CSharpBackend:
         # NOT emit runtime checks because runtime validation costs a
         # branch per call and AggressiveInlining + Unity hot-path
         # convention prefers caller-side validation.
-        contract_lines: list[str] = []
+        # Phase E.1: refinements follow the same advisory-only pattern.
+        contract_lines: list[str] = self._refinement_doc_lines(fn)
         for r in fn.requires:
             try:
                 contract_lines.append(

@@ -51,6 +51,40 @@ from lang.parser.ast_nodes import (
 )
 
 
+# ── Phase E.1: refinement guard helpers ──────────────────────────────────────
+
+
+def _substitute_var(node: ASTNode, old: str, new: str) -> ASTNode:
+    """Return a new ASTNode tree with every VAR named *old* replaced by *new*.
+
+    Immutable: the original tree is never modified.
+    """
+    if node.kind == NodeKind.VAR and node.value == old:
+        return ASTNode(
+            kind=NodeKind.VAR, value=new, children=[],
+            type_annotation=node.type_annotation,
+            chain_constraint=node.chain_constraint,
+            line=node.line, col=node.col,
+        )
+    new_children = [_substitute_var(c, old, new) for c in node.children]
+    return ASTNode(
+        kind=node.kind, value=node.value, children=new_children,
+        type_annotation=node.type_annotation,
+        chain_constraint=node.chain_constraint,
+        line=node.line, col=node.col,
+    )
+
+
+def _var_names(node: ASTNode) -> set[str]:
+    """Collect every VAR name that appears anywhere in *node*."""
+    names: set[str] = set()
+    if node.kind == NodeKind.VAR:
+        names.add(str(node.value))
+    for c in node.children:
+        names.update(_var_names(c))
+    return names
+
+
 # Builtin NodeKind -> MATLAB function name. MATLAB's elementary
 # math functions live in the global namespace.
 _BUILTIN_TO_MATLAB: dict[NodeKind, str] = {
@@ -189,6 +223,51 @@ class MatlabBackend:
 
     # ── Function emit ─────────────────────────────────────────
 
+    # ── Phase E.1: refinement guards ──────────────────────────
+
+    def _emit_refinement_guards(self, fn: EMLFunction) -> list[str]:
+        """Return one assert line per refined parameter (Phase E.1).
+
+        Binder-substitution: the refinement's binder is alpha-renamed to
+        the parameter name before emission.  Cross-param refinements are
+        emitted as comment-only obligation lines.
+
+        MATLAB assert uses single-quoted strings:
+          assert(cond, 'fn: refinement violated on param: cond')
+        """
+        out: list[str] = []
+        param_names = {p.name for p in fn.params}
+        for p in fn.params:
+            if p.refinement is None:
+                continue
+            ref = p.refinement
+            pred = _substitute_var(ref.predicate, ref.binder, p.name)
+            pred_vars = _var_names(pred)
+            other_params_in_pred = (pred_vars - {p.name}) & param_names
+            if other_params_in_pred:
+                try:
+                    cond_str = self._emit_expr(pred)
+                except CompileError as e:
+                    cond_str = f"<unsupported: {e}>"
+                out.append(
+                    self.indent + f"% refinement obligation: "
+                    f"{fn.name}: {p.name}: {cond_str}"
+                )
+                continue
+            try:
+                expr = self._emit_expr(pred)
+                msg = f"{fn.name}: refinement violated on {p.name}: {expr}"
+                # MATLAB single-quote strings -- escape embedded single quotes
+                msg = msg.replace("'", "''")
+                out.append(
+                    self.indent + f"assert({expr}, '{msg}');"
+                )
+            except CompileError as e:
+                out.append(
+                    self.indent + f"% refinement: unsupported ({e})"
+                )
+        return out
+
     def _emit_function(self, fn: EMLFunction) -> list[str]:
         out: list[str] = self._profile_comment(fn)
         params = ", ".join(p.name for p in fn.params)
@@ -207,6 +286,9 @@ class MatlabBackend:
             if a.kind == "verify":
                 tname = a.args.get("theorem", fn.name)
                 out.append(self.indent + f"% @verify(lean, theorem = \"{tname}\")")
+
+        # Phase E.1: refinement guards fire BEFORE requires guards.
+        out.extend(self._emit_refinement_guards(fn))
 
         # requires → assert at entry.
         for r in fn.requires:

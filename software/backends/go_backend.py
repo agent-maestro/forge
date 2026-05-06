@@ -49,6 +49,40 @@ from lang.parser.ast_nodes import (
 )
 
 
+# ── Phase E.1: refinement guard helpers ──────────────────────────────────────
+
+
+def _substitute_var(node: ASTNode, old: str, new: str) -> ASTNode:
+    """Return a new ASTNode tree with every VAR named *old* replaced by *new*.
+
+    Immutable: the original tree is never modified.
+    """
+    if node.kind == NodeKind.VAR and node.value == old:
+        return ASTNode(
+            kind=NodeKind.VAR, value=new, children=[],
+            type_annotation=node.type_annotation,
+            chain_constraint=node.chain_constraint,
+            line=node.line, col=node.col,
+        )
+    new_children = [_substitute_var(c, old, new) for c in node.children]
+    return ASTNode(
+        kind=node.kind, value=node.value, children=new_children,
+        type_annotation=node.type_annotation,
+        chain_constraint=node.chain_constraint,
+        line=node.line, col=node.col,
+    )
+
+
+def _var_names(node: ASTNode) -> set[str]:
+    """Collect every VAR name that appears anywhere in *node*."""
+    names: set[str] = set()
+    if node.kind == NodeKind.VAR:
+        names.add(str(node.value))
+    for c in node.children:
+        names.update(_var_names(c))
+    return names
+
+
 # Builtin NodeKind -> Go math package function (note Go capitalises).
 _BUILTIN_TO_GO: dict[NodeKind, str] = {
     NodeKind.EXP:   "math.Exp",
@@ -190,6 +224,53 @@ class GoBackend:
 
     # ── Function emit ─────────────────────────────────────────
 
+    def _emit_refinement_guards(self, fn: EMLFunction) -> list[str]:
+        """Return one guard line per refined parameter (Phase E.1).
+
+        Binder-substitution: the refinement's binder (p, x, e, …) is
+        alpha-renamed to the parameter name before emission so the guard
+        operates on the in-scope variable.
+
+        Cross-param refinements (predicate references another parameter)
+        are emitted as a comment-only obligation line; a runtime check is
+        intractable without value tracking.
+        """
+        out: list[str] = []
+        param_names = {p.name for p in fn.params}
+        for p in fn.params:
+            if p.refinement is None:
+                continue
+            ref = p.refinement
+            # Substitute binder -> parameter name in the predicate.
+            pred = _substitute_var(ref.predicate, ref.binder, p.name)
+            # Detect cross-param references: VAR names in the (renamed)
+            # predicate that are OTHER parameters.
+            pred_vars = _var_names(pred)
+            other_params_in_pred = (pred_vars - {p.name}) & param_names
+            if other_params_in_pred:
+                # Hard Contract #4: emit comment only, no executable guard.
+                try:
+                    cond_str = self._emit_expr(pred)
+                except CompileError as e:
+                    cond_str = f"<unsupported: {e}>"
+                out.append(
+                    f"{self.indent}// refinement obligation: "
+                    f"{fn.name}: {p.name}: {cond_str}"
+                )
+                continue
+            try:
+                cond = self._emit_expr(pred)
+                msg = f"{fn.name}: refinement violated on {p.name}: {cond}"
+                out.append(
+                    f"{self.indent}if !({cond}) "
+                    f'{{ panic("{msg}") }}'
+                )
+            except CompileError as e:
+                out.append(
+                    f"{self.indent}// refinement: unsupported ({e})"
+                )
+        return out
+
     def _emit_function(self, fn: EMLFunction) -> list[str]:
         out: list[str] = self._doc(fn)
         ret = _go_type(fn.return_type or "Real")
@@ -197,6 +278,11 @@ class GoBackend:
             f"{p.name} {_go_type(p.type_name)}" for p in fn.params
         )
         out.append(f"func {fn.name}({params}) {ret} {{")
+
+        # Phase E.1: refinement-derived guards fire BEFORE requires guards
+        # (refinements correspond to parameter types; requires clauses are
+        # user-specified cross-cutting contracts).
+        out.extend(self._emit_refinement_guards(fn))
 
         # `requires` lower to runtime guards via `panic`. Idiomatic
         # Go uses error returns, but Forge contracts are precondition-
