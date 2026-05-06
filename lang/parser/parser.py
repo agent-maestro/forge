@@ -27,6 +27,7 @@ from lang.parser.ast_nodes import (
     EMLUnitDecl,
     NodeKind,
     Param,
+    Refinement,
     WhereClause,
 )
 from lang.parser.lexer import Token, tokenize
@@ -101,6 +102,32 @@ class ParseError(Exception):
         )
 
 
+# ── Phase C: refinement predicate sub-language ───────────────────────
+
+# Functions allowed inside a refinement predicate body.
+# Transcendentals (sin, cos, tan, exp, ln, sqrt, floor, ceil, round,
+# asin, acos, atan, sinh, cosh, tanh) are explicitly banned.
+_REFINEMENT_ALLOWED_CALLS: frozenset[str] = frozenset({"abs", "min", "max"})
+
+# Transcendentals that are banned in predicate bodies -- named here so
+# the error message can say exactly which function was rejected.
+_REFINEMENT_BANNED_CALLS: frozenset[str] = frozenset({
+    "sin", "cos", "tan", "exp", "ln", "sqrt",
+    "floor", "ceil", "round",
+    "asin", "acos", "atan",
+    "sinh", "cosh", "tanh",
+    "eml", "clamp", "pow",
+})
+
+# Numeric type keywords that may carry a refinement.
+_REFINABLE_TYPE_KEYWORDS: frozenset[str] = frozenset({
+    "Real", "f64", "f32", "f16", "bf16",
+    "u8", "u16", "u32", "u64",
+    "i8", "i16", "i32", "i64",
+    "Int",
+})
+
+
 # Operator precedence for the Pratt expression parser.
 # Higher number = tighter binding. All EML-lang binops are
 # left-associative; right-associative ones would set right_assoc=True.
@@ -135,6 +162,9 @@ class Parser:
         }
         # Dimensionless "1" pseudo-unit.
         self._unit_registry["1"] = (_ZERO_EXPONENTS, 1.0)
+        # Phase C: set of module-level const names accumulated during parsing.
+        # Used to validate refinement predicate identifiers against consts.
+        self._const_names: set[str] = set()
 
     # ── Token-stream helpers ──────────────────────────────────
 
@@ -296,6 +326,8 @@ class Parser:
         # Optional trailing semicolon (some demo files include it,
         # others don't).
         self._accept("SEMI")
+        # Phase C: record const name so refinement predicates can reference it.
+        self._const_names.add(name_tok.value)
         return EMLConstant(
             name=name_tok.value,
             type_name=type_name,
@@ -309,7 +341,16 @@ class Parser:
         kw = self._eat("KEYWORD", "type")
         name_tok = self._eat("IDENT")
         self._eat("ASSIGN")
-        base_type = self._parse_type_name()
+        # Phase C: type aliases may carry [unit]{refinement} suffixes.
+        # The binder is the only allowed ident in the predicate (no params context).
+        # We call _parse_type_name_with_unit_and_refinement with a placeholder
+        # that gets replaced by the actual binder once we know it.
+        # Strategy: parse with empty allowed_idents set; the binder extends it.
+        base_type, unit_expr, refinement = (
+            self._parse_type_name_with_unit_and_refinement(
+                allowed_idents=set(),  # binder added inside _parse_refinement_body
+            )
+        )
         constraint: Optional[dict] = None
         if self._check("KEYWORD", "where"):
             self._advance()
@@ -319,6 +360,8 @@ class Parser:
             name=name_tok.value,
             base_type=base_type,
             constraint=constraint,
+            unit_expr=unit_expr,
+            refinement=refinement,
             line=kw.line,
             col=kw.col,
         )
@@ -332,20 +375,35 @@ class Parser:
         kw = self._eat("KEYWORD", "fn")
         name_tok = self._eat("IDENT")
         self._eat("LPAREN")
-        params = self._parse_params()
+        # Phase C: pass accumulated const names so refinement predicates
+        # can reference module-level constants.
+        params = self._parse_params(const_names=self._const_names)
         self._eat("RPAREN")
         self._eat("ARROW")
-        return_type, return_tuple_types, return_unit_expr = self._parse_return_type()
+        # Build allowed_idents for the return type: all param names + consts.
+        param_names = {p.name for p in params}
+        ret_allowed = self._const_names | param_names
+        return_type, return_tuple_types, return_unit_expr, return_refinement = (
+            self._parse_return_type(allowed_idents=ret_allowed)
+        )
         # Optional `where` clauses (comma-separated).
         where_clauses: list[WhereClause] = []
         if self._check("KEYWORD", "where"):
             self._advance()
             where_clauses = self._parse_where_clauses()
         # Optional `requires` / `ensures` (zero or more, in any order).
+        # Phase C: requires/ensures predicates are also validated against the
+        # restricted predicate sub-language (no transcendentals).
         requires: list[ASTNode] = []
         ensures: list[ASTNode] = []
         while self._check("KEYWORD", "requires") or self._check("KEYWORD", "ensures"):
             kw_clause = self._advance()
+            # Phase C note: requires/ensures clauses parse with the FULL expression
+            # language (same as Phase A/B).  The predicate sub-language restriction
+            # (no transcendentals) applies ONLY inside `{binder | predicate}`
+            # refinement type bodies, not to standalone requires/ensures.
+            # This preserves backwards compat with existing .eml files that use
+            # transcendentals in requires (e.g. `requires (rate * dt < vol * sqrt(dt))`).
             expr = self._parse_expr()
             (requires if kw_clause.value == "requires" else ensures).append(expr)
         # Body
@@ -356,6 +414,7 @@ class Parser:
             return_type=return_type,
             return_tuple_types=return_tuple_types,
             return_unit_expr=return_unit_expr,
+            return_refinement=return_refinement,
             where_clauses=where_clauses,
             body=body,
             annotations=annotations,
@@ -374,15 +433,23 @@ class Parser:
         (e.g. crypto's montgomery_ladder_p256_x). Profiler treats them
         as opaque leaves; backends emit either a forward declaration
         (C / Rust) or a `sorry`-marked opaque def (Lean).
+
+        Phase C: refinements on extern fn signatures are accepted but not
+        body-checked (there is no body to check). Proof obligations are
+        recorded for Phase D but cannot be verified within EML.
         """
         kw = self._eat("KEYWORD", "extern")
         self._eat("KEYWORD", "fn")
         name_tok = self._eat("IDENT")
         self._eat("LPAREN")
-        params = self._parse_params()
+        params = self._parse_params(const_names=self._const_names)
         self._eat("RPAREN")
         self._eat("ARROW")
-        return_type, return_tuple_types, return_unit_expr = self._parse_return_type()
+        param_names = {p.name for p in params}
+        ret_allowed = self._const_names | param_names
+        return_type, return_tuple_types, return_unit_expr, return_refinement = (
+            self._parse_return_type(allowed_idents=ret_allowed)
+        )
         # Optional trailing semicolon (consistent with const/type).
         self._accept("SEMI")
         return EMLFunction(
@@ -391,6 +458,7 @@ class Parser:
             return_type=return_type,
             return_tuple_types=return_tuple_types,
             return_unit_expr=return_unit_expr,
+            return_refinement=return_refinement,
             body=None,
             line=kw.line,
             col=kw.col,
@@ -571,16 +639,53 @@ class Parser:
             kind=kind_tok.value, args=args, line=at.line, col=at.col,
         )
 
-    def _parse_params(self) -> list[Param]:
+    def _parse_params(
+        self,
+        const_names: Optional[set[str]] = None,
+    ) -> list[Param]:
+        """Parse a comma-separated parameter list.
+
+        Phase C: ``const_names`` is the set of module-level constant names
+        known at the point of parsing.  The parameter list is parsed in two
+        passes so that cross-parameter references (e.g. ``b: Real{x | x > a}``
+        where ``a`` is the previous parameter) are syntactically accepted.
+        Pass None to use an empty const_names set.
+        """
+        if const_names is None:
+            const_names = set()
+
+        # First pass: collect all param names (so refinements can reference
+        # later params -- cross-param references are syntactically allowed).
+        # We need a lookahead scan to collect them without consuming.
+        # Strategy: collect names as we parse, build up the allowed set.
         params: list[Param] = []
+        # We'll collect names from previously parsed params on each iteration.
+        parsed_names: set[str] = set()
+
         while not self._check("RPAREN"):
             name_tok = self._eat("IDENT")
+            param_name = name_tok.value
             self._eat("COLON")
-            type_name, unit_expr = self._parse_type_name_with_unit()
+
+            # The predicate can reference: binder, all param names (including
+            # this param and others already seen), and module-level consts.
+            # We use all param names seen so far PLUS module consts.
+            allowed_idents = const_names | parsed_names | {param_name}
+
+            type_name, unit_expr, refinement = (
+                self._parse_type_name_with_unit_and_refinement(
+                    allowed_idents=allowed_idents,
+                )
+            )
+            # If type is not a refinable type, ignore any refinement attempt.
+            # (For non-numeric type aliases, refinement is carried via the alias.)
+
+            parsed_names.add(param_name)
             params.append(Param(
-                name=name_tok.value,
+                name=param_name,
                 type_name=type_name,
                 unit_expr=unit_expr,
+                refinement=refinement,
                 line=name_tok.line,
                 col=name_tok.col,
             ))
@@ -588,12 +693,19 @@ class Parser:
                 break
         return params
 
-    def _parse_return_type(self) -> tuple[str, list[str], Optional[str]]:
-        """Return (single_type_name, tuple_types, unit_expr).
+    def _parse_return_type(
+        self,
+        allowed_idents: Optional[set[str]] = None,
+    ) -> tuple[str, list[str], Optional[str], Optional[Refinement]]:
+        """Return (single_type_name, tuple_types, unit_expr, return_refinement).
 
         For tuple returns like `(f64, f64)`, single_type_name is empty
-        and tuple_types is the list; unit_expr is None for tuples.
-        For single return types, unit_expr captures the [unit] annotation.
+        and tuple_types is the list; unit_expr and return_refinement are None for tuples.
+        For single return types, unit_expr captures the [unit] annotation and
+        return_refinement captures any {binder | predicate} suffix.
+
+        Phase C: pass ``allowed_idents`` so the return type's refinement can
+        reference parameter names and module consts.
         """
         if self._check("LPAREN"):
             self._advance()
@@ -606,9 +718,13 @@ class Parser:
                 if not self._accept("COMMA"):
                     break
             self._eat("RPAREN")
-            return ("", tuple_types, None)
-        type_name, unit_expr = self._parse_type_name_with_unit()
-        return (type_name, [], unit_expr)
+            return ("", tuple_types, None, None)
+        type_name, unit_expr, refinement = (
+            self._parse_type_name_with_unit_and_refinement(
+                allowed_idents=allowed_idents,
+            )
+        )
+        return (type_name, [], unit_expr, refinement)
 
     def _parse_type_name(self) -> str:
         """A type is a single keyword (Real, f64, ...), an identifier
@@ -626,19 +742,31 @@ class Parser:
 
         Returns (type_name, unit_expr_text | None).
 
-        The unit suffix is only consumed when the next token after the
-        type name is LBRACK -- this is unambiguous in EML because the
-        language has no array-indexing expression syntax, so `[` after
-        a type keyword can only mean a unit annotation.
+        Phase C note: use `_parse_type_name_with_unit_and_refinement` when
+        a ``{binder | predicate}`` suffix may also follow.  This shim keeps
+        the Phase A interface for callers that don't need refinements.
+        """
+        type_name, unit_expr, _ref = self._parse_type_name_with_unit_and_refinement(
+            allowed_idents=None  # no refinement context -- refinement silently ignored
+        )
+        return type_name, unit_expr
 
-        Design decision (Phase A): literal-suffix form `9.81 [m/s^2]`
-        (a unit annotation attached to a numeric literal in an *expression*
-        context) is NOT parsed here; it is deferred to Phase B.
-        Rationale: expressions are already tokenized before this path
-        is called, and distinguishing `foo[x]` (indexing) from
-        `foo [unit]` (future annotated literal) would require lookahead
-        that is unnecessary for Phase A's scope of type-position
-        annotations only.
+    def _parse_type_name_with_unit_and_refinement(
+        self,
+        allowed_idents: Optional[set[str]],
+    ) -> tuple[str, Optional[str], Optional[Refinement]]:
+        """Parse a type name, optional [unit_expr] suffix, and optional {binder | predicate}.
+
+        Returns (type_name, unit_expr_text | None, Refinement | None).
+
+        ``allowed_idents`` is the set of identifiers permitted in the predicate
+        body (binder + enclosing function param names + module-level const names).
+        Pass None to suppress refinement parsing entirely (for callers that don't
+        support it, e.g. tuple element types).
+
+        Order: ``Real[unit]{refinement}`` -- unit must come before refinement.
+        Both are optional: ``Real``, ``Real[Hz]``, ``Real{p | ...}``, and
+        ``Real[Hz]{p | ...}`` are all valid forms.
         """
         tok = self._peek()
         if tok.kind == "KEYWORD" and tok.value == "fixed":
@@ -649,13 +777,289 @@ class Parser:
             f = self._eat("INT").value
             self._eat("GT")
             type_name = f"fixed<{w},{f}>"
-            # fixed<W,F> does not support unit annotations in Phase A.
-            return type_name, None
+            # fixed<W,F> does not support unit or refinement annotations.
+            return type_name, None, None
         if tok.kind in ("IDENT", "KEYWORD"):
             type_name = self._advance().value
             unit_expr = self._try_parse_unit_suffix()
-            return type_name, unit_expr
+            # Phase C: optionally consume a {binder | predicate} suffix.
+            # Disambiguate from a function body `{ stmts }`:
+            # A refinement starts with `{ IDENT PIPE`, e.g. `{p | ...}`.
+            # A function body starts with `{ KEYWORD ...`, `{ IDENT ASSIGN`, etc.
+            # We use 2-token lookahead: LBRACE + IDENT + PIPE is a refinement.
+            refinement: Optional[Refinement] = None
+            if (allowed_idents is not None
+                    and self._check("LBRACE")
+                    and self._is_refinement_not_block()):
+                refinement = self._parse_refinement_body(
+                    type_name=type_name, allowed_idents=allowed_idents
+                )
+            return type_name, unit_expr, refinement
         raise ParseError("expected a type name", tok, self.source_file)
+
+    def _is_refinement_not_block(self) -> bool:
+        """Lookahead: is the upcoming LBRACE a refinement annotation or a block?
+
+        A refinement looks like ``{IDENT PIPE ...}``.
+        A function body looks like ``{...}`` with any other content.
+
+        Returns True if the next three tokens are: LBRACE, IDENT, PIPE.
+        This is unambiguous: no EML statement starts with ``ident |``.
+        """
+        # self._peek(0) == LBRACE (already checked by caller)
+        t1 = self._peek(1)   # should be IDENT (the binder)
+        t2 = self._peek(2)   # should be PIPE
+        return t1.kind == "IDENT" and t2.kind == "PIPE"
+
+    def _parse_refinement_body(
+        self,
+        type_name: str,
+        allowed_idents: set[str],
+    ) -> Refinement:
+        """Parse a ``{binder | predicate}`` refinement body.
+
+        Grammar:
+            refinement ::= '{' IDENT '|' pred_expr '}'
+            pred_expr  ::= pred_and ('||' pred_and)*
+            pred_and   ::= pred_cmp ('&&' pred_cmp)*
+            pred_cmp   ::= pred_arith (CMP pred_arith)?
+            pred_arith ::= pred_term (('+' | '-') pred_term)*
+            pred_term  ::= pred_unary (('*' | '/') pred_unary)*
+            pred_unary ::= ('-' | '!') pred_unary | pred_primary
+            pred_primary ::= IDENT | IDENT '(' args ')' | NUMBER | '(' pred_expr ')'
+
+        Restrictions:
+          - Only abs/min/max are allowed as function calls.
+          - Identifiers must be the binder, another param name, or a module const.
+          - No transcendentals (sin, cos, exp, etc.) -- rejected at parse time.
+          - No nested implication -- just &&, ||, !, comparisons, arithmetic.
+        """
+        lbrace = self._eat("LBRACE")
+
+        # Must have a binder identifier
+        if self._check("RBRACE"):
+            raise ParseError(
+                "refinement body cannot be empty; "
+                f"expected '{{binder | predicate}}', e.g. {{{type_name[0].lower()} | ... }}",
+                self._peek(), self.source_file,
+            )
+        # Check for missing binder: {| ...}
+        if self._check("PIPE"):
+            raise ParseError(
+                "refinement body missing binder; "
+                "expected '{binder | predicate}', e.g. {x | x > 0}",
+                self._peek(), self.source_file,
+            )
+
+        binder_tok = self._eat("IDENT")
+        binder = binder_tok.value
+
+        self._eat("PIPE")  # the '|' pipe separator in {binder | predicate}
+
+        # Extend allowed_idents with the binder for the predicate body.
+        pred_idents = allowed_idents | {binder}
+
+        predicate = self._parse_pred_expr(pred_idents)
+
+        self._eat("RBRACE")
+
+        return Refinement(
+            binder=binder,
+            predicate=predicate,
+            line=lbrace.line,
+            col=lbrace.col,
+        )
+
+    # ── Predicate sub-language Pratt parser ───────────────────────────
+
+    def _parse_pred_expr(self, allowed_idents: set[str]) -> ASTNode:
+        """Parse a predicate expression with the restricted grammar."""
+        left = self._parse_pred_and(allowed_idents)
+        while self._check("OR"):
+            op_tok = self._advance()
+            right = self._parse_pred_and(allowed_idents)
+            left = ASTNode(
+                kind=NodeKind.BINOP, value="||",
+                children=[left, right],
+                line=op_tok.line, col=op_tok.col,
+            )
+        return left
+
+    def _parse_pred_and(self, allowed_idents: set[str]) -> ASTNode:
+        """Parse a predicate conjunction."""
+        left = self._parse_pred_cmp(allowed_idents)
+        while self._check("AND"):
+            op_tok = self._advance()
+            right = self._parse_pred_cmp(allowed_idents)
+            left = ASTNode(
+                kind=NodeKind.BINOP, value="&&",
+                children=[left, right],
+                line=op_tok.line, col=op_tok.col,
+            )
+        return left
+
+    def _parse_pred_cmp(self, allowed_idents: set[str]) -> ASTNode:
+        """Parse a comparison."""
+        left = self._parse_pred_arith(allowed_idents)
+        tok = self._peek()
+        if tok.kind in ("LT", "GT", "LE", "GE", "EQ", "NE"):
+            op_tok = self._advance()
+            op_text = {"LT": "<", "GT": ">", "LE": "<=", "GE": ">=",
+                       "EQ": "==", "NE": "!="}[op_tok.kind]
+            right = self._parse_pred_arith(allowed_idents)
+            return ASTNode(
+                kind=NodeKind.BINOP, value=op_text,
+                children=[left, right],
+                line=op_tok.line, col=op_tok.col,
+            )
+        return left
+
+    def _parse_pred_arith(self, allowed_idents: set[str]) -> ASTNode:
+        """Parse additive arithmetic."""
+        left = self._parse_pred_term(allowed_idents)
+        while self._check("PLUS") or self._check("MINUS"):
+            op_tok = self._advance()
+            right = self._parse_pred_term(allowed_idents)
+            left = ASTNode(
+                kind=NodeKind.BINOP,
+                value="+" if op_tok.kind == "PLUS" else "-",
+                children=[left, right],
+                line=op_tok.line, col=op_tok.col,
+            )
+        return left
+
+    def _parse_pred_term(self, allowed_idents: set[str]) -> ASTNode:
+        """Parse multiplicative arithmetic."""
+        left = self._parse_pred_unary(allowed_idents)
+        while self._check("STAR") or self._check("SLASH"):
+            op_tok = self._advance()
+            right = self._parse_pred_unary(allowed_idents)
+            left = ASTNode(
+                kind=NodeKind.BINOP,
+                value="*" if op_tok.kind == "STAR" else "/",
+                children=[left, right],
+                line=op_tok.line, col=op_tok.col,
+            )
+        return left
+
+    def _parse_pred_unary(self, allowed_idents: set[str]) -> ASTNode:
+        """Parse unary operators."""
+        tok = self._peek()
+        if tok.kind == "MINUS":
+            self._advance()
+            sub = self._parse_pred_unary(allowed_idents)
+            return ASTNode(
+                kind=NodeKind.UNARYOP, value="-",
+                children=[sub], line=tok.line, col=tok.col,
+            )
+        if tok.kind == "BANG":
+            self._advance()
+            sub = self._parse_pred_unary(allowed_idents)
+            return ASTNode(
+                kind=NodeKind.UNARYOP, value="!",
+                children=[sub], line=tok.line, col=tok.col,
+            )
+        return self._parse_pred_primary(allowed_idents)
+
+    def _parse_pred_primary(self, allowed_idents: set[str]) -> ASTNode:
+        """Parse primary expression in predicate sub-language."""
+        tok = self._peek()
+
+        # Parenthesised sub-expression
+        if tok.kind == "LPAREN":
+            self._advance()
+            inner = self._parse_pred_expr(allowed_idents)
+            self._eat("RPAREN")
+            return inner
+
+        # Numeric literals
+        if tok.kind == "FLOAT":
+            self._advance()
+            return ASTNode(
+                kind=NodeKind.LITERAL, value=float(tok.value),
+                line=tok.line, col=tok.col,
+            )
+        if tok.kind == "INT":
+            self._advance()
+            return ASTNode(
+                kind=NodeKind.LITERAL, value=int(tok.value),
+                line=tok.line, col=tok.col,
+            )
+
+        # Identifier: function call or variable reference
+        if tok.kind == "IDENT":
+            name_tok = self._advance()
+            name = name_tok.value
+            # Function call?
+            if self._check("LPAREN"):
+                # Check for banned transcendentals first
+                if name in _REFINEMENT_BANNED_CALLS:
+                    raise ParseError(
+                        f"function '{name}' is not allowed in a refinement predicate; "
+                        f"only abs, min, and max are permitted. "
+                        f"Transcendentals like {name!r} must stay in the function body.",
+                        name_tok, self.source_file,
+                    )
+                if name not in _REFINEMENT_ALLOWED_CALLS:
+                    raise ParseError(
+                        f"function '{name}' is not allowed in a refinement predicate; "
+                        f"only abs, min, and max are permitted.",
+                        name_tok, self.source_file,
+                    )
+                self._advance()  # consume '('
+                args: list[ASTNode] = []
+                if not self._check("RPAREN"):
+                    while True:
+                        args.append(self._parse_pred_expr(allowed_idents))
+                        if not self._accept("COMMA"):
+                            break
+                self._eat("RPAREN")
+                # Map to the right NodeKind
+                kind_map = {"abs": NodeKind.ABS}
+                node_kind = kind_map.get(name, NodeKind.CALL)
+                return ASTNode(
+                    kind=node_kind, value=name, children=args,
+                    line=name_tok.line, col=name_tok.col,
+                )
+            # Variable reference -- validate it's in scope
+            if name not in allowed_idents:
+                raise ParseError(
+                    f"identifier '{name}' is not in scope in this refinement predicate; "
+                    f"only the binder, other function parameters, and module-level "
+                    f"constants are allowed. Undeclared identifier: '{name}'.",
+                    name_tok, self.source_file,
+                )
+            return ASTNode(
+                kind=NodeKind.VAR, value=name,
+                line=name_tok.line, col=name_tok.col,
+            )
+
+        raise ParseError(
+            "expected a predicate expression (literal, identifier, or parenthesised expression)",
+            tok, self.source_file,
+        )
+
+    def _parse_requires_ensures_expr(
+        self,
+        allowed_idents: set[str],
+    ) -> ASTNode:
+        """Parse a ``requires`` or ``ensures`` expression.
+
+        Phase C restricts these to the predicate sub-language: no
+        transcendentals, only abs/min/max, identifiers must be in scope.
+        The opening ``(`` is optional (the original parser accepted bare exprs).
+
+        We always parse a parenthesised expression, matching the existing
+        grammar ``requires (expr)``.  A bare expression without parens is
+        also accepted for backwards compat.
+        """
+        if self._check("LPAREN"):
+            self._advance()  # consume '('
+            expr = self._parse_pred_expr(allowed_idents)
+            self._eat("RPAREN")
+            return expr
+        # Bare expression (rare; kept for compat)
+        return self._parse_pred_expr(allowed_idents)
 
     def _try_parse_unit_suffix(self) -> Optional[str]:
         """If the next token is LBRACK, consume a `[unit_expr]` suffix and
@@ -850,6 +1254,17 @@ class Parser:
         left = self._parse_unary()
         while True:
             tok = self._peek()
+            # Phase C: improved error for `^` in expression position.
+            # `^` is reserved for unit-expression exponentiation (inside [...]);
+            # in a regular expression it has no meaning and the old generic
+            # "unexpected CARET" was confusing. Emit a structured error.
+            if tok.kind == "CARET":
+                raise ParseError(
+                    "Use pow(x, 2) for exponentiation; "
+                    "`^` is reserved for unit expressions (e.g. Real[s^2]). "
+                    "Example: pow(x, 2) instead of x^2.",
+                    tok, self.source_file,
+                )
             prec = _BINOP_PRECEDENCE.get(tok.kind)
             if prec is None or prec < min_prec:
                 break

@@ -118,6 +118,24 @@ class EMLUnitDecl:
 
 
 @dataclass
+class Refinement:
+    """A refinement type annotation: {binder | predicate}.
+
+    Produced by the Phase C parser when a type is annotated with a
+    ``{name | expr}`` suffix, e.g. ``Real{p | 0.0 <= p && p <= 1.0}``.
+
+    ``predicate`` is a normal EML ASTNode tree restricted to the
+    predicate sub-language (no transcendentals; only abs/min/max).
+
+    ``line`` / ``col`` point to the opening ``{``.
+    """
+    binder: str
+    predicate: "ASTNode"
+    line: int = 0
+    col: int = 0
+
+
+@dataclass
 class Param:
     """A function parameter."""
     name: str
@@ -125,6 +143,9 @@ class Param:
     unit_expr: Optional[str] = None
     """Source text of the bracketed unit annotation, e.g. "Hz", "m/s^2",
     or None when no [unit] suffix is present."""
+    refinement: Optional["Refinement"] = None
+    """Phase C: optional refinement annotation, e.g. {p | 0.0 <= p <= 1.0}.
+    None when no refinement is present."""
     line: int = 0
     col: int = 0
 
@@ -163,6 +184,10 @@ class EMLFunction:
     """Source text of the return type's bracketed unit annotation,
     e.g. "Hz", "m/s^2", or None when no [unit] suffix is present."""
 
+    return_refinement: Optional["Refinement"] = None
+    """Phase C: optional refinement annotation on the return type,
+    e.g. {r | 0.0 <= r && r < 1.0}. None when not present."""
+
     return_constraint: Optional[dict] = None
     """Per the alias-level `where chain_order <op> N` constraint, if
     the return type is an alias such as `StableSignal`. {"op": "<=",
@@ -194,6 +219,11 @@ class EMLFunction:
     (crypto, hardware) to declare primitives whose implementation
     lives outside EML-lang's reach."""
 
+    deferred_obligations: list["ASTNode"] = field(default_factory=list)
+    """Phase C: non-decidable refinement proof obligations.
+    Phase D (Lean lowering) will consume this list and emit
+    ``sorry``-marked Lean hypotheses for each entry."""
+
 
 @dataclass
 class EMLConstant:
@@ -213,6 +243,12 @@ class EMLTypeAlias:
     name: str
     base_type: str
     constraint: Optional[dict] = None  # {"op": "<=", "value": 2}
+    unit_expr: Optional[str] = None
+    """Phase C: optional unit annotation on the alias base type,
+    e.g. ``type AudibleFreq = Real[Hz]{...};`` stores "Hz" here."""
+    refinement: Optional["Refinement"] = None
+    """Phase C: optional refinement on the alias, e.g.
+    ``type Probability = Real{p | 0.0 <= p && p <= 1.0};``."""
     line: int = 0
     col: int = 0
 

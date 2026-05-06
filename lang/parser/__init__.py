@@ -27,6 +27,7 @@ from lang.parser.ast_nodes import (
     EMLUnitDecl,
     NodeKind,
     Param,
+    Refinement,
     WhereClause,
 )
 from lang.parser.lexer import LexError, Token, tokenize
@@ -47,6 +48,7 @@ __all__ = [
     "Param",
     "ParseError",
     "Parser",
+    "Refinement",
     "Token",
     "WhereClause",
     "parse_file",
