@@ -1,0 +1,23 @@
+// voltage_divider.eml -- the textbook resistive divider, the
+// simplest non-trivial SPICE deck.
+//
+//   Vin -> in
+//   R1  in -> mid (10 kOhm)
+//   R2  mid -> 0  (10 kOhm)
+//   .op
+//
+// Theory: V(mid) = Vin * R2 / (R1 + R2) = 5.0 * 0.5 = 2.5 V.
+// Anyone running this through ngspice -b should see exactly that
+// at the operating point.
+
+module voltage_divider;
+
+@spice_resistor(name = "R1", a = "in",  b = "mid", value = 10000.0)
+@spice_resistor(name = "R2", a = "mid", b = "0",   value = 10000.0)
+@spice_voltage(name = "Vin", a = "in",  b = "0",   value = 5.0)
+@spice_analysis(op = "")
+fn circuit() -> Real
+    where chain_order <= 0
+{
+    0.0
+}

@@ -74,6 +74,10 @@ PRO_TARGETS: frozenset[str] = frozenset({
     "swift",
     # Gaming
     "luau", "gdscript",
+    # Hardware-design — Phase E1 of the Math-to-Manufactured-PCB
+    # pipeline. ngspice netlist emission. KiCad netlist (E2) will
+    # join this group when it lands.
+    "spice",
 })
 
 

@@ -1,0 +1,28 @@
+// rc_filter.eml -- single-pole RC low-pass filter, the canonical
+// SPICE-backend smoke test. The decorators on `circuit` declare
+// a netlist:
+//
+//   Vin  -> in
+//   R1   in -> out  (1 kOhm)
+//   C1   out -> 0   (1 uF)
+//   .tran 1u 10m
+//
+// Cut-off frequency is 1 / (2*pi*R*C) ~= 159 Hz. Run with:
+//
+//   eml-compile rc_filter.eml --target spice -o rc_filter.cir
+//   ngspice -b rc_filter.cir
+//
+// (Phase E1 -- the backend emits the netlist; ngspice round-trip
+// is the user's call.)
+
+module rc_filter;
+
+@spice_resistor(name = "R1",  a = "in",  b = "out", value = 1000.0)
+@spice_capacitor(name = "C1", a = "out", b = "0",   value = 1.0e-6)
+@spice_voltage(name = "Vin",  a = "in",  b = "0",   value = 5.0)
+@spice_analysis(tran = "1u 10m")
+fn circuit() -> Real
+    where chain_order <= 0
+{
+    0.0
+}

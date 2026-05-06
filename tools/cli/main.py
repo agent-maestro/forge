@@ -109,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="eml-compile",
         description=(
             "Monogate Forge -- the EML-lang compiler. "
-            "Compile one .eml source to 33 different targets: software, "
+            "Compile one .eml source to 34 different targets: software, "
             "GPU shaders, FPGA RTL, formal-verification proofs, and "
             "safety-critical avionics."
         ),
@@ -130,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
             "  Pro:   verilog, vhdl, systemverilog, chisel, llvm,\n"
             "         hlsl, glsl, glsles, wgsl, metal, swift,\n"
             "         luau, gdscript, ada, autosar, aadl, ros2,\n"
-            "         coq, isabelle, solidity\n"
+            "         coq, isabelle, solidity, spice\n"
             "  Get a Pro license at https://monogateforge.com/get-started\n"
             "\n"
             "DOCS\n"
@@ -155,10 +155,11 @@ def main(argv: list[str] | None = None) -> int:
         "go", "autosar", "aadl",
         "solidity",
         "zkproof",
+        "spice",
         "all",
     ], help=("Output target. 'all' runs every backend your "
             "license tier permits (Free: 12 application + Lean + "
-            "zkproof; Pro: all 33) and writes <stem>.<ext> files "
+            "zkproof; Pro: all 34) and writes <stem>.<ext> files "
             "into --output (must be a directory) or alongside the "
             "source. See `--help` epilog for the tier list."))
     parser.add_argument("-o", "--output", type=Path,
@@ -1837,6 +1838,36 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
         else:
             print(lean_source, end="")
+        return 0
+
+    if args.target == "spice":
+        # Phase E1 of the Math-to-Manufactured-PCB pipeline. Compile
+        # an EML module to an ngspice-compatible netlist. By
+        # convention: const names starting with R/C/L/V/I become
+        # SPICE components; the const's unit annotation `[a:b]`
+        # carries the net pair. See spice_backend.py for the v1
+        # baseline + deferred features (MOSFETs, op-amps, .SUBCKT
+        # bodies — slated for E1.5).
+        from software.backends.spice_backend import (
+            SpiceBackend, CompileError as SpiceErr,
+        )
+        try:
+            spice_result = SpiceBackend(
+                optimize=not args.no_optimize,
+            ).compile_full(mod)
+        except SpiceErr as e:
+            print(f"compile error (spice backend): {e}", file=sys.stderr)
+            return 1
+        spice_source = spice_result.netlist
+        if args.output:
+            args.output.write_text(spice_source, encoding="utf-8")
+            _maybe_write_sidecar(args.output)
+            print(f"wrote {args.output} "
+                  f"({spice_result.component_count} component(s), "
+                  f"{spice_result.analysis_count} analysis line(s))",
+                  file=sys.stderr)
+        else:
+            print(spice_source, end="")
         return 0
 
     if args.target == "zkproof":

@@ -108,6 +108,7 @@ _BACKEND_INVOKERS: list[tuple[str, Callable, bool]] = [
     ("llvm",          _make_software_invoke("software.backends.llvm_backend",   "Backend"), False),
     ("wasm",          _make_software_invoke("software.backends.wasm_backend",   "Backend"), False),
     ("matlab",        _make_software_invoke("software.backends.matlab_backend", "Backend"), False),
+    ("spice",         _make_software_invoke("software.backends.spice_backend",  "Backend"), False),
     ("ros2",          _make_software_invoke("software.backends.ros2_backend",   "Backend"), False),
     ("autosar",       _make_software_invoke("software.backends.autosar_backend","Backend"), False),
     ("aadl",          _make_software_invoke("software.backends.aadl_backend",   "Backend"), False),

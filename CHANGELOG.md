@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] — 2026-05-06 (Phase E1: SPICE backend, math → manufactured PCB pipeline begins)
+
+Backend #34 ships. Phase E1 of the
+[Math-to-Manufactured-PCB roadmap](../monogate-research/roadmap/math-to-manufactured-pcb.md)
+adds an ngspice-compatible netlist backend driven by decorators on
+a circuit-host function. SPICE joins the Pro tier alongside the
+hardware family.
+
+### Added
+
+- **`@target spice`** — emits an ngspice-compatible netlist text.
+  Components and analyses are declared as decorators on a single
+  circuit-host function:
+
+      @spice_resistor(name = "R1",  a = "in",  b = "out", value = 1000.0)
+      @spice_capacitor(name = "C1", a = "out", b = "0",   value = 1.0e-6)
+      @spice_voltage(name = "Vin",  a = "in",  b = "0",   value = 5.0)
+      @spice_analysis(tran = "1u 10m")
+      fn circuit() -> Real { 0.0 }
+
+  Recognised component decorators: `@spice_resistor`,
+  `@spice_capacitor`, `@spice_inductor`, `@spice_voltage`,
+  `@spice_current`. Recognised analyses: `tran`, `ac`, `dc`, `op`.
+  Component-name prefix is enforced at compile time
+  (`R1` for resistors, `Vin` for voltage sources, …) so a
+  malformed deck fails before ngspice ever sees it.
+- **Two example netlists** in `examples/`: `rc_filter.eml`
+  (single-pole low-pass with `.tran` sweep) and
+  `voltage_divider.eml` (resistive divider with `.op`).
+- **License + audit wiring** — `spice` registered in
+  `tools/license/verifier.PRO_TARGETS` and in
+  `tools/cli/audit._BACKEND_INVOKERS`, so `--target all` covers
+  it under a Pro license and the audit pipeline tracks it.
+- **CLI `--target` choices, help text, and TIERS epilog** updated
+  ("33 different targets" → "34", "Pro: all 33" → "Pro: all 34",
+  spice listed alongside `solidity` in the Pro tier).
+
+### Deferred to E1.5 / later phases
+
+- MOSFET / BJT / op-amp / diode device decorators (need pin
+  counts >2 plus model name).
+- `@spice_subcircuit` body emission (the wrapper parses today;
+  the `.SUBCKT` body is empty).
+- ngspice round-trip simulation gate. The backend produces text
+  that ngspice accepts; running the simulator and diffing
+  predicted-vs-measured stays the user's call.
+- KiCad netlist (E2), JLCPCB Gerber bridge (E3+).
+
+---
+
 ## [0.4.0] — 2026-05-05 (Phases A–F: units + refinement types)
 
 The "types catch what the docs say" release. Six phases shipped end
