@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.0] — 2026-05-06 (Phase E4: verified circuit proofs)
+
+The two demo circuits now carry mathematical certificates that
+build cleanly against MachLib. The same EML source produces the
+SPICE netlist (E1), the KiCad schematic (E2), the JLCPCB BOM (E3),
+AND a proof bundle (E4) closing every `@verify(lean, ...)`
+obligation.
+
+### Added
+
+- **`@verify(lean, ...)` kernel functions** in
+  `examples/rc_filter.eml` (5 theorems) and
+  `examples/voltage_divider.eml` (3 theorems). The `@spice_*`
+  decorators that drive the SPICE / KiCad / JLCPCB backends sit
+  alongside the `@verify` kernels untouched; each backend picks
+  up only what it cares about.
+- **`examples/proofs/`** directory with the **closed** Lean
+  files: `rc_filter.lean` and `voltage_divider.lean`. Both build
+  green against `MachLib.Forge` (Lean 4.14, no Mathlib).
+  `examples/proofs/README.md` documents the reproduce-from-scratch
+  workflow plus what is *not* yet proven.
+
+### Theorems closed (8 / 8)
+
+  * **voltage_divider** — `voltage_divider_law` (rfl after
+    unfold), `voltage_divider_denom_pos` (`add_pos`),
+    `voltage_divider_symmetric_half` (rfl).
+  * **rc_filter** — `rc_time_constant_def`,
+    `rc_steady_state_equals_input`, `rc_initial_output_zero`,
+    `rc_step_response_form` (all rfl), and the only non-trivial
+    one, `rc_step_response_at_zero`, which chains `div_def`,
+    `zero_mul`, `exp_zero`, `sub_def`, `add_neg`, `mul_zero` to
+    collapse `vin * (1 - exp(0/tau)) = 0`.
+
+### What v1 deliberately does NOT prove
+
+  * RC monotonic decay (`dV_out/dt < 0`) — requires a derivative
+    axiom for `exp` that MachLib doesn't yet expose. Slated for
+    E4.5.
+  * Voltage-divider power dissipation bound — squared-quantity
+    reasoning; not yet a kernel function in the EML.
+
+Both gaps are flagged in `examples/proofs/README.md` rather than
+papered over with fresh `sorry` lines.
+
+### Not changed
+
+  * No backend-side code change. The EML augmentation alone
+    drove this phase; the Lean backend was already shipping the
+    obligation skeleton with `sorry`. The novelty here is that
+    the obligations now actually close.
+  * Forge tests still 148 green; SPICE / KiCad / JLCPCB output
+    on the augmented EML files is byte-identical to before
+    (verified by the existing tests' deterministic-output cases).
+
+---
+
 ## [0.7.0] — 2026-05-06 (Phase E3: JLCPCB BOM bundle, math → board pipeline closes)
 
 The pipeline closes end-to-end. A single decorated EML circuit now

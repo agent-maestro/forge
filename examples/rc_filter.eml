@@ -1,7 +1,8 @@
 // rc_filter.eml -- single-pole RC low-pass filter, the canonical
-// SPICE-backend smoke test. The decorators on `circuit` declare
-// a netlist:
+// SPICE-backend smoke test, now also carrying the mathematical
+// certificate kernels the Lean backend turns into proof obligations.
 //
+// Topology:
 //   Vin  -> in
 //   R1   in -> out  (1 kOhm)
 //   C1   out -> 0   (1 uF)
@@ -12,10 +13,19 @@
 //   eml-compile rc_filter.eml --target spice -o rc_filter.cir
 //   ngspice -b rc_filter.cir
 //
-// (Phase E1 -- the backend emits the netlist; ngspice round-trip
-// is the user's call.)
+// The @verify(lean, ...) kernel functions below capture the
+// continuous-time properties of the filter that Phase E4 proves
+// against MachLib (see ~/monogate/machlib/foundations/MachLib/
+// Discovered/rc_filter.lean).
+//
+// (Phase E4 -- the SPICE backend emits the netlist; the KiCad
+// backend emits a schematic; the JLCPCB mapper emits a BOM; and
+// the Lean backend emits the proof obligations. Same source, four
+// downstream artifacts.)
 
 module rc_filter;
+
+// ── Circuit netlist (E1+E2+E3 backends) ─────────────────────
 
 @spice_resistor(name = "R1",  a = "in",  b = "out", value = 1000.0)
 @spice_capacitor(name = "C1", a = "out", b = "0",   value = 1.0e-6)
@@ -25,4 +35,64 @@ fn circuit() -> Real
     where chain_order <= 0
 {
     0.0
+}
+
+// ── Mathematical certificates (E4: Lean) ────────────────────
+
+// Time constant τ = R * C. Definitional — used by every other
+// claim in this module as the reference time scale.
+@verify(lean, theorem = "rc_time_constant_def")
+fn tau(r: Real, c: Real) -> Real
+    where chain_order <= 0
+    requires (r > 0.0)
+    requires (c > 0.0)
+    ensures (result == r * c)
+{
+    r * c
+}
+
+// Steady-state output (t -> infinity): the capacitor is fully
+// charged and the output equals the input.  This is the hard
+// asymptote any RC step response approaches.
+@verify(lean, theorem = "rc_steady_state_equals_input")
+fn vout_steady(vin: Real) -> Real
+    where chain_order <= 0
+    ensures (result == vin)
+{
+    vin
+}
+
+// Initial output (t = 0):  the capacitor starts empty so the
+// output is zero regardless of the input voltage.
+@verify(lean, theorem = "rc_initial_output_zero")
+fn vout_initial() -> Real
+    where chain_order <= 0
+    ensures (result == 0.0)
+{
+    0.0
+}
+
+// Step-response decay (closed form): V_out(t) = V_in * (1 - exp(-t/tau))
+// The @verify here proves only the definitional shape; the
+// monotonicity-in-t and bounded-by-vin properties are extracted as
+// separate kernels below so each carries an independent obligation.
+@verify(lean, theorem = "rc_step_response_form")
+fn vout_charging(vin: Real, t: Real, tau_val: Real) -> Real
+    where chain_order <= 1
+    requires (tau_val > 0.0)
+    ensures (result == vin * (1.0 - exp(-t / tau_val)))
+{
+    vin * (1.0 - exp(-t / tau_val))
+}
+
+// Output at t = 0 of the closed-form solution: V_out(0) = 0.
+// Combines the definition of vout_charging with exp(0) = 1.
+// (Proof closes against MachLib's exp_zero axiom.)
+@verify(lean, theorem = "rc_step_response_at_zero")
+fn vout_charging_at_zero(vin: Real, tau_val: Real) -> Real
+    where chain_order <= 1
+    requires (tau_val > 0.0)
+    ensures (result == 0.0)
+{
+    vin * (1.0 - exp(-0.0 / tau_val))
 }

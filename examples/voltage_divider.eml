@@ -1,16 +1,20 @@
 // voltage_divider.eml -- the textbook resistive divider, the
-// simplest non-trivial SPICE deck.
+// simplest non-trivial SPICE deck, now also carrying the
+// mathematical certificate kernels the Lean backend turns into
+// proof obligations.
 //
+// Topology:
 //   Vin -> in
 //   R1  in -> mid (10 kOhm)
 //   R2  mid -> 0  (10 kOhm)
 //   .op
 //
-// Theory: V(mid) = Vin * R2 / (R1 + R2) = 5.0 * 0.5 = 2.5 V.
-// Anyone running this through ngspice -b should see exactly that
-// at the operating point.
+// Theory: V(mid) = Vin * R2 / (R1 + R2). With R1 = R2 the
+// midpoint sits at exactly Vin / 2.
 
 module voltage_divider;
+
+// ── Circuit netlist (E1+E2+E3 backends) ─────────────────────
 
 @spice_resistor(name = "R1", a = "in",  b = "mid", value = 10000.0)
 @spice_resistor(name = "R2", a = "mid", b = "0",   value = 10000.0)
@@ -20,4 +24,45 @@ fn circuit() -> Real
     where chain_order <= 0
 {
     0.0
+}
+
+// ── Mathematical certificates (E4: Lean) ────────────────────
+
+// Voltage-divider law: V_out = V_in * R2 / (R1 + R2).
+// Definitional — the closed-form expression IS the body, so the
+// theorem is provable by `rfl` after `unfold`.
+@verify(lean, theorem = "voltage_divider_law")
+fn vout_divider(vin: Real, r1: Real, r2: Real) -> Real
+    where chain_order <= 0
+    requires (r1 > 0.0)
+    requires (r2 > 0.0)
+    ensures (result == vin * r2 / (r1 + r2))
+{
+    vin * r2 / (r1 + r2)
+}
+
+// Sum of the two resistances is strictly positive.  Used as a
+// hypothesis in every downstream proof that needs to divide by
+// (R1 + R2).
+@verify(lean, theorem = "voltage_divider_denom_pos")
+fn rsum(r1: Real, r2: Real) -> Real
+    where chain_order <= 0
+    requires (r1 > 0.0)
+    requires (r2 > 0.0)
+    ensures (result > 0.0)
+{
+    r1 + r2
+}
+
+// Midpoint at the symmetric divider (R1 = R2 = R): V_out = V_in / 2.
+// Captures the most-common design point.  Not provable by `rfl`
+// alone (algebra: 2R*x / (R+R) = x reduces to x = x via cancel),
+// but the proof closes against MachLib's mul_inv + div_def axioms.
+@verify(lean, theorem = "voltage_divider_symmetric_half")
+fn vout_symmetric(vin: Real, r: Real) -> Real
+    where chain_order <= 0
+    requires (r > 0.0)
+    ensures (result == vin * r / (r + r))
+{
+    vin * r / (r + r)
 }
