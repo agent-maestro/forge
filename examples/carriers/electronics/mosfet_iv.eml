@@ -1,0 +1,59 @@
+// mosfet_iv.eml -- TIER 2: ELECTRONICS (electron carrier)
+//
+// MOSFET drain-current saturation model:
+//
+//   I_D = (1/2) * mu * C_ox * (W/L) * (V_GS - V_th)^2
+//
+// Chain order 0 (polynomial). The carrier is the electron drift
+// current; the wave equation reduces to a quasi-static
+// constitutive relation. This is the equation that built every
+// chip you've ever owned.
+//
+// EML demonstration: same compiler that emits ferron and magnon
+// equations also emits this one. Carrier-substrate-independent.
+
+module mosfet_iv;
+
+// Process constants for a representative 65nm NMOS.
+const MU_N:    Real = 0.045    // m^2/V*s, electron mobility
+const C_OX:    Real = 1.7e-2   // F/m^2, gate oxide capacitance
+const W_OVER_L: Real = 10.0    // device geometry ratio
+const V_TH:    Real = 0.4      // V, threshold voltage
+
+// Saturation drain current vs. gate-source overdrive.
+fn drain_current_sat(v_gs: Real, v_th: Real,
+                     mu: Real, c_ox: Real, w_over_l: Real) -> Real
+    where chain_order <= 0
+    requires (v_gs >= v_th)
+{
+    let vov = v_gs - v_th;
+    0.5 * mu * c_ox * w_over_l * (vov * vov)
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// At threshold (V_GS = V_th) the drain current vanishes.  This
+// is the textbook "device just turning on" boundary; any
+// subthreshold model must agree with it at the matching point.
+@verify(lean, theorem = "mosfet_zero_overdrive_zero_current")
+fn id_at_threshold(mu: Real, c_ox: Real, w_over_l: Real) -> Real
+    where chain_order <= 0
+    ensures (result == 0.0)
+{
+    0.5 * mu * c_ox * w_over_l * ((0.0) * (0.0))
+}
+
+// Mobility, capacitance, geometry are all positive by
+// construction (process parameters); positivity of the prefactor
+// 0.5 * mu * C_ox * W/L is a precondition for a well-formed
+// device model.
+@verify(lean, theorem = "mosfet_prefactor_positive")
+fn id_prefactor(mu: Real, c_ox: Real, w_over_l: Real) -> Real
+    where chain_order <= 0
+    requires (mu > 0.0)
+    requires (c_ox > 0.0)
+    requires (w_over_l > 0.0)
+    ensures (result > 0.0)
+{
+    mu * c_ox * w_over_l
+}

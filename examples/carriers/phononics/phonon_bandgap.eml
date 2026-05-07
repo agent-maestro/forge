@@ -1,0 +1,54 @@
+// phonon_bandgap.eml -- TIER 5: PHONONICS (phonon carrier)
+//
+// Fabry-Perot transmission through a 1-D phononic crystal
+// (idealised, lossless):
+//
+//   T(delta) = 1 / (1 + F * sin(delta/2)^2)
+//
+//   delta  round-trip phase = 2 * k * L
+//   F      finesse coefficient = 4*R / (1-R)^2  (R = mirror reflectance)
+//
+// Chain order 1 (single transcendental). The carrier is the
+// phonon -- a quantised lattice vibration. Bragg-spaced layers
+// open transmission stop-bands; the same math runs photonic
+// distributed-Bragg reflectors and electronic graphene phonon
+// engineering. Nature's spider web is a passive phononic
+// computer.
+
+module phonon_bandgap;
+
+const FINESSE_F: Real = 100.0   // for 95% reflectance per interface
+
+// Transmission coefficient at round-trip phase delta.
+fn transmission(delta: Real, finesse_f: Real) -> Real
+    where chain_order <= 1
+    requires (finesse_f >= 0.0)
+{
+    let half = sin(delta * 0.5);
+    1.0 / (1.0 + finesse_f * (half * half))
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// At zero round-trip phase the crystal is fully transparent --
+// every interface adds in phase with itself, sin(0)=0 collapses
+// the denominator to 1.  The "open the band-gap window"
+// reference point.
+@verify(lean, theorem = "phonon_bandgap_open_at_zero")
+fn transmission_at_zero(finesse_f: Real) -> Real
+    where chain_order <= 1
+    ensures (result == 1.0)
+{
+    1.0 / (1.0 + finesse_f * (sin(0.0) * sin(0.0)))
+}
+
+// Squared sine at zero phase is exactly zero -- the lower bound
+// of sin^2.  Captures the physical "denominator is just 1" point
+// from which the bandgap math fans out as delta moves away from 0.
+@verify(lean, theorem = "phonon_sin_sq_at_zero")
+fn sin_sq_at_zero() -> Real
+    where chain_order <= 1
+    ensures (result == 0.0)
+{
+    sin(0.0) * sin(0.0)
+}

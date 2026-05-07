@@ -1,0 +1,57 @@
+// magnon_dispersion.eml -- TIER 4: SPINTRONICS (magnon carrier)
+//
+// Spin-wave (magnon) dispersion relation in a uniformly
+// magnetised material:
+//
+//   omega(k) = gamma * (H_0 + D * k^2)
+//
+//   gamma   gyromagnetic ratio (~28 GHz/T for electrons)
+//   H_0     applied bias field (T)
+//   D       exchange stiffness coefficient (T*m^2)
+//   k       spin-wave vector (1/m)
+//
+// Chain order 0 (polynomial in k after gamma is fixed). The
+// carrier is the magnon -- a quantised spin precession that
+// propagates through the magnetic lattice without moving any
+// charge. Spin-wave logic exploits the same interference math
+// the photonic Mach-Zehnder uses.
+
+module magnon_dispersion;
+
+const GAMMA: Real = 28.0e9   // Hz/T (electron gyromagnetic ratio)
+const H0:    Real = 0.1      // T   (typical YIG bias)
+const D:     Real = 5.0e-17  // T*m^2 (YIG exchange stiffness)
+
+// Spin-wave angular frequency at wavenumber k.
+fn omega(k: Real, gamma: Real, h0: Real, d: Real) -> Real
+    where chain_order <= 0
+{
+    gamma * (h0 + d * (k * k))
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// The k=0 mode (uniform precession, the FMR resonance) sits at
+// gamma*H_0.  This is the zero-wavenumber base frequency every
+// magnonic device measures during calibration.
+@verify(lean, theorem = "magnon_uniform_mode_at_gamma_H0")
+fn omega_at_zero_k(gamma: Real, h0: Real, d: Real) -> Real
+    where chain_order <= 0
+    ensures (result == gamma * h0)
+{
+    gamma * (h0 + d * (0.0 * 0.0))
+}
+
+// With positive gyromagnetic ratio and bias field the FMR base
+// frequency is strictly positive -- a precondition for treating
+// the spin-wave manifold as a propagating mode (not a
+// relaxation).
+@verify(lean, theorem = "magnon_fmr_frequency_positive")
+fn fmr_freq(gamma: Real, h0: Real) -> Real
+    where chain_order <= 0
+    requires (gamma > 0.0)
+    requires (h0 > 0.0)
+    ensures (result > 0.0)
+{
+    gamma * h0
+}

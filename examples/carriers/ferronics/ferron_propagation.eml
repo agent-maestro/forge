@@ -1,0 +1,69 @@
+// ferron_propagation.eml -- TIER 6: FERRONICS (ferron carrier)
+//
+// Damped polarisation wave in a van der Waals ferroelectric --
+// the carrier experimentally demonstrated for the first time in
+// 2025:
+//
+//   P(x, t) = P_0 * cos(k*x - omega*t) * exp(-x / xi)
+//
+//   P_0    initial polarisation amplitude
+//   k      wavenumber (1/m)
+//   omega  angular frequency
+//   xi     coherence length (m) -- the new, ferron-specific
+//          parameter that bounds how far a polarisation
+//          coherence survives in the ferroelectric lattice
+//
+// Chain order 1 (single envelope transcendental). The carrier
+// is the ferron -- electric order itself. The same wave-equation
+// shape that runs photonics, magnonics, and phononics also runs
+// the polarisation field of a SnSe / SnS / In2Se3 thin film.
+//
+// Why this matters: the DARPA RFI asks for "materials where
+// sensing, actuation, and computation are co-designed". The
+// polarisation state IS the computation. No external processor.
+
+module ferron_propagation;
+
+const P0:  Real = 1.0       // normalised polarisation amplitude
+const XI:  Real = 1.0e-6    // m, ~1 micron coherence in 2025 demos
+
+// Polarisation amplitude at position x and time t.
+fn polarization(x: Real, t: Real,
+                p0: Real, k: Real, omega: Real, xi: Real) -> Real
+    where chain_order <= 1
+    requires (xi > 0.0)
+{
+    p0 * cos(k * x - omega * t) * exp(-x / xi)
+}
+
+// Envelope only -- the exponentially-damped magnitude that
+// bounds the absolute polarisation regardless of the cosine
+// phase.
+fn envelope(x: Real, p0: Real, xi: Real) -> Real
+    where chain_order <= 1
+    requires (xi > 0.0)
+{
+    p0 * exp(-x / xi)
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// At the source point (x = 0, t = 0) the polarisation equals its
+// initial amplitude.  cos(0) = 1, exp(0) = 1, P_0 * 1 * 1 = P_0.
+@verify(lean, theorem = "ferron_amplitude_at_origin")
+fn polarization_at_origin(p0: Real) -> Real
+    where chain_order <= 1
+    ensures (result == p0)
+{
+    p0 * cos(0.0) * exp(0.0)
+}
+
+// The envelope at the source point equals the initial amplitude.
+// exp(0) = 1 folds the body to p0.
+@verify(lean, theorem = "ferron_envelope_at_origin")
+fn envelope_at_origin(p0: Real) -> Real
+    where chain_order <= 1
+    ensures (result == p0)
+{
+    p0 * exp(0.0)
+}

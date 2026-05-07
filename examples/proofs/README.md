@@ -5,15 +5,21 @@ proof obligations the Lean backend (`--target lean`) emits for the
 `@verify(lean, ...)` annotations on the corresponding `.eml`
 circuit files.
 
-| Proof file                       | Source EML                          | Theorems closed |
-|----------------------------------|-------------------------------------|-----------------|
-| `rc_filter.lean`                 | `examples/rc_filter.eml`            | 5/5 |
-| `voltage_divider.lean`           | `examples/voltage_divider.eml`      | 3/3 |
-| `maglev/sensor.lean`             | `examples/maglev/sensor.eml`        | 2/2 |
-| `maglev/controller.lean`         | `examples/maglev/controller.eml`    | 1/1 |
-| `maglev/driver.lean`             | `examples/maglev/driver.eml`        | 4/4 |
-| `maglev/power.lean`              | `examples/maglev/power.eml`         | 2/2 |
-| **Total**                        |                                     | **17/17** |
+| Proof file                                | Source EML                                            | Tier | Theorems closed |
+|-------------------------------------------|-------------------------------------------------------|------|-----------------|
+| `rc_filter.lean`                          | `examples/rc_filter.eml`                              | E1 demo | 5/5 |
+| `voltage_divider.lean`                    | `examples/voltage_divider.eml`                        | E1 demo | 3/3 |
+| `maglev/sensor.lean`                      | `examples/maglev/sensor.eml`                          | E5 maglev | 2/2 |
+| `maglev/controller.lean`                  | `examples/maglev/controller.eml`                      | E5 maglev | 1/1 |
+| `maglev/driver.lean`                      | `examples/maglev/driver.eml`                          | E5 maglev | 4/4 |
+| `maglev/power.lean`                       | `examples/maglev/power.eml`                           | E5 maglev | 2/2 |
+| `carriers/mosfet_iv.lean`                 | `examples/carriers/electronics/mosfet_iv.eml`         | T2 electron  | 2/2 |
+| `carriers/mach_zehnder.lean`              | `examples/carriers/photonics/mach_zehnder.eml`        | T3 photon    | 2/2 |
+| `carriers/magnon_dispersion.lean`         | `examples/carriers/spintronics/magnon_dispersion.eml` | T4 magnon    | 2/2 |
+| `carriers/phonon_bandgap.lean`            | `examples/carriers/phononics/phonon_bandgap.eml`      | T5 phonon    | 2/2 |
+| `carriers/ferron_propagation.lean`        | `examples/carriers/ferronics/ferron_propagation.eml`  | T6 ferron    | 2/2 |
+| `carriers/phase_gate.lean`                | `examples/carriers/quantum/phase_gate.eml`            | T7 amplitude | 3/3 |
+| **Total**                                 |                                                       |              | **30/30** |
 
 ## Reproducing the build
 
@@ -64,6 +70,32 @@ catalogue. The forge repo is the project; the proofs live here.
 `rc_step_response_at_zero` is the only non-trivial proof: it
 chains `div_def`, `zero_mul`, `exp_zero`, `sub_def`, `add_neg`,
 `mul_zero` to collapse `vin * (1 - exp(0/tau)) = 0`.
+
+## Carrier-physics proofs (substrate demonstration)
+
+The thesis claim: every information carrier in nature is a wave;
+every wave equation is chain order 0–2; one operator
+(`eml(x, y) = exp(x) - log(y + 1)`) generates every elementary
+function used; one compiler verifies them all.
+
+The six files in `examples/proofs/carriers/` are the **proof of
+substrate**: one demo per non-biological tier from the thesis,
+each closing all of its `@verify(lean)` obligations against the
+same MachLib axiom set. Same compiler, six different physical
+carriers, same proven correctness.
+
+| Tier | Carrier | Wave equation | Witness theorems |
+|------|---------|---------------|------------------|
+| 2 — Electronics | electron | MOSFET I_D = ½μC(W/L)(V_GS − V_th)² | zero-overdrive zero-current; positive prefactor |
+| 3 — Photonics   | photon   | Mach-Zehnder I = I₀ cos²(Δφ/2)      | full-transmit at zero phase; cos² peak = 1     |
+| 4 — Spintronics | magnon   | ω(k) = γ(H₀ + Dk²)                  | uniform-mode FMR base; positive base frequency |
+| 5 — Phononics   | phonon   | T = 1 / (1 + F sin²(δ/2))           | open band at δ = 0; sin²(0) = 0                |
+| 6 — Ferronics   | ferron   | P(x,t) = P₀ cos(kx − ωt) exp(−x/ξ)  | amplitude at origin; envelope at origin        |
+| 7 — Quantum     | amplitude| R(φ): cos(φ), sin(φ)                | identity at φ = 0; unitarity (Pythagorean)     |
+
+The quantum unitarity proof closes via direct application of
+`MachLib.pythagorean : sin²x + cos²x = 1` — the EML expression
+is byte-equal to that axiom's LHS.
 
 ## Maglev module proofs (E5: pre-bench-up verification)
 

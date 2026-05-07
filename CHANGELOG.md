@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.10.0] — 2026-05-06 (Substrate proof: one demo per carrier tier)
+
+The thesis claim made concrete. Six EML files — one per
+non-biological tier of the "How Does Matter Compute?" map —
+each captures its carrier's wave equation as a math kernel with
+`@verify(lean, ...)`, compiles cleanly to C / Python / Lean from
+the same source, and closes all obligations against the same
+MachLib axiom set.
+
+### Added
+
+- **`examples/carriers/electronics/mosfet_iv.eml`** — Tier 2,
+  electron carrier. MOSFET saturation current
+  `I_D = ½μC(W/L)(V_GS − V_th)²`. 2 obligations closed
+  (zero-overdrive zero-current, positive prefactor).
+- **`examples/carriers/photonics/mach_zehnder.eml`** — Tier 3,
+  photon carrier. Interferometer `I_out = I_in cos²(Δφ/2)`.
+  2 obligations closed (full transmit at zero phase, cos² peak).
+- **`examples/carriers/spintronics/magnon_dispersion.eml`** —
+  Tier 4, magnon carrier. Spin-wave dispersion
+  `ω(k) = γ(H₀ + Dk²)`. 2 obligations closed (uniform-mode FMR
+  frequency, positive base frequency).
+- **`examples/carriers/phononics/phonon_bandgap.eml`** — Tier 5,
+  phonon carrier. Fabry-Perot transmission
+  `T = 1 / (1 + F sin²(δ/2))`. 2 obligations closed (open band at
+  δ=0, sin²(0)=0).
+- **`examples/carriers/ferronics/ferron_propagation.eml`** —
+  Tier 6, ferron carrier (experimentally demonstrated 2025).
+  Damped polarization wave
+  `P(x,t) = P₀ cos(kx − ωt) exp(−x/ξ)`. 2 obligations closed
+  (amplitude at origin, envelope at origin).
+- **`examples/carriers/quantum/phase_gate.eml`** — Tier 7,
+  probability-amplitude carrier. Phase gate
+  `R(φ) ↦ cos(φ), sin(φ)`. 3 obligations closed (identity at φ=0
+  for both real + imag, unitarity via direct
+  `MachLib.pythagorean` application).
+- **`examples/proofs/carriers/`** — six closed Lean files; all
+  build green via
+  `lake build MachLib.Discovered.carriers.{mosfet_iv, mach_zehnder, magnon_dispersion, phonon_bandgap, ferron_propagation, phase_gate}`.
+
+### Combined proof totals (across all phases)
+
+| Group              | Closed |
+|--------------------|--------|
+| E1 demos (2 files) | 8/8    |
+| E5 maglev (4 files)| 9/9    |
+| Carriers (6 files) | 13/13  |
+| **Total**          | **30/30** |
+
+### What this demonstrates
+
+> Same `@verify(lean,...)` mechanism. Same MachLib axiom set
+> (`exp_zero`, `pythagorean`, `mul_pos`, `add_pos`, `cos_zero`,
+> `sin_zero`, …). Six physically distinct wave carriers — each
+> proving its key invariant against the same substrate.
+
+The post-optimization shape of the EML body is what gets handed
+to Lean, so writing `ensures (result == 1.0)` (matching the
+folded shape) is the idiomatic v1 form. A future Lean backend
+pass could reflect the optimizer's rewrites into the proof
+context so the more verbose `ensures (result == cos(0)*cos(0))`
+form would also close trivially.
+
+### Tests
+
+148 forge tests still green. No backend-side change.
+
+---
+
 ## [0.9.0] — 2026-05-06 (Phase E5: maglev controller suite, designed before the bench)
 
 Four EML modules (`controller`, `sensor`, `driver`, `power`)

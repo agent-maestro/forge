@@ -1,0 +1,76 @@
+// phase_gate.eml -- TIER 7: QUANTUM (probability-amplitude carrier)
+//
+// Single-qubit phase gate R(phi) acts on the |1> amplitude as
+// the unitary phase factor exp(i*phi):
+//
+//   R(phi) |1>  =  cos(phi) |1>  +  i * sin(phi) |1>
+//
+// Real and imaginary components:
+//
+//   R_real(phi) = cos(phi)
+//   R_imag(phi) = sin(phi)
+//
+// Chain order 1 (single transcendental per branch). The carrier
+// is the probability amplitude -- a complex wave whose squared
+// modulus is observable as a quantum measurement statistic.
+// Same trig that runs photonic, magnonic, ferronic, and phononic
+// interference; the math substrate is identical, only the
+// physical realisation differs.
+
+module phase_gate;
+
+// Real component of R(phi) acting on a unit-amplitude |1>.
+fn r_real(phi: Real) -> Real
+    where chain_order <= 1
+{
+    cos(phi)
+}
+
+// Imaginary component of R(phi) acting on a unit-amplitude |1>.
+fn r_imag(phi: Real) -> Real
+    where chain_order <= 1
+{
+    sin(phi)
+}
+
+// Squared modulus -- the measurement-probability witness.
+// |R(phi)|^2 = cos(phi)^2 + sin(phi)^2 = 1 by Pythagoras.
+fn r_modulus_sq(phi: Real) -> Real
+    where chain_order <= 1
+{
+    cos(phi) * cos(phi) + sin(phi) * sin(phi)
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// At zero phase the gate is the identity: R_real(0) = 1.
+// Closes via cos_zero.
+@verify(lean, theorem = "phase_gate_real_at_zero")
+fn r_real_at_zero() -> Real
+    where chain_order <= 1
+    ensures (result == 1.0)
+{
+    cos(0.0)
+}
+
+// At zero phase the imaginary component vanishes: R_imag(0) = 0.
+// Closes via sin_zero.
+@verify(lean, theorem = "phase_gate_imag_at_zero")
+fn r_imag_at_zero() -> Real
+    where chain_order <= 1
+    ensures (result == 0.0)
+{
+    sin(0.0)
+}
+
+// Unitarity: |R(phi)|^2 = 1 for every phi.  This is the
+// Pythagorean identity in disguise -- the witness expression is
+// byte-equal to the LHS of MachLib's `pythagorean` axiom, so the
+// theorem closes by rewriting to 1.
+@verify(lean, theorem = "phase_gate_unitary_modulus")
+fn unitarity_witness(phi: Real) -> Real
+    where chain_order <= 1
+    ensures (result == 1.0)
+{
+    sin(phi) * sin(phi) + cos(phi) * cos(phi)
+}

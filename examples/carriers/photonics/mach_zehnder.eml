@@ -1,0 +1,52 @@
+// mach_zehnder.eml -- TIER 3: PHOTONICS (photon carrier)
+//
+// Mach-Zehnder interferometer transmission:
+//
+//   I_out = I_in * cos(dphi/2)^2
+//
+// Chain order 1 (single transcendental). The carrier is the
+// photon (electromagnetic field oscillation); two arms accumulate
+// independent phase, recombine, and the squared cosine encodes
+// the interference. Constructive at dphi=0; destructive at
+// dphi=pi. The basic photonic logic gate.
+//
+// EML demonstration: same equation form as ferron and magnon
+// interference; the substrate doesn't care which wave is doing
+// the interfering.
+
+module mach_zehnder;
+
+// Output intensity for a given input intensity and arm-phase
+// difference.  cos(x/2)^2 = (1 + cos(x))/2 -- but we keep the
+// canonical form for direct comparison with measurement.
+fn intensity_out(i_in: Real, dphi: Real) -> Real
+    where chain_order <= 1
+    requires (i_in >= 0.0)
+{
+    let half = cos(dphi * 0.5);
+    i_in * (half * half)
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// At zero arm-phase difference the interferometer transmits the
+// full input intensity.  Body is i_in * (cos(0))^2; the EML
+// constant folder reduces cos(0)=1 -> 1*1=1 -> i_in*1=i_in, so
+// the post-optimization shape IS just `i_in`.
+@verify(lean, theorem = "mach_zehnder_at_zero_phase")
+fn intensity_at_zero(i_in: Real) -> Real
+    where chain_order <= 1
+    ensures (result == i_in)
+{
+    i_in * (cos(0.0) * cos(0.0))
+}
+
+// Squared cosine at zero phase is exactly one (the upper bound
+// of cos^2). The optimizer folds the entire expression to 1.
+@verify(lean, theorem = "mach_zehnder_cos_sq_at_one")
+fn cos_sq_at_zero() -> Real
+    where chain_order <= 1
+    ensures (result == 1.0)
+{
+    cos(0.0) * cos(0.0)
+}
