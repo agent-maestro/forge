@@ -1,0 +1,72 @@
+// mzi_mesh_4x4.eml -- P2 PHOTONIC NEURAL NETWORK (2/5)
+//
+// 4x4 MZI mesh in the Reck triangular decomposition.  Any
+// 4x4 unitary can be written as a product of N(N-1)/2 = 6
+// MZIs, each parametrised by (theta_k, phi_k) for k in 1..6.
+//
+//   U_4 = R_{12} R_{13} R_{23} R_{14} R_{24} R_{34}
+//
+// where R_{ij} is the MZI between channels i and j.
+//
+// We don't enumerate all 6 MZIs as a single closed-form
+// expression (EML doesn't yet have native matrix syntax).
+// Instead we expose:
+//   - the per-MZI count N*(N-1)/2 for N=4 (i.e. 6),
+//   - the identity-mesh witness (every theta_k = 0 -> output = input)
+//     for one channel (channel 1),
+//   - the channel-1 throughput at the identity-mesh point.
+//
+// These compose into the P3 mesh-accuracy proof: if every MZI
+// is at identity (theta = 0), the whole mesh is identity, and
+// the cumulative output equals the input on every channel.
+//
+// Chain order 1.
+
+module mzi_mesh_4x4;
+
+const N: Real = 4.0
+const MZI_COUNT: Real = 6.0   // N*(N-1)/2
+
+// Number of independently-parametrised MZIs in an N-port Reck
+// mesh.  The witness for the calibration loop's degree-of-
+// freedom budget.
+fn mzi_count_for_n4() -> Real
+    where chain_order <= 0
+{
+    4.0 * (4.0 - 1.0) * 0.5
+}
+
+// At the identity-mesh point (every theta_k = 0), the mesh
+// passes channel 1 through unchanged.  We capture the single-
+// channel reduction: the channel-1 amplitude after a chain of
+// 6 identity rotations equals the input amplitude.  For the
+// concrete identity (cos(0) = 1) form this collapses to a
+// straight pass-through.
+fn channel_1_at_identity(a1: Real) -> Real
+    where chain_order <= 1
+{
+    a1 * cos(0.0) * cos(0.0) * cos(0.0) * cos(0.0) * cos(0.0) * cos(0.0)
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// MZI count for the 4x4 Reck triangle is exactly 6 -- the
+// witness used by the mesh allocator to size phase-shifter
+// drive electronics.
+@verify(lean, theorem = "mzi_mesh_4x4_six_rotations")
+fn mzi_count_certificate() -> Real
+    where chain_order <= 0
+    ensures (result == 6.0)
+{
+    4.0 * (4.0 - 1.0) * 0.5
+}
+
+// Channel-1 pass-through at the identity-mesh point: every
+// cos(0) factor folds to 1, and a1 * 1^6 = a1.
+@verify(lean, theorem = "mzi_mesh_4x4_channel_1_identity_passthrough")
+fn channel_1_identity_certificate(a1: Real) -> Real
+    where chain_order <= 1
+    ensures (result == a1)
+{
+    a1 * cos(0.0) * cos(0.0) * cos(0.0) * cos(0.0) * cos(0.0) * cos(0.0)
+}

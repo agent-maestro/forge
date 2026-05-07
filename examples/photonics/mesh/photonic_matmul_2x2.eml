@@ -1,0 +1,55 @@
+// photonic_matmul_2x2.eml -- P2 PHOTONIC NEURAL NETWORK (4/5)
+//
+// 2x2 photonic matrix multiply via the Reck factorisation
+//
+//   M  =  U_1 * D * U_2
+//
+// where U_1, U_2 are 2x2 unitary rotations (single MZIs each)
+// and D = diag(w_1, w_2) is the microring weight bank.  At the
+// identity-mesh point (theta_1 = theta_2 = 0, w_1 = w_2 = 1)
+// the matrix M is the identity, and the product M @ x is x.
+//
+// Chain order 1.  Concrete instance form -- the EML language
+// doesn't have native matrix syntax yet, so we expand the
+// 2-vector inputs / outputs explicitly.
+
+module photonic_matmul_2x2;
+
+// Top output of M @ (x1, x2) at the identity-mesh point.
+fn matmul_at_identity_top(x1: Real, x2: Real) -> Real
+    where chain_order <= 1
+{
+    x1 * cos(0.0) * 1.0 * cos(0.0)
+        - x2 * sin(0.0) * 1.0 * sin(0.0)
+}
+
+// Bottom output at the identity-mesh point.
+fn matmul_at_identity_bot(x1: Real, x2: Real) -> Real
+    where chain_order <= 1
+{
+    x1 * sin(0.0) * 1.0 * sin(0.0)
+        + x2 * cos(0.0) * 1.0 * cos(0.0)
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// At the identity-mesh point the top output is exactly x1 --
+// the matrix is the identity, the multiply is a pass-through.
+@verify(lean, theorem = "photonic_matmul_2x2_identity_top")
+fn identity_top_certificate(x1: Real, x2: Real) -> Real
+    where chain_order <= 1
+    ensures (result == x1)
+{
+    x1 * cos(0.0) * 1.0 * cos(0.0)
+        - x2 * sin(0.0) * 1.0 * sin(0.0)
+}
+
+// And the bottom output is exactly x2.
+@verify(lean, theorem = "photonic_matmul_2x2_identity_bot")
+fn identity_bot_certificate(x1: Real, x2: Real) -> Real
+    where chain_order <= 1
+    ensures (result == x2)
+{
+    x1 * sin(0.0) * 1.0 * sin(0.0)
+        + x2 * cos(0.0) * 1.0 * cos(0.0)
+}

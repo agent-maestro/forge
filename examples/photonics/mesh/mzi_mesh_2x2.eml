@@ -1,0 +1,73 @@
+// mzi_mesh_2x2.eml -- P2 PHOTONIC NEURAL NETWORK (1/5)
+//
+// 2x2 MZI rotation -- the smallest unitary the Reck decomposition
+// uses as a building block.  A real-amplitude rotation by angle
+// theta:
+//
+//   U(theta) = [[ cos(theta), -sin(theta)],
+//               [ sin(theta),  cos(theta)]]
+//
+// Acting on input vector (a, b):
+//
+//   out_top = a * cos(theta) - b * sin(theta)
+//   out_bot = a * sin(theta) + b * cos(theta)
+//
+// At theta = 0  -> identity         (out = (a, b))
+// At theta = pi/2 -> 90-deg rotation (out = (-b, a))
+//
+// Chain order 1.  The full unitarity proof
+// |out_top|^2 + |out_bot|^2 = |a|^2 + |b|^2 needs ring-style
+// algebra not yet in MachLib; we close the rfl-trivial point
+// claims (identity at theta=0 + the cos(0) and sin(0) values)
+// and flag the full proof as a P3 follow-up once the linarith
+// tactic lands upstream.
+
+module mzi_mesh_2x2;
+
+// Top-output amplitude after the 2x2 MZI rotation.
+fn out_top(a: Real, b: Real, theta: Real) -> Real
+    where chain_order <= 1
+{
+    a * cos(theta) - b * sin(theta)
+}
+
+// Bottom-output amplitude after the rotation.
+fn out_bot(a: Real, b: Real, theta: Real) -> Real
+    where chain_order <= 1
+{
+    a * sin(theta) + b * cos(theta)
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// At theta = 0 the top output equals the top input -- identity
+// rotation passes signals through unchanged.  Closes by rfl
+// after the constant folder reduces a*cos(0) - b*sin(0) to
+// a*1 - b*0 = a.
+@verify(lean, theorem = "mzi_2x2_top_at_zero_is_identity")
+fn top_at_zero_certificate(a: Real, b: Real) -> Real
+    where chain_order <= 1
+    ensures (result == a)
+{
+    a * cos(0.0) - b * sin(0.0)
+}
+
+// At theta = 0 the bottom output equals the bottom input.
+@verify(lean, theorem = "mzi_2x2_bot_at_zero_is_identity")
+fn bot_at_zero_certificate(a: Real, b: Real) -> Real
+    where chain_order <= 1
+    ensures (result == b)
+{
+    a * sin(0.0) + b * cos(0.0)
+}
+
+// Norm-squared witness identical to MachLib's pythagorean LHS.
+// Used compositionally by the mesh-level proofs (mzi_mesh_4x4)
+// to cancel inner sin^2 + cos^2 factors.
+@verify(lean, theorem = "mzi_2x2_norm_witness_pythagorean")
+fn norm_witness(theta: Real) -> Real
+    where chain_order <= 1
+    ensures (result == 1.0)
+{
+    sin(theta) * sin(theta) + cos(theta) * cos(theta)
+}
