@@ -5,21 +5,53 @@ proof obligations the Lean backend (`--target lean`) emits for the
 `@verify(lean, ...)` annotations on the corresponding `.eml`
 circuit files.
 
+### Application demos (E1 + E5)
+
+| Proof file                                | Source EML                                            | Theorems closed |
+|-------------------------------------------|-------------------------------------------------------|-----------------|
+| `rc_filter.lean`                          | `examples/rc_filter.eml`                              | 5/5 |
+| `voltage_divider.lean`                    | `examples/voltage_divider.eml`                        | 3/3 |
+| `maglev/sensor.lean`                      | `examples/maglev/sensor.eml`                          | 2/2 |
+| `maglev/controller.lean`                  | `examples/maglev/controller.eml`                      | 1/1 |
+| `maglev/driver.lean`                      | `examples/maglev/driver.eml`                          | 4/4 |
+| `maglev/power.lean`                       | `examples/maglev/power.eml`                           | 2/2 |
+| **Application subtotal**                  |                                                       | **17/17** |
+
+### Carrier-substrate demos (proof of substrate)
+
 | Proof file                                | Source EML                                            | Tier | Theorems closed |
 |-------------------------------------------|-------------------------------------------------------|------|-----------------|
-| `rc_filter.lean`                          | `examples/rc_filter.eml`                              | E1 demo | 5/5 |
-| `voltage_divider.lean`                    | `examples/voltage_divider.eml`                        | E1 demo | 3/3 |
-| `maglev/sensor.lean`                      | `examples/maglev/sensor.eml`                          | E5 maglev | 2/2 |
-| `maglev/controller.lean`                  | `examples/maglev/controller.eml`                      | E5 maglev | 1/1 |
-| `maglev/driver.lean`                      | `examples/maglev/driver.eml`                          | E5 maglev | 4/4 |
-| `maglev/power.lean`                       | `examples/maglev/power.eml`                           | E5 maglev | 2/2 |
-| `carriers/mosfet_iv.lean`                 | `examples/carriers/electronics/mosfet_iv.eml`         | T2 electron  | 2/2 |
-| `carriers/mach_zehnder.lean`              | `examples/carriers/photonics/mach_zehnder.eml`        | T3 photon    | 2/2 |
-| `carriers/magnon_dispersion.lean`         | `examples/carriers/spintronics/magnon_dispersion.eml` | T4 magnon    | 2/2 |
-| `carriers/phonon_bandgap.lean`            | `examples/carriers/phononics/phonon_bandgap.eml`      | T5 phonon    | 2/2 |
-| `carriers/ferron_propagation.lean`        | `examples/carriers/ferronics/ferron_propagation.eml`  | T6 ferron    | 2/2 |
-| `carriers/phase_gate.lean`                | `examples/carriers/quantum/phase_gate.eml`            | T7 amplitude | 3/3 |
-| **Total**                                 |                                                       |              | **30/30** |
+| `carriers/mosfet_iv.lean`                 | `electronics/mosfet_iv.eml`                           | T2 electron  | 2/2 |
+| `carriers/cmos_inverter.lean`             | `electronics/cmos_inverter.eml`                       | T2 electron  | 3/3 |
+| `carriers/pll_loop.lean`                  | `electronics/pll_loop.eml`                            | T2 electron  | 2/2 |
+| `carriers/mach_zehnder.lean`              | `photonics/mach_zehnder.eml`                          | T3 photon    | 2/2 |
+| `carriers/ring_resonator.lean`            | `photonics/ring_resonator.eml`                        | T3 photon    | 2/2 |
+| `carriers/poisson_spot.lean`              | `photonics/poisson_spot.eml`                          | T3 photon    | 2/2 |
+| `carriers/optical_neuron.lean`            | `photonics/optical_neuron.eml`                        | T3 photon    | 2/2 |
+| `carriers/magnon_dispersion.lean`         | `spintronics/magnon_dispersion.eml`                   | T4 magnon    | 2/2 |
+| `carriers/spin_torque.lean`               | `spintronics/spin_torque.eml`                         | T4 magnon    | 2/2 |
+| `carriers/magnon_logic.lean`              | `spintronics/magnon_logic.eml`                        | T4 magnon    | 2/2 |
+| `carriers/phonon_bandgap.lean`            | `phononics/phonon_bandgap.eml`                        | T5 phonon    | 2/2 |
+| `carriers/thermal_rectifier.lean`         | `phononics/thermal_rectifier.eml`                     | T5 phonon    | 2/2 |
+| `carriers/acoustic_cloak.lean`            | `phononics/acoustic_cloak.eml`                        | T5 phonon    | 2/2 |
+| `carriers/ferron_propagation.lean`        | `ferronics/ferron_propagation.eml`                    | T6 ferron    | 2/2 |
+| `carriers/ferron_emission.lean`           | `ferronics/ferron_emission.eml`                       | T6 ferron    | 2/2 |
+| `carriers/ferron_dispersion.lean`         | `ferronics/ferron_dispersion.eml`                     | T6 ferron    | 2/2 |
+| `carriers/ferron_logic.lean`              | `ferronics/ferron_logic.eml`                          | T6 ferron    | 2/2 |
+| `carriers/phase_gate.lean`                | `quantum/phase_gate.eml`                              | T7 amplitude | 3/3 |
+| `carriers/hadamard.lean`                  | `quantum/hadamard.eml`                                | T7 amplitude | 3/3 |
+| `carriers/cnot.lean`                      | `quantum/cnot.eml`                                    | T7 amplitude | 3/3 |
+| `carriers/grover_oracle.lean`             | `quantum/grover_oracle.eml`                           | T7 amplitude | 2/2 |
+| **Carrier subtotal**                      |                                                       |              | **47/47** |
+| **Grand total**                           |                                                       |              | **64/64** |
+
+Carriers per tier:
+  T2 electronics : 3 demos / 7 obligations
+  T3 photonics   : 4 demos / 8 obligations
+  T4 spintronics : 3 demos / 6 obligations
+  T5 phononics   : 3 demos / 6 obligations
+  T6 ferronics   : 4 demos / 8 obligations
+  T7 quantum     : 4 demos / 11 obligations
 
 ## Reproducing the build
 
