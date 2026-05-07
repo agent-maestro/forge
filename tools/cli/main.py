@@ -130,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
             "  Pro:   verilog, vhdl, systemverilog, chisel, llvm,\n"
             "         hlsl, glsl, glsles, wgsl, metal, swift,\n"
             "         luau, gdscript, ada, autosar, aadl, ros2,\n"
-            "         coq, isabelle, solidity, spice, kicad\n"
+            "         coq, isabelle, solidity, spice, kicad, jlcpcb\n"
             "  Get a Pro license at https://monogateforge.com/get-started\n"
             "\n"
             "DOCS\n"
@@ -157,10 +157,11 @@ def main(argv: list[str] | None = None) -> int:
         "zkproof",
         "spice",
         "kicad",
+        "jlcpcb",
         "all",
     ], help=("Output target. 'all' runs every backend your "
             "license tier permits (Free: 12 application + Lean + "
-            "zkproof; Pro: all 35) and writes <stem>.<ext> files "
+            "zkproof; Pro: all 35 + jlcpcb bundle) and writes <stem>.<ext> files "
             "into --output (must be a directory) or alongside the "
             "source. See `--help` epilog for the tier list."))
     parser.add_argument("-o", "--output", type=Path,
@@ -1839,6 +1840,43 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
         else:
             print(lean_source, end="")
+        return 0
+
+    if args.target == "jlcpcb":
+        # Phase E3 of the Math-to-Manufactured-PCB pipeline. Map
+        # @spice_<component> decorations to LCSC part numbers,
+        # emit a JLCPCB-upload BOM CSV + CPL stub + manifest JSON.
+        # `-o` MUST be a directory; the bundle is three files.
+        from software.manufacturing import (
+            JLCPCBMapper, CompileError as JlcErr,
+        )
+        if not args.output:
+            print("--target jlcpcb requires -o <dir> (the bundle is "
+                  "3 files: BOM CSV + CPL CSV + manifest JSON)",
+                  file=sys.stderr)
+            return 1
+        try:
+            bundle = JLCPCBMapper().bundle(mod)
+        except JlcErr as e:
+            print(f"compile error (jlcpcb mapper): {e}", file=sys.stderr)
+            return 1
+        out_dir = args.output
+        out_dir.mkdir(parents=True, exist_ok=True)
+        stem = mod.name or "eml_circuit"
+        bom_path      = out_dir / f"{stem}.bom.csv"
+        cpl_path      = out_dir / f"{stem}.cpl.csv"
+        manifest_path = out_dir / f"{stem}.jlc.json"
+        bom_path.write_text(bundle.bom_csv,    encoding="utf-8")
+        cpl_path.write_text(bundle.cpl_csv,    encoding="utf-8")
+        manifest_path.write_text(bundle.manifest, encoding="utf-8")
+        print(f"wrote {bom_path} + {cpl_path.name} + {manifest_path.name} "
+              f"({bundle.matched} matched, {bundle.unmatched} unmatched)",
+              file=sys.stderr)
+        if bundle.unmatched > 0:
+            print(f"  WARNING: {bundle.unmatched} component(s) had no "
+                  f"registry match; JLC will refuse the upload until "
+                  f"resolved (see {manifest_path.name}.unmatched).",
+                  file=sys.stderr)
         return 0
 
     if args.target == "kicad":

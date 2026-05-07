@@ -82,6 +82,12 @@ _COMPONENT_DECORATORS: dict[str, str] = {
     "spice_current":   "I",
 }
 
+# Public alias — the SPICE designator IS the KiCad reference
+# prefix IS the BOM-row designator letter. Other modules
+# (kicad_backend, jlcpcb_mapper) share this lookup so the mapping
+# stays canonical in one place.
+_REF_PREFIX = _COMPONENT_DECORATORS
+
 _ANALYSIS_KEYWORDS: tuple[str, ...] = ("tran", "ac", "dc", "op")
 
 

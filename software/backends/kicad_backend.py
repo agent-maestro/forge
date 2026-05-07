@@ -57,6 +57,7 @@ from lang.parser.ast_nodes import (
 from software.backends.spice_backend import (
     CompileError as _SpiceCompileError,
     _COMPONENT_DECORATORS,
+    _REF_PREFIX,
     _coerce_float,
     _coerce_name,
     _coerce_net,
@@ -79,17 +80,8 @@ _LIB_ID: dict[str, str] = {
     "spice_current":   "Simulation_SPICE:IDC",
 }
 
-# SPICE-letter → KiCad reference designator letter. Same letters
-# in this case -- the conventions overlap -- but we keep the
-# mapping explicit so future divergence (e.g. SPICE 'U' vs KiCad
-# 'U') doesn't surprise a reader.
-_REF_PREFIX: dict[str, str] = {
-    "spice_resistor":  "R",
-    "spice_capacitor": "C",
-    "spice_inductor":  "L",
-    "spice_voltage":   "V",
-    "spice_current":   "I",
-}
+# Reference-designator letters are imported from spice_backend
+# (single canonical mapping shared with manufacturing).
 
 
 # ─── Embedded lib_symbol stubs ────────────────────────────────────

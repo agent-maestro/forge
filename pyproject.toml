@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "monogate-forge"
-version = "0.6.0"
-description = "EML language and compiler for verified mathematical computation. 35 backends spanning software, GPU shaders, hardware (FPGA/ASIC + SPICE + KiCad), formal verification, and safety-critical systems."
+version = "0.7.0"
+description = "EML language and compiler for verified mathematical computation. 35 backends + a JLCPCB-bundle target spanning software, GPU shaders, hardware (FPGA/ASIC + SPICE + KiCad + manufacturable PCB), formal verification, and safety-critical systems."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [

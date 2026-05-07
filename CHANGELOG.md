@@ -7,6 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.0] — 2026-05-06 (Phase E3: JLCPCB BOM bundle, math → board pipeline closes)
+
+The pipeline closes end-to-end. A single decorated EML circuit now
+yields three artifacts that together cover simulate-test-manufacture:
+
+  * `--target spice`  -> ngspice-compatible netlist (E1)
+  * `--target kicad`  -> KiCad 8 .kicad_sch schematic (E2)
+  * `--target jlcpcb` -> JLCPCB BOM CSV + CPL stub + manifest (E3)
+
+Same source, three downstream stops, no duplicated component
+declarations.
+
+### Added
+
+- **`software.manufacturing.JLCPCBMapper`** — matches each
+  `@spice_<component>` decoration against a curated LCSC part
+  registry and emits a JLCPCB-upload bundle:
+    * `<stem>.bom.csv` — JLC web-uploader format
+      (`Comment,Designator,Footprint,LCSC Part #`), with
+      same-part deduplication on the designator column.
+    * `<stem>.cpl.csv` — header-only stub. Real placement
+      data requires PCB layout; emitting fake X/Y would
+      produce a working-looking file that silently
+      misassembles the board, so the stub instead carries a
+      comment row pointing the user at KiCad's *Generate
+      Position File*.
+    * `<stem>.jlc.json` — manifest with matches, unmatched
+      components (with reasons), tolerance warnings, and a
+      next-steps checklist (KiCad PCB layout → CPL
+      regeneration → optional `JLC2KiCad_lib` for missing
+      footprints).
+- **Tolerance-aware lookup.** Nearest-value matching with a 5%
+  relative tolerance band, biased toward JLC Basic-tier parts
+  (0603 1% resistors, X7R/X5R/C0G capacitors, 0603/0805
+  inductors). Loose matches surface as warnings in the manifest,
+  not silent corrections.
+- **`--target jlcpcb` CLI** — requires `-o <dir>` (the bundle
+  is three files); writes BOM + CPL + manifest into the
+  directory. Exit code is non-zero when any component fails to
+  match (so CI can gate on it). The unmatched count is also
+  surfaced on stderr.
+- **Custom-registry hatch.** `JLCPCBMapper(custom_registry=...)`
+  accepts a tuple of `PartRegistryEntry` rows so users can
+  extend the default set for parts JLC stocks that aren't yet
+  in the curated list. The default registry is intentionally
+  small (~30 entries) — the hatch lets a project carry its own
+  alongside the source.
+
+### What v1 deliberately defers
+
+  * Real CPL placement data (needs PCB layout — KiCad PCB
+    editor is the honest source).
+  * Auto-fetching footprints via JLC2KiCad_lib — manifest
+    points the user at the tool but does not invoke it (CI
+    must not require network access).
+  * Tolerance bands (1%, 5%) and voltage ratings on
+    capacitors. Today's match is on canonical value only.
+  * Multi-pin parts (op-amps, MCUs, ICs) — out of scope until
+    E2.5 teaches the SPICE/KiCad layer about them.
+
+### Refactored
+
+- `_REF_PREFIX` (component-kind → designator-letter) and
+  `CompileError` are now canonical in
+  `software.backends.spice_backend`; the KiCad backend and
+  JLCPCB mapper import them from there. Single source of
+  truth for the three downstream consumers.
+
+### Tests
+
+  * **17** JLCPCB mapper cases (BOM format conformance, dedup,
+    CPL-stub safety, manifest schema, tolerance accept/reject,
+    custom-registry hatch, error path).
+  * **148** total green across SPICE + KiCad + JLCPCB + cli +
+    license.
+
+---
+
 ## [0.6.0] — 2026-05-06 (Phase E2: KiCad backend, schematic emission)
 
 Backend #35 ships. Phase E2 of the math-to-PCB roadmap compiles
