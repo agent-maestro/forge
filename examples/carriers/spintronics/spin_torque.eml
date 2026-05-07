@@ -1,0 +1,61 @@
+// spin_torque.eml -- TIER 4: SPINTRONICS, second demo.
+//
+// Landau-Lifshitz-Gilbert dynamics, scalar reduction.  The full
+// vector LLG describes how a magnetic moment M precesses around
+// an effective field H with damping coefficient alpha:
+//
+//   dM/dt = -gamma * (M x H) + (alpha / |M|) * (M x dM/dt)
+//
+// Reducing to a scalar amplitude that tracks a single Cartesian
+// component, the precession angular frequency is
+//
+//   omega = gamma * H_eff / (1 + alpha^2)
+//
+// At zero damping (alpha = 0) the loss-free precession rate is
+// the Larmor frequency  omega_L = gamma * H_eff. The 1/(1+alpha^2)
+// correction is exact in the LLG framework.
+//
+// Chain order 0 (algebraic in alpha after gamma, H fixed).
+
+module spin_torque;
+
+const GAMMA: Real = 28.0e9    // Hz/T
+const ALPHA: Real = 0.01      // Gilbert damping (typical YIG)
+
+// Larmor precession frequency at zero damping.
+fn larmor_frequency(gamma: Real, h_eff: Real) -> Real
+    where chain_order <= 0
+{
+    gamma * h_eff
+}
+
+// Damping prefactor 1 + alpha^2.  Always >= 1 (since alpha^2 >= 0),
+// always > 0.
+fn damping_prefactor(alpha: Real) -> Real
+    where chain_order <= 0
+{
+    1.0 + alpha * alpha
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// Larmor frequency is positive whenever both gamma and H_eff are.
+@verify(lean, theorem = "spin_torque_larmor_positive")
+fn larmor_certificate(gamma: Real, h_eff: Real) -> Real
+    where chain_order <= 0
+    requires (gamma > 0.0)
+    requires (h_eff > 0.0)
+    ensures (result > 0.0)
+{
+    gamma * h_eff
+}
+
+// At zero damping the prefactor is exactly 1 -- the loss-free
+// precession sees no decoration on the Larmor frequency.
+@verify(lean, theorem = "spin_torque_zero_damping_unit_prefactor")
+fn prefactor_at_zero_damping() -> Real
+    where chain_order <= 0
+    ensures (result == 1.0)
+{
+    1.0 + 0.0 * 0.0
+}

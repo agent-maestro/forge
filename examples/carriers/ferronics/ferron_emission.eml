@@ -1,0 +1,55 @@
+// ferron_emission.eml -- TIER 6: FERRONICS, second demo.
+//
+// Laser-pulse driven THz emission from a ferroelectric.  A
+// femtosecond optical pump triggers ultrafast polarisation
+// switching; the time-derivative of the polarisation radiates as
+// a narrow-band THz transient.
+//
+// Larmor-like emission power scales with the square of the
+// polarisation acceleration:
+//
+//   P_THz ~ K_emit * (d^2 P / dt^2)^2
+//
+// We capture the algebraic relation (treating d^2P/dt^2 as a
+// scalar driver). Chain order 0 in the kernel below.
+//
+// Why this matters: the 2025 demos showed laser-pulse pumping
+// produces narrow-band THz from van der Waals ferroelectrics --
+// the carrier is electric polarisation order itself, not
+// charge.  The emission spectrum is the readout of the ferron
+// dynamics.
+
+module ferron_emission;
+
+const K_EMIT: Real = 1.0e-22  // W * s^4 / C^2 * m^2 (lumped)
+
+// Radiated THz power as a function of the (driven) polarisation
+// acceleration magnitude.
+fn thz_power(p_ddot: Real, k_emit: Real) -> Real
+    where chain_order <= 0
+{
+    k_emit * (p_ddot * p_ddot)
+}
+
+// At zero polarisation acceleration there is no emission.  The
+// witness for "no driver, no signal" -- the safety statement a
+// receiver depends on.
+@verify(lean, theorem = "ferron_emission_zero_drive_zero_power")
+fn power_at_zero_drive(k_emit: Real) -> Real
+    where chain_order <= 0
+    ensures (result == 0.0)
+{
+    k_emit * (0.0 * 0.0)
+}
+
+// The emission constant is positive whenever the device is
+// fabricated correctly.  Used as the witness that scales the
+// signal in the calibration code.
+@verify(lean, theorem = "ferron_emit_constant_positive")
+fn k_emit_certificate(k_emit: Real) -> Real
+    where chain_order <= 0
+    requires (k_emit > 0.0)
+    ensures (result > 0.0)
+{
+    k_emit
+}

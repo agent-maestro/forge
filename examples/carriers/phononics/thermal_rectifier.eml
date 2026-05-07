@@ -1,0 +1,63 @@
+// thermal_rectifier.eml -- TIER 5: PHONONICS, second demo.
+//
+// Asymmetric thermal conductance.  In a junction between two
+// materials with mismatched phonon spectra, heat flows more
+// easily in one direction than the other -- the phononic analog
+// of an electrical diode.  The forward / reverse conductance
+// ratio is the rectification factor:
+//
+//   R = kappa_fwd / kappa_rev
+//
+// R > 1 means forward-biased heat flow dominates. The
+// asymmetry  A = kappa_fwd - kappa_rev > 0 is the "diode-like"
+// witness.
+//
+// Chain order 0 (algebraic).
+
+module thermal_rectifier;
+
+const KAPPA_FWD: Real = 25.0   // W/m*K (forward direction)
+const KAPPA_REV: Real = 5.0    // W/m*K (reverse direction)
+
+fn forward_conductance(kappa_fwd: Real) -> Real
+    where chain_order <= 0
+{
+    kappa_fwd
+}
+
+fn rectification_ratio(kappa_fwd: Real, kappa_rev: Real) -> Real
+    where chain_order <= 0
+    requires (kappa_rev > 0.0)
+{
+    kappa_fwd / kappa_rev
+}
+
+fn asymmetry(kappa_fwd: Real, kappa_rev: Real) -> Real
+    where chain_order <= 0
+{
+    kappa_fwd - kappa_rev
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// Forward conductance is positive whenever the material's
+// phonon transport is well-defined.
+@verify(lean, theorem = "thermal_rectifier_forward_positive")
+fn forward_positive(kappa_fwd: Real) -> Real
+    where chain_order <= 0
+    requires (kappa_fwd > 0.0)
+    ensures (result > 0.0)
+{
+    kappa_fwd
+}
+
+// Symmetric junction (no rectification): forward = reverse,
+// asymmetry = 0.  Captures the boundary condition every
+// rectifier must depart from.
+@verify(lean, theorem = "thermal_rectifier_zero_asymmetry_at_symmetry")
+fn symmetric_certificate(kappa: Real) -> Real
+    where chain_order <= 0
+    ensures (result == 0.0)
+{
+    kappa - kappa
+}

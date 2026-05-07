@@ -1,0 +1,52 @@
+// ferron_dispersion.eml -- TIER 6: FERRONICS, third demo.
+//
+// Polarisation-wave dispersion in a Landau-Ginzburg ferroelectric.
+// Linearising about the mean-field minimum:
+//
+//   omega(k) = sqrt(omega_0^2 + c_F^2 * k^2)
+//
+//   omega_0  soft-mode optical-phonon frequency at k=0
+//   c_F      ferron group velocity (sets the slope at large k)
+//
+// In the kernel below we carry the SQUARED dispersion, which
+// avoids the square root and lets the proof close against
+// MachLib's polynomial axioms directly:
+//
+//   omega^2(k) = omega_0^2 + c_F^2 * k^2
+//
+// At k=0:  omega = omega_0 (the soft-mode frequency the 2025
+// experiments measured directly via THz spectroscopy).
+// Chain order 0 in this squared form.
+
+module ferron_dispersion;
+
+const OMEGA_0: Real = 1.5e12   // Hz (1.5 THz soft mode)
+const C_F:     Real = 1500.0   // m/s (typical ferron group velocity)
+
+// Squared dispersion relation.
+fn omega_squared(k: Real, omega_0: Real, c_f: Real) -> Real
+    where chain_order <= 0
+{
+    omega_0 * omega_0 + c_f * c_f * (k * k)
+}
+
+// At the long-wavelength limit (k -> 0) the squared frequency
+// equals the squared soft-mode frequency.
+@verify(lean, theorem = "ferron_dispersion_soft_mode_at_zero_k")
+fn omega_sq_at_zero_k(omega_0: Real, c_f: Real) -> Real
+    where chain_order <= 0
+    ensures (result == omega_0 * omega_0)
+{
+    omega_0 * omega_0 + c_f * c_f * (0.0 * 0.0)
+}
+
+// Soft-mode frequency squared is positive whenever the
+// underlying frequency is.
+@verify(lean, theorem = "ferron_soft_mode_sq_positive")
+fn soft_mode_sq_positive(omega_0: Real) -> Real
+    where chain_order <= 0
+    requires (omega_0 > 0.0)
+    ensures (result > 0.0)
+{
+    omega_0 * omega_0
+}

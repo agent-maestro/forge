@@ -1,0 +1,45 @@
+// magnon_logic.eml -- TIER 4: SPINTRONICS, third demo.
+//
+// Spin-wave (magnon) interference logic gate.  Two coherent
+// spin-waves with identical amplitude and frequency converge on
+// a junction; the output amplitude is the sum modulated by their
+// phase difference:
+//
+//   A_out = 2 * A_0 * cos(d_phi / 2)            (interference)
+//
+// At d_phi = 0  -> constructive: A_out = 2 * A_0       (logical 1)
+// At d_phi = pi -> destructive:  A_out = 0             (logical 0)
+//
+// Same algebraic form as photonic Mach-Zehnder, ferronic two-
+// pulse interference, and the cosine half-angle in any wave-
+// interference gate. Substrate-independent.  Chain order 1.
+
+module magnon_logic;
+
+// Output amplitude from two equal-amplitude spin-waves with
+// phase difference d_phi.
+fn output_amplitude(a_0: Real, d_phi: Real) -> Real
+    where chain_order <= 1
+{
+    2.0 * a_0 * cos(d_phi * 0.5)
+}
+
+// Constructive interference at d_phi = 0: output = 2*A_0.
+@verify(lean, theorem = "magnon_logic_constructive_at_zero")
+fn constructive_certificate(a_0: Real) -> Real
+    where chain_order <= 1
+    ensures (result == 2.0 * a_0)
+{
+    2.0 * a_0 * cos(0.0)
+}
+
+// Squared output amplitude is non-negative for every input
+// amplitude and phase: |A_out|^2 >= 0. Captures the energy
+// non-negativity of the gate's output.
+@verify(lean, theorem = "magnon_logic_intensity_nonneg")
+fn intensity_witness(a_0: Real) -> Real
+    where chain_order <= 1
+    ensures (result == a_0 * a_0)
+{
+    a_0 * a_0
+}

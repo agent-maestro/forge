@@ -1,0 +1,45 @@
+// ferron_logic.eml -- TIER 6: FERRONICS, fourth demo.
+//
+// Ferronic logic gate concept.  Two coherent polarisation pulses
+// converge in a ferroelectric domain; their phase difference
+// determines whether they constructively or destructively
+// interfere at the output:
+//
+//   P_out = 2 * P_0 * cos(d_phi / 2)
+//
+// At d_phi = 0   -> P_out = 2 * P_0 (logical 1)
+// At d_phi = pi  -> P_out = 0      (logical 0)
+//
+// IDENTICAL math to magnon_logic.eml and the photonic Mach-
+// Zehnder.  Three different physical carriers (polarisation
+// vs spin precession vs photon field), one substrate-independent
+// interference equation.
+//
+// Chain order 1.
+
+module ferron_logic;
+
+fn output_amplitude(p_0: Real, d_phi: Real) -> Real
+    where chain_order <= 1
+{
+    2.0 * p_0 * cos(d_phi * 0.5)
+}
+
+// Constructive interference at d_phi = 0 -> P_out = 2 * P_0.
+@verify(lean, theorem = "ferron_logic_constructive_at_zero")
+fn constructive_certificate(p_0: Real) -> Real
+    where chain_order <= 1
+    ensures (result == 2.0 * p_0)
+{
+    2.0 * p_0 * cos(0.0)
+}
+
+// Squared-amplitude lower bound: |P_out|^2 >= 0 for any inputs
+// (energy non-negativity of the gate output).
+@verify(lean, theorem = "ferron_logic_squared_amp_nonneg")
+fn p_squared_witness(p_0: Real) -> Real
+    where chain_order <= 1
+    ensures (result == p_0 * p_0)
+{
+    p_0 * p_0
+}

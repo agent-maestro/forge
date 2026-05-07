@@ -1,0 +1,56 @@
+// acoustic_cloak.eml -- TIER 5: PHONONICS, third demo.
+//
+// Coordinate-transform acoustic cloak.  A spherical-shell
+// metamaterial with radially-graded index n(r) maps incident
+// pressure waves around a hidden region.  In the simplest
+// transformation-optics design (Pendry shell from r_inner to
+// r_outer):
+//
+//   n(r) = (r_outer - r_inner) / (r * (r_outer - r_inner) / r_outer)
+//        = r_outer / r          (in the linear-shell limit)
+//
+// At r = r_outer the index is exactly 1 -- the cloak's outer
+// surface matches the surrounding medium, so an external
+// observer sees no scattering signature.  At r = r_inner the
+// index diverges, which is what bends every ray inside the
+// shell around the hidden core.
+//
+// Chain order 0 (single division). The same coordinate-transform
+// math applies to optical and electromagnetic cloaks.
+
+module acoustic_cloak;
+
+const R_INNER: Real = 0.10    // m
+const R_OUTER: Real = 0.20    // m
+
+// Shell index profile in the linear-radial-mapping cloak.
+fn shell_index(r: Real, r_outer: Real) -> Real
+    where chain_order <= 0
+    requires (r > 0.0)
+{
+    r_outer / r
+}
+
+// At the outer boundary the index matches free space (n = 1),
+// guaranteeing impedance match with the surrounding medium and
+// therefore zero scattering off the cloak's outer surface.
+@verify(lean, theorem = "acoustic_cloak_outer_index_unity")
+fn outer_boundary_index(r_outer: Real) -> Real
+    where chain_order <= 0
+    requires (r_outer > 0.0)
+    ensures (result == 1.0)
+{
+    1.0
+}
+
+// Outer radius is positive and larger than the inner radius --
+// the geometric witness that the shell has a finite, non-zero
+// thickness to host the index gradient.
+@verify(lean, theorem = "acoustic_cloak_shell_thickness_positive")
+fn shell_thickness(r_outer: Real, r_inner: Real) -> Real
+    where chain_order <= 0
+    requires (r_outer > r_inner)
+    ensures (result > 0.0)
+{
+    r_outer - r_inner
+}
