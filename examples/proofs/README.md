@@ -5,10 +5,15 @@ proof obligations the Lean backend (`--target lean`) emits for the
 `@verify(lean, ...)` annotations on the corresponding `.eml`
 circuit files.
 
-| Proof file              | Source EML                 | Theorems closed |
-|-------------------------|----------------------------|-----------------|
-| `rc_filter.lean`        | `examples/rc_filter.eml`        | 5/5 |
-| `voltage_divider.lean`  | `examples/voltage_divider.eml`  | 3/3 |
+| Proof file                       | Source EML                          | Theorems closed |
+|----------------------------------|-------------------------------------|-----------------|
+| `rc_filter.lean`                 | `examples/rc_filter.eml`            | 5/5 |
+| `voltage_divider.lean`           | `examples/voltage_divider.eml`      | 3/3 |
+| `maglev/sensor.lean`             | `examples/maglev/sensor.eml`        | 2/2 |
+| `maglev/controller.lean`         | `examples/maglev/controller.eml`    | 1/1 |
+| `maglev/driver.lean`             | `examples/maglev/driver.eml`        | 4/4 |
+| `maglev/power.lean`              | `examples/maglev/power.eml`         | 2/2 |
+| **Total**                        |                                     | **17/17** |
 
 ## Reproducing the build
 
@@ -60,18 +65,58 @@ catalogue. The forge repo is the project; the proofs live here.
 chains `div_def`, `zero_mul`, `exp_zero`, `sub_def`, `add_neg`,
 `mul_zero` to collapse `vin * (1 - exp(0/tau)) = 0`.
 
+## Maglev module proofs (E5: pre-bench-up verification)
+
+### maglev/sensor.lean (2/2)
+
+| Theorem | Property |
+|---------|----------|
+| `sensor_zero_offset_zero_position` | `position(V_OFFSET) = 0 mm` |
+| `sensor_filter_tau_positive`       | `r > 0 ∧ c > 0 → r * c > 0` |
+
+### maglev/controller.lean (1/1)
+
+| Theorem | Property |
+|---------|----------|
+| `controller_zero_input_zero_output` | `proportional_path(0) = 0` |
+
+### maglev/driver.lean (4/4)
+
+| Theorem | Property |
+|---------|----------|
+| `driver_zero_drive_zero_current`     | `Vdrive = 0 → I_steady = 0` |
+| `driver_total_resistance_positive`   | `R_coil + R_sense > 0` |
+| `driver_zero_current_zero_force`     | `F(0) = 0` |
+| `driver_lr_product_positive`         | `L > 0 ∧ R > 0 → L * R > 0` |
+
+### maglev/power.lean (2/2)
+
+| Theorem | Property |
+|---------|----------|
+| `power_zero_supply_zero_current` | `Vsupply = 0 → I_load = 0` |
+| `power_bulk_tau_positive`        | `R_load > 0 ∧ C_bulk > 0 → tau > 0` |
+
 ## What is NOT yet proven
 
-The user's E4 brief asked for two harder properties not closed
-here:
+The brief asked for these properties; closing them needs MachLib
+extensions not yet shipped:
 
-  * **RC monotonic decay** — `dV_out/dt < 0` (or, in the charging
-    convention used in the EML file, `dV_out/dt > 0`). Proving
-    this in MachLib requires a derivative axiom we don't yet
-    have for `exp`. Slated for E4.5.
+  * **RC monotonic decay** — `dV_out/dt > 0` for the charging
+    response. Needs a derivative axiom for `exp`. Slated for E4.5.
   * **Voltage-divider power dissipation bound** — needs squared
     quantities; the EML files don't yet declare the relevant
     function. Add when needed.
+  * **Controller output-bounded** — `OUT_MIN ≤ pid(...) ≤ OUT_MAX`.
+    Needs `min`/`max` ordering lemmas in `MachLib.Forge` that
+    aren't there yet (`min_ge_iff`, `le_max_of_le_left/right`
+    chained). The clamped PID *body* uses `clamp(...)` which the
+    C backend lowers to a real branch; a Lean version would just
+    need the missing lemmas.
+  * **Driver coil time-constant positivity** (`L / R_total > 0`)
+    — needs `one_div_pos_of_pos` (we only have
+    `one_div_nonneg_of_pos`). The product `L * R_total` is
+    proven instead as a positivity witness.
 
-Both are honest gaps — flagged here rather than papered over with
-a fresh `sorry`.
+All four gaps are flagged in the source `.eml` files alongside
+the affected functions, rather than papered over with fresh
+`sorry` lines in the Lean output.

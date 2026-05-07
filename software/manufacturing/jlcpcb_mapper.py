@@ -102,8 +102,11 @@ class PartRegistryEntry:
 # extend via JLCPCBMapper(custom_registry=...) for production.
 _REGISTRY: tuple[PartRegistryEntry, ...] = (
     # ── Resistors, 0603, 1% — JLC Basic ─────────────────────
+    PartRegistryEntry("spice_resistor", 0.1,        "1206", "C137721","0.1R 1% 1W 1206",   "Resistor_SMD:R_1206_3216Metric"),
     PartRegistryEntry("spice_resistor", 1.0,        "0603", "C22843", "1R 1% 0603",        "Resistor_SMD:R_0603_1608Metric"),
+    PartRegistryEntry("spice_resistor", 2.0,        "0603", "C25092", "2R 1% 0603",        "Resistor_SMD:R_0603_1608Metric"),
     PartRegistryEntry("spice_resistor", 10.0,       "0603", "C25543", "10R 1% 0603",       "Resistor_SMD:R_0603_1608Metric"),
+    PartRegistryEntry("spice_resistor", 22.0,       "0603", "C22779", "22R 1% 0603",       "Resistor_SMD:R_0603_1608Metric"),
     PartRegistryEntry("spice_resistor", 100.0,      "0603", "C22775", "100R 1% 0603",      "Resistor_SMD:R_0603_1608Metric"),
     PartRegistryEntry("spice_resistor", 220.0,      "0603", "C22962", "220R 1% 0603",      "Resistor_SMD:R_0603_1608Metric"),
     PartRegistryEntry("spice_resistor", 470.0,      "0603", "C23179", "470R 1% 0603",      "Resistor_SMD:R_0603_1608Metric"),
@@ -127,11 +130,19 @@ _REGISTRY: tuple[PartRegistryEntry, ...] = (
     PartRegistryEntry("spice_capacitor", 1.0e-6,    "0603", "C15849", "1uF X5R 0603 25V",  "Capacitor_SMD:C_0603_1608Metric"),
     PartRegistryEntry("spice_capacitor", 10.0e-6,   "0603", "C19702", "10uF X5R 0603 16V", "Capacitor_SMD:C_0603_1608Metric"),
     PartRegistryEntry("spice_capacitor", 100.0e-6,  "0805", "C96446", "100uF X5R 0805 6.3V","Capacitor_SMD:C_0805_2012Metric"),
+    # Bulk electrolytic (axial leaded) -- the standard hold-up cap.
+    PartRegistryEntry("spice_capacitor", 220.0e-6,  "Radial", "C16133", "220uF 25V Aluminum Electrolytic Radial",
+                      "Capacitor_THT:CP_Radial_D8.0mm_P3.50mm"),
 
     # ── Inductors, 0603/0805 — JLC Basic ───────────────────
     PartRegistryEntry("spice_inductor", 1.0e-6,   "0603", "C32368", "1uH 0603",   "Inductor_SMD:L_0603_1608Metric"),
     PartRegistryEntry("spice_inductor", 10.0e-6,  "0805", "C84601", "10uH 0805",  "Inductor_SMD:L_0805_2012Metric"),
     PartRegistryEntry("spice_inductor", 100.0e-6, "0805", "C8323",  "100uH 0805", "Inductor_SMD:L_0805_2012Metric"),
+    # High-value coil (mH range) -- power-stage inductor; THT.
+    PartRegistryEntry("spice_inductor", 1.0e-3,   "Radial", "C2845566", "1mH Radial Power Inductor",
+                      "Inductor_THT:L_Radial_D9.0mm_P5.00mm"),
+    PartRegistryEntry("spice_inductor", 5.0e-3,   "Radial", "C436085",  "5mH Radial Power Inductor",
+                      "Inductor_THT:L_Radial_D9.0mm_P5.00mm"),
 
     # ── Voltage / current sources are NOT physical parts. ──
     # In the BOM they map to 2-pin headers so the user can wire

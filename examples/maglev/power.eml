@@ -1,0 +1,92 @@
+// power.eml -- maglev board power rail.
+//
+// Topology: 12V supply with bulk + bypass capacitance and a
+// representative load resistor.
+//
+//   Vsupply -> rail
+//   C_bulk    rail -> 0    (220 uF -- bulk hold-up)
+//   C_bypass  rail -> 0    (100 nF -- HF bypass)
+//   R_load    rail -> 0    (24 Ohm  -- ~6W steady draw)
+//
+// Steady-state current draw:
+//   I_load = V_supply / R_load = 12 / 22 ~= 0.55 A
+// Bulk-cap discharge tau (when supply drops):
+//   tau_bulk = R_load * C_bulk = 22 * 220e-6 = 4.84 ms
+//
+// (Real boards add a buck regulator IC for the 5V/3.3V logic
+// rails. Modelling regulators needs op-amps + transistors --
+// deferred to E1.5. v1 covers the 12V driver rail only.)
+//
+// Pipeline stops:
+//   * SPICE  -- transient ripple analysis
+//   * KiCad  -- power section schematic
+//   * C      -- supply_current, bulk_tau
+//   * Lean   -- ohm's law, tau positivity, zero-supply zero-current
+
+module maglev_power;
+
+// ── Rail parameters ────────────────────────────────────────
+
+const V_SUPPLY:       Real = 12.0
+const R_LOAD_OHMS:    Real = 22.0
+const C_BULK_FARADS:  Real = 2.2e-4
+const C_BYPASS_FARADS: Real = 1.0e-7
+
+// ── Circuit netlist ────────────────────────────────────────
+
+@spice_voltage(name = "Vsupply",   a = "rail", b = "0", value = 12.0)
+@spice_capacitor(name = "C_bulk",  a = "rail", b = "0", value = 2.2e-4)
+@spice_capacitor(name = "C_bypass",a = "rail", b = "0", value = 1.0e-7)
+@spice_resistor(name = "R_load",   a = "rail", b = "0", value = 22.0)
+@spice_analysis(tran = "10u 50m")
+fn circuit() -> Real
+    where chain_order <= 0
+{
+    0.0
+}
+
+// ── Rail behaviour (C / Rust / etc. backends) ──────────────
+
+// Steady-state current draw at a given supply voltage.
+fn supply_current(v: Real, r_load: Real) -> Real
+    where chain_order <= 0
+    requires (r_load > 0.0)
+{
+    v / r_load
+}
+
+// Hold-up time constant: how long the bulk cap can keep the rail
+// energised after the supply dies.  Sets the watchdog interval
+// for the safety latch.
+fn bulk_tau(r_load: Real, c_bulk: Real) -> Real
+    where chain_order <= 0
+    requires (r_load > 0.0)
+    requires (c_bulk > 0.0)
+{
+    r_load * c_bulk
+}
+
+// ── Mathematical certificates (E4: Lean) ────────────────────
+
+// At zero supply voltage the load draws zero current.
+@verify(lean, theorem = "power_zero_supply_zero_current")
+fn current_at_zero_supply(r_load: Real) -> Real
+    where chain_order <= 0
+    requires (r_load > 0.0)
+    ensures (result == 0.0)
+{
+    0.0 / r_load
+}
+
+// Bulk-cap time constant is strictly positive whenever both
+// R_load and C_bulk are.  The watchdog code relies on this
+// being a positive timeout.
+@verify(lean, theorem = "power_bulk_tau_positive")
+fn bulk_tau_proof(r_load: Real, c_bulk: Real) -> Real
+    where chain_order <= 0
+    requires (r_load > 0.0)
+    requires (c_bulk > 0.0)
+    ensures (result > 0.0)
+{
+    r_load * c_bulk
+}

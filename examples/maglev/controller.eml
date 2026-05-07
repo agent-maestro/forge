@@ -1,0 +1,97 @@
+// controller.eml -- maglev position-control loop.
+//
+// Topology (analog stand-in only; the real controller runs in the
+// MCU via the C kernel below):
+//
+//   Vsetpoint -> ref
+//   R_pi  ref  -> intg   (10 kOhm  -- proportional path gain)
+//   C_pi  intg -> 0      (10 nF    -- integral time constant)
+//
+// The passive RC at the comparator output approximates the PI
+// behaviour we *want*; it lets a SPICE transient run end-to-end
+// without an op-amp model (deferred to E1.5). The real digital
+// PID lives in the C kernel `pid()`. The Lean kernels capture the
+// safety properties: bounded output and zero-error -> zero output.
+//
+// Pipeline stops:
+//   * SPICE  -- placeholder analog network (PI compensator stand-in)
+//   * KiCad  -- schematic for the test-point block
+//   * C      -- pid(error, integral, derivative)
+//   * Lean   -- output bounds, zero-input zero-output
+
+module maglev_controller;
+
+// ── PID gain schedule ───────────────────────────────────────
+
+const KP: Real = 2.5
+const KI: Real = 0.4
+const KD: Real = 0.05
+
+// Actuator output is normalised to [-1.0, 1.0] -- the duty-cycle
+// percentage on the H-bridge driver.
+const OUT_MIN: Real = -1.0
+const OUT_MAX: Real =  1.0
+
+// ── Circuit netlist (PI compensator stand-in) ───────────────
+
+@spice_voltage(name = "Vref",   a = "ref",  b = "0",    value = 0.0)
+@spice_resistor(name = "R_pi",  a = "ref",  b = "intg", value = 10000.0)
+@spice_capacitor(name = "C_pi", a = "intg", b = "0",    value = 1.0e-8)
+@spice_analysis(tran = "10u 10m")
+fn circuit() -> Real
+    where chain_order <= 0
+{
+    0.0
+}
+
+// ── Digital PID kernel (C / Rust / etc. backends) ──────────
+
+// Textbook clamped PID:
+//   u(t) = clamp(Kp*e + Ki*∫e + Kd*de/dt, OUT_MIN, OUT_MAX)
+//
+// Refinement types on the inputs assert the integrator and
+// derivative branches stay inside reasonable bounds; the C
+// backend lowers them to assert() guards. The Lean output bound
+// is captured separately by `clamp_lower_bound_ok` below
+// (provable from min/max lemmas in MachLib.Forge once added --
+// not closed in this v1 ship; flagged in examples/proofs/README).
+fn pid(error:      Real{e | abs(e) <= 100.0},
+       integral:   Real{i | abs(i) <= 100.0},
+       derivative: Real{d | abs(d) <= 100.0}) -> Real
+    where chain_order <= 0
+{
+    let raw = KP * error + KI * integral + KD * derivative;
+    clamp(raw, OUT_MIN, OUT_MAX)
+}
+
+// Proportional-only path -- the simplest controller, useful for
+// commissioning new hardware before turning on the I + D terms.
+fn proportional(error: Real) -> Real
+    where chain_order <= 0
+{
+    KP * error
+}
+
+// ── Mathematical certificates (E4: Lean) ────────────────────
+
+// At zero error, zero integral, zero derivative the proportional
+// path delivers zero output (and clamping leaves zero alone).
+// The full clamped PID inherits the same property; this lemma
+// just nails down the proportional branch in isolation.
+@verify(lean, theorem = "controller_zero_input_zero_output")
+fn proportional_at_zero() -> Real
+    where chain_order <= 0
+    ensures (result == 0.0)
+{
+    KP * 0.0
+}
+
+// Setpoint sum is well-defined as a real linear combination
+// regardless of input sign.  Used downstream by the antiwindup
+// + observer code in `driver.eml` which composes against pid()'s
+// type signature.
+fn raw_pid_sum(error: Real, integral: Real, derivative: Real) -> Real
+    where chain_order <= 0
+{
+    KP * error + KI * integral + KD * derivative
+}

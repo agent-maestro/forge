@@ -1,0 +1,103 @@
+// sensor.eml -- maglev position sensor signal chain.
+//
+// Topology: Hall-effect sensor (SS49E or equivalent) feeds an
+// anti-aliasing RC low-pass into the MCU's ADC. The Hall element
+// is modelled as a voltage source whose value tracks the magnetic
+// field strength under the levitating mass.
+//
+//   Hall_out -> hall_in
+//   R_aa   hall_in -> adc_in   (1 kOhm)
+//   C_aa   adc_in -> 0         (100 nF)   -- f_c = 1.6 kHz
+//
+// Cut-off frequency:  f_c = 1 / (2 * pi * R * C) ~= 1592 Hz
+// Time constant:      tau  = R * C = 100 us
+//
+// Pipeline stops:
+//   * SPICE  -- transient analysis to confirm step response
+//   * KiCad  -- schematic for the analog front-end board
+//   * C      -- adc_voltage_to_position(), filter_tau()
+//   * Lean   -- calibration boundary conditions
+
+module maglev_sensor;
+
+// ── Calibration constants (1V = 1mm displacement) ──────────
+
+// Hall element scale factor (V/mT, from datasheet).
+const HALL_SCALE: Real = 1.4
+
+// Anti-alias filter (160 us tau).
+const R_AA_OHMS: Real = 1000.0
+const C_AA_FARADS: Real = 1.0e-7
+
+// Position-from-voltage calibration:
+//   position(mm) = (v - V_OFFSET) * MM_PER_VOLT
+const V_OFFSET: Real = 2.5      // Hall outputs 2.5V at zero field
+const MM_PER_VOLT: Real = 5.0   // calibrated per board
+
+// Useful operating range.
+const POSITION_MIN_MM: Real = -10.0
+const POSITION_MAX_MM: Real =  10.0
+
+// ── Circuit netlist (E1+E2+E3 backends) ─────────────────────
+
+@spice_voltage(name = "Vhall",   a = "hall_in", b = "0",      value = 2.5)
+@spice_resistor(name = "R_aa",   a = "hall_in", b = "adc_in", value = 1000.0)
+@spice_capacitor(name = "C_aa",  a = "adc_in",  b = "0",      value = 1.0e-7)
+@spice_analysis(tran = "1u 1m")
+fn circuit() -> Real
+    where chain_order <= 0
+{
+    0.0
+}
+
+// ── Analog front-end characterisation (C backend) ───────────
+
+// Filter time constant.  Used by the MCU to bound the maximum
+// safe ADC sample rate at  f_s <= 1 / (10 * tau)  for ~1% step
+// settling between samples.
+fn filter_tau(r_ohms: Real, c_farads: Real) -> Real
+    where chain_order <= 0
+    requires (r_ohms > 0.0)
+    requires (c_farads > 0.0)
+{
+    r_ohms * c_farads
+}
+
+// Convert an ADC voltage reading to a millimetre displacement.
+// Linear calibration about the zero-field offset.
+fn adc_voltage_to_position(adc_v: Real) -> Real
+    where chain_order <= 0
+{
+    (adc_v - V_OFFSET) * MM_PER_VOLT
+}
+
+// Inverse: predict the ADC voltage we should see for a target
+// position. Used by self-test and calibration routines.
+fn position_to_adc_voltage(pos_mm: Real) -> Real
+    where chain_order <= 0
+{
+    V_OFFSET + pos_mm / MM_PER_VOLT
+}
+
+// ── Mathematical certificates (E4: Lean) ────────────────────
+
+// At the calibration zero point the position reading is exactly
+// zero.  Closes by `rfl` after the unfold + arithmetic reduction.
+@verify(lean, theorem = "sensor_zero_offset_zero_position")
+fn position_at_offset() -> Real
+    where chain_order <= 0
+    ensures (result == 0.0)
+{
+    (V_OFFSET - V_OFFSET) * MM_PER_VOLT
+}
+
+// Filter time constant is positive whenever both R and C are.
+@verify(lean, theorem = "sensor_filter_tau_positive")
+fn filter_tau_proof(r: Real, c: Real) -> Real
+    where chain_order <= 0
+    requires (r > 0.0)
+    requires (c > 0.0)
+    ensures (result > 0.0)
+{
+    r * c
+}

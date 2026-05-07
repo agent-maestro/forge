@@ -7,6 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.9.0] — 2026-05-06 (Phase E5: maglev controller suite, designed before the bench)
+
+Four EML modules (`controller`, `sensor`, `driver`, `power`)
+covering the maglev levitation board. Each compiles cleanly to
+SPICE / KiCad / C / Lean / JLCPCB; the math kernels carry their
+safety properties as `@verify(lean, ...)` obligations that all
+close against MachLib.
+
+### Added
+
+- **`examples/maglev/sensor.eml`** — Hall-effect signal chain.
+  Anti-alias RC filter (1k + 100nF, fc ≈ 1.6 kHz). C kernels:
+  `filter_tau`, `adc_voltage_to_position`, `position_to_adc_voltage`.
+  Lean: 2/2 closed (`sensor_zero_offset_zero_position`,
+  `sensor_filter_tau_positive`).
+- **`examples/maglev/controller.eml`** — Position-control PID.
+  Passive PI compensator stand-in for SPICE (no op-amps yet);
+  digital PID lives in the `pid()` C kernel with refinement-typed
+  inputs. Lean: 1/1 closed
+  (`controller_zero_input_zero_output`).
+- **`examples/maglev/driver.eml`** — Coil current driver.
+  L_coil + R_coil + R_sense in series (5mH / 2Ω / 0.1Ω). C
+  kernels: `coil_current_steady`, `coil_tau`, `coil_force_proxy`
+  (`F = K * I²`). Lean: 4/4 closed.
+- **`examples/maglev/power.eml`** — 12V rail with 220µF bulk
+  + 100nF bypass + 22Ω representative load. C kernels:
+  `supply_current`, `bulk_tau`. Lean: 2/2 closed.
+- **`examples/proofs/maglev/`** — closed Lean files for all four
+  modules. All build green via `lake build
+  MachLib.Discovered.maglev.{sensor,controller,driver,power}`.
+
+### Combined proof totals
+
+| Phase  | Module             | Closed |
+|--------|--------------------|--------|
+| E4     | rc_filter          | 5/5    |
+| E4     | voltage_divider    | 3/3    |
+| E5     | maglev/sensor      | 2/2    |
+| E5     | maglev/controller  | 1/1    |
+| E5     | maglev/driver      | 4/4    |
+| E5     | maglev/power       | 2/2    |
+| **Sum**|                    | **17/17** |
+
+### JLC registry extension
+
+The maglev parts list pushed the JLCPCB BOM mapper into ranges
+the v1 curated registry didn't carry (5mH coil, 0.1Ω current
+sense, 220µF bulk electrolytic, 22Ω + 2Ω resistors). Added LCSC
+SKUs for all five so every maglev module reports
+`0 unmatched`. Total registry size now ~37 entries; the
+`custom_registry=...` hatch is still the right place for
+project-specific parts beyond that.
+
+### What v1 deliberately defers (flagged at source)
+
+  * `controller`: full PID output-bounded proof needs
+    `min`/`max` ordering lemmas not in MachLib.Forge yet.
+  * `driver`: `coil_tau > 0` (i.e. `L/R > 0`) needs
+    `one_div_pos_of_pos` (we only have `..._nonneg_of_pos`);
+    proven instead as `L * R > 0`.
+  * RC monotonic decay (E4 carry-over): needs derivative axiom
+    for `exp`.
+
+All four maglev modules run end-to-end through the pipeline
+(SPICE netlist + KiCad schematic + JLC BOM + C source + verified
+Lean kernels). The board is fully designed and proven before the
+hardware touches the bench.
+
+### Tests
+
+148 forge tests still green (the registry extension didn't
+change BOM-format / dedup / tolerance test invariants).
+
+---
+
 ## [0.8.0] — 2026-05-06 (Phase E4: verified circuit proofs)
 
 The two demo circuits now carry mathematical certificates that
