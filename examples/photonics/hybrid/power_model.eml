@@ -1,0 +1,60 @@
+// power_model.eml -- P4 PHOTONIC-ELECTRONIC CO-DESIGN (3/3)
+//
+// Total power dissipation:
+//
+//   P_total = P_laser + P_phase_shifters + P_detectors
+//             + P_cmos_logic + P_dac + P_adc
+//
+// For a representative head:
+//   P_laser           ~  10 mW
+//   P_phase_shifters  ~   2 mW * N_MZI  (N=6 for 4x4 mesh)
+//   P_detectors       ~   1 mW
+//   P_cmos_logic      ~  20 mW (softmax + GELU + LayerNorm)
+//   P_dac + P_adc     ~  15 mW total
+//   ---------------------------
+//   P_total           ~  58 mW (head-level)
+//
+// The photonic side is light: the laser plus phase shifters
+// dominate but stay well below CMOS energy/op.
+//
+// Chain order 0.
+
+module power_model;
+
+const P_LASER_MW:    Real = 10.0
+const P_PHASE_MW:    Real = 12.0   // 2 mW * 6 MZIs
+const P_DETECT_MW:   Real = 1.0
+const P_CMOS_MW:     Real = 20.0
+const P_DAC_ADC_MW:  Real = 15.0
+
+fn total_power_mw(p_laser: Real, p_phase: Real, p_detect: Real,
+                  p_cmos: Real, p_dac_adc: Real) -> Real
+    where chain_order <= 0
+{
+    p_laser + p_phase + p_detect + p_cmos + p_dac_adc
+}
+
+// At zero power per stage the total is zero.
+@verify(lean, theorem = "power_model_zero_stages_zero_total")
+fn zero_stage_power_certificate() -> Real
+    where chain_order <= 0
+    ensures (result == 0.0)
+{
+    0.0 + 0.0 + 0.0 + 0.0 + 0.0
+}
+
+// Total power is non-negative whenever every stage is.  The
+// witness used by the head-budget allocator.
+@verify(lean, theorem = "power_model_total_nonneg")
+fn total_power_nonneg_certificate(a: Real, b: Real, c: Real,
+                                  d: Real, e: Real) -> Real
+    where chain_order <= 0
+    requires (a >= 0.0)
+    requires (b >= 0.0)
+    requires (c >= 0.0)
+    requires (d >= 0.0)
+    requires (e >= 0.0)
+    ensures (result >= 0.0)
+{
+    a + b + c + d + e
+}

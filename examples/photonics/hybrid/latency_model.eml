@@ -1,0 +1,52 @@
+// latency_model.eml -- P4 PHOTONIC-ELECTRONIC CO-DESIGN (2/3)
+//
+// Total inference latency for one attention head:
+//
+//   t_total = t_photonic + t_electronic + t_conversion
+//
+// At GPT-2 attention head scale on a representative chip:
+//   t_photonic    ~  0.5 ns       (light crosses the mesh)
+//   t_electronic  ~  10 us        (digital softmax + GELU)
+//   t_conversion  ~  5 ns         (DAC + ADC at the boundary)
+//
+// The photonic side is dominant in raw compute throughput;
+// the electronic side dominates total latency because of the
+// nonlinear ops.  The bound below captures the conservative
+// worst-case sum.
+//
+// Chain order 0.
+
+module latency_model;
+
+const T_PHOTONIC_NS:    Real = 0.5
+const T_ELECTRONIC_US:  Real = 10.0
+const T_CONVERSION_NS:  Real = 5.0
+
+fn total_latency_ns(t_photonic_ns: Real, t_electronic_ns: Real,
+                    t_conversion_ns: Real) -> Real
+    where chain_order <= 0
+{
+    t_photonic_ns + t_electronic_ns + t_conversion_ns
+}
+
+// At all-zero stage latencies (e.g. at calibration) the total
+// is zero.  Boundary witness for the budget tracker.
+@verify(lean, theorem = "latency_zero_stages_zero_total")
+fn zero_stage_certificate() -> Real
+    where chain_order <= 0
+    ensures (result == 0.0)
+{
+    0.0 + 0.0 + 0.0
+}
+
+// Total latency is non-negative whenever every stage is.
+@verify(lean, theorem = "latency_total_nonneg")
+fn total_nonneg_certificate(a: Real, b: Real, c: Real) -> Real
+    where chain_order <= 0
+    requires (a >= 0.0)
+    requires (b >= 0.0)
+    requires (c >= 0.0)
+    ensures (result >= 0.0)
+{
+    a + b + c
+}

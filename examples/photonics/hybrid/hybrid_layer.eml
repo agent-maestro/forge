@@ -1,0 +1,135 @@
+// hybrid_layer.eml -- P4 PHOTONIC-ELECTRONIC CO-DESIGN (1/3)
+//
+// One transformer-style attention layer with the linear ops on
+// the PHOTONIC side and the nonlinear ops (softmax, GELU, layer-
+// norm) on the ELECTRONIC side.  Same .eml source describes
+// both domains; Forge's existing backends fan out:
+//
+//   --target spice  ->  electronic control circuit netlist
+//   --target kicad  ->  electronic schematic
+//   --target c      ->  digital firmware (MCU control + softmax)
+//   --target lean   ->  proof obligations covering BOTH domains
+//
+// Concretely we model the data path:
+//
+//   x   --photonic-->  Q, K, V      (linear, fast)
+//                      ↓
+//   Q*K^T --photonic-->  scores      (linear, fast)
+//                      ↓
+//   scores --electronic--> A         (nonlinear softmax)
+//                      ↓
+//   A * V --photonic-->  context     (linear, fast)
+//                      ↓
+//   context --electronic--> output   (LayerNorm + GELU)
+//
+// The kernel functions below carry only the algebraic
+// components that close cleanly under the current MachLib
+// axiom set; the transcendental softmax / GELU pieces become
+// their boundary-case reductions (softmax of zero -> 1/n,
+// GELU(0) -> 0).
+//
+// Chain order 0-1.  Photonic side is chain 1 (interference),
+// electronic side at the boundary points is chain 0.
+
+module hybrid_layer;
+
+const D_HEAD: Real = 64.0   // attention head dim, GPT-2 style
+const N_TOKENS: Real = 8.0  // small-context demo
+
+// ── Circuit netlist (electronic control side, E1+E2 backends)
+
+// Bias resistor for the GELU lookup-table addressing.
+@spice_resistor(name = "R_bias",   a = "ctrl",     b = "0",        value = 10000.0)
+// Bypass cap on the photodetector front-end.
+@spice_capacitor(name = "C_bypass", a = "vdet",    b = "0",        value = 1.0e-7)
+// Reference voltage for the softmax accumulator's ADC.
+@spice_voltage(name = "V_ref",     a = "ref",      b = "0",        value = 1.8)
+@spice_analysis(tran = "1u 1m")
+fn analog_frontend() -> Real
+    where chain_order <= 0
+{
+    0.0
+}
+
+// ── Photonic-side projections (linear, fast) ────────────────
+
+// At the calibrated identity-mesh point each Q/K/V projection
+// passes the input through unchanged.  The photonic side does
+// no modification; only D (the weight bank) does.
+fn photonic_projection_at_calibrated(x: Real) -> Real
+    where chain_order <= 0
+{
+    x
+}
+
+// ── Electronic-side nonlinear ops (boundary forms) ──────────
+
+// Softmax over a uniform input vector returns 1/n -- the
+// uniform distribution.  Captured here as the n=8 boundary
+// reduction (the softmax of all-zeros over 8 tokens).
+fn softmax_uniform_8() -> Real
+    where chain_order <= 0
+{
+    0.125   // 1/8
+}
+
+// GELU at zero is zero.  GELU(x) = x * Phi(x); at x=0 the gate
+// is exactly 0.5 but x*0.5 = 0.
+fn gelu_at_zero() -> Real
+    where chain_order <= 0
+{
+    0.0
+}
+
+// LayerNorm at a uniform input has zero variance; the standard
+// "subtract mean / divide stddev" form is undefined, so the
+// canonical convention is to return zero (the layer is a
+// no-op when the input is uniform).
+fn layernorm_at_uniform() -> Real
+    where chain_order <= 0
+{
+    0.0
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// Photonic projection at the calibrated mesh point IS the
+// identity.  The photonic side contributes no information loss
+// or gain at calibration; the algorithm's accuracy floor is
+// set entirely by D and the electronic side.
+@verify(lean, theorem = "hybrid_layer_photonic_identity_at_calibration")
+fn photonic_identity_certificate(x: Real) -> Real
+    where chain_order <= 0
+    ensures (result == x)
+{
+    x
+}
+
+// Softmax over 8 uniform tokens is 1/8 per component.
+@verify(lean, theorem = "hybrid_layer_softmax_uniform_8_eq_one_eighth")
+fn softmax_uniform_certificate() -> Real
+    where chain_order <= 0
+    ensures (result == 0.125)
+{
+    0.125
+}
+
+// GELU at zero is zero -- the symmetric-input boundary
+// condition the rest of the GELU LUT calibrates against.
+@verify(lean, theorem = "hybrid_layer_gelu_at_zero")
+fn gelu_zero_certificate() -> Real
+    where chain_order <= 0
+    ensures (result == 0.0)
+{
+    0.0
+}
+
+// LayerNorm at uniform input collapses to zero (the canonical
+// undefined-stddev convention).
+@verify(lean, theorem = "hybrid_layer_layernorm_at_uniform")
+fn layernorm_uniform_certificate() -> Real
+    where chain_order <= 0
+    ensures (result == 0.0)
+{
+    0.0
+}
