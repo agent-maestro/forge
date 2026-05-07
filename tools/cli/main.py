@@ -196,6 +196,16 @@ def main(argv: list[str] | None = None) -> int:
                              "(constant folding + CSE + SuperBEST). "
                              "Useful when comparing optimized vs "
                              "unoptimized output.")
+    parser.add_argument("--namespace-emitted-consts", action="store_true",
+                        help="WGSL backend only: prefix every emitted "
+                             "module-level `const` with `<module>__` so "
+                             "multiple compiled kernels can be safely "
+                             "concatenated into a single shader without "
+                             "name collisions on common constants like "
+                             "ZERO/ONE/PI/TINY. Function names stay "
+                             "un-prefixed so callers invoke them by EML "
+                             "name. Off by default to preserve existing "
+                             "single-kernel emission behaviour.")
     parser.add_argument("--emit-fingerprint", action="store_true",
                         help="Compute the computation fingerprint for "
                              "this module (Phase 0 of the Verification "
@@ -1297,7 +1307,10 @@ def main(argv: list[str] | None = None) -> int:
             WGSLBackend, CompileError as WgslErr,
         )
         try:
-            wg = WGSLBackend(optimize=not args.no_optimize).compile(mod)
+            wg = WGSLBackend(
+                optimize=not args.no_optimize,
+                namespace_constants=args.namespace_emitted_consts,
+            ).compile(mod)
         except WgslErr as e:
             print(f"compile error (wgsl backend): {e}", file=sys.stderr)
             return 1

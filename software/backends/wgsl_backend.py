@@ -251,9 +251,24 @@ class WGSLBackend:
 
     name = "wgsl"
 
-    def __init__(self, indent: str = "    ", *, optimize: bool = True):
+    def __init__(
+        self,
+        indent: str = "    ",
+        *,
+        optimize: bool = True,
+        namespace_constants: bool = False,
+    ):
         self.indent = indent
         self.optimize = optimize
+        # When True, every module-level `const` is emitted as
+        # `<module>__<name>` and every reference to such a constant
+        # in a function body is rewritten to match. Enables safe
+        # composition of multiple emitted modules into a single
+        # WGSL shader: ZERO / ONE / PI / TINY are duplicated across
+        # most rendering kernels and would otherwise collide on
+        # concatenation. Functions are left un-prefixed so callers
+        # can invoke them by their EML name.
+        self.namespace_constants = namespace_constants
 
     def compile(self, mod: EMLModule) -> str:
         if self.optimize:
@@ -264,6 +279,13 @@ class WGSLBackend:
         self._in_module_names: set[str] = (
             {fn.name for fn in mod.functions}
             | {c.name for c in mod.constants}
+        )
+        # Constants need their own set so the VAR-emission code can
+        # tell a constant reference (which may need namespace-
+        # prefixing) from a parameter or local name (which never does).
+        self._module_const_names: set[str] = {c.name for c in mod.constants}
+        self._namespace_prefix: str = (
+            f"{(mod.name or 'mod')}__" if self.namespace_constants else ""
         )
 
         any_drift = any(
@@ -343,7 +365,8 @@ class WGSLBackend:
     def _emit_constant(self, c: EMLConstant) -> list[str]:
         wgsl_type = _wgsl_type(c.type_name)
         rhs = self._emit_expr(c.value)
-        return [f"const {_safe_ident(c.name)}: {wgsl_type} = {rhs};"]
+        name = f"{self._namespace_prefix}{_safe_ident(c.name)}"
+        return [f"const {name}: {wgsl_type} = {rhs};"]
 
     # ── Extern (FFI) ──────────────────────────────────────────
 
@@ -581,6 +604,12 @@ class WGSLBackend:
             name = str(node.value)
             if result_subst is not None and name == "result":
                 return result_subst
+            # Module-level constants get the namespace prefix so a
+            # reference inside a function body matches its declaration.
+            # Parameters / local `let`-bindings (anything NOT in
+            # _module_const_names) stay bare.
+            if name in self._module_const_names:
+                return f"{self._namespace_prefix}{_safe_ident(name)}"
             return _safe_ident(name)
 
         if kind == NodeKind.UNARYOP:
