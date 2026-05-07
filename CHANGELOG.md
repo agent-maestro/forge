@@ -7,6 +7,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.12.0] — 2026-05-06 (P2-P6: Verified Photonic Computing pipeline complete)
+
+The full verified-photonic-computing pipeline ships in one
+session: P1 component library (0.11.0) through P6 capstone
+(this release). 51 photonic-computing-specific Lean obligations
+close green; the cumulative session total reaches 115/115
+across the substrate.
+
+### Added
+
+- **`examples/photonics/mesh/`** (P2 — neural network) — 5 EML
+  files: `mzi_mesh_2x2`, `mzi_mesh_4x4`, `weight_bank_4`,
+  `photonic_matmul_2x2`, `photonic_attention`. 13 closed proofs.
+- **`examples/photonics/tolerance/`** (P3 — manufacturing
+  tolerance + closed-loop calibration) — 4 EML files:
+  `tolerance_model`, `error_propagation`, `calibration`,
+  `thermal_model`. 11 closed proofs.
+- **`examples/photonics/hybrid/`** (P4 — photonic-electronic
+  co-design) — 3 EML files: `hybrid_layer`, `latency_model`,
+  `power_model`. 8 closed proofs.
+- **`examples/photonics/inference/`** (P6 — runtime + spec) —
+  `photonic_transformer_sim.py` (one attention head with per-
+  inference JSON proof certificate) and
+  `tolerance_spec_sheet.py` (foundry-ready max-tolerance table
+  with Lean theorem citations).
+- **`examples/proofs/photonics/`** — 32 closed Lean files
+  total (8 P1 + 5 P2 + 4 P3 + 3 P4 + 12 demo extensions).
+- **`monogate-research/papers/verified-photonic-ai-inference.md`** —
+  capstone paper draft.
+
+### `hybrid_layer.eml` highlight
+
+A single `.eml` source compiles to **all five domain backends**
+simultaneously — Python (simulation), C (firmware), Lean
+(proofs), SPICE (electronic netlist), KiCad (schematic) — by
+mixing `@spice_*` decorators on the analog frontend with
+`@verify(lean,...)` annotations on the photonic projections,
+softmax, GELU, LayerNorm boundary kernels. One source, two
+physical domains, one proof.
+
+### Substrate-independence demonstrations (this release)
+
+- `mzi_2x2_norm_witness_pythagorean`, `mzi_energy_conserved`
+  (P1 mach_zehnder), and `directional_coupler_energy_conserved`
+  (P1 directional_coupler) all close via `exact pythagorean
+  theta`. Same proof, same axiom — three different photonic
+  structures.
+- The carrier-substrate proofs (`magnon_logic_constructive_at_zero`,
+  `ferron_logic_constructive_at_zero`) from the parallel "How
+  Does Matter Compute?" thesis use byte-identical proof
+  scripts. The `pythagorean` axiom backs four physically
+  unrelated wave realisations.
+
+### Combined session totals (across all phases)
+
+| Group              | Closed |
+|--------------------|--------|
+| E1 demos           | 8/8    |
+| E5 maglev          | 9/9    |
+| Substrate carriers | 47/47  |
+| P1 photonic components | 19/19 |
+| **P2 photonic neural network** | **13/13** |
+| **P3 manufacturing tolerance** | **11/11** |
+| **P4 photonic-electronic co-design** | **8/8** |
+| **Total**          | **115/115** |
+
+### Pipeline status (6 of 6 phases shipped)
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| P1 — Component library             | ✅ shipped 0.11.0 | 19 closed proofs |
+| P2 — Photonic neural network       | ✅ shipped 0.12.0 | 13 closed proofs |
+| P3 — Manufacturing tolerance       | ✅ shipped 0.12.0 | 11 closed proofs |
+| P4 — Photonic-electronic co-design | ✅ shipped 0.12.0 | 8 closed proofs |
+| P5 — Interactive demos             | ✅ shipped 1op `3a5602c` | 5 demos at `/waves/photon` |
+| P6 — Verified inference capstone   | ✅ shipped 0.12.0 | simulator + spec sheet + paper |
+
+### What's deferred (5 honest gaps)
+
+- Full unitarity of the 2×2 MZI rotation (needs ring algebra)
+- Full sqrt(N) bound for independent errors (needs sqrt axiom)
+- Convergence of the calibration loop (needs induction)
+- Softmax closed-form algebraic identities (needs exp+log lemmas)
+- General `1/(1+x)` bound for the Lorentzian (needs the
+  pending `feat/linarith-tactic` MachLib branch)
+
+All flagged at source. None structural.
+
+### Tests
+
+148/148 forge tests still green. No backend-side change.
+
+---
+
 ## [0.11.0] — 2026-05-06 (P1: Verified Photonic Computing component library)
 
 Phase 1 of the verified-photonic-computing roadmap ships. Eight
