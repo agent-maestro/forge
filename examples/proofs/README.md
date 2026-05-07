@@ -17,6 +17,20 @@ circuit files.
 | `maglev/power.lean`                       | `examples/maglev/power.eml`                           | 2/2 |
 | **Application subtotal**                  |                                                       | **17/17** |
 
+### Photonic component library (P1: verified-photonic-computing)
+
+| Proof file                                  | Source EML                                   | Theorems closed |
+|---------------------------------------------|----------------------------------------------|-----------------|
+| `photonics/waveguide.lean`                  | `examples/photonics/components/waveguide.eml`           | 2/2 |
+| `photonics/amplifier.lean`                  | `examples/photonics/components/amplifier.eml`           | 2/2 |
+| `photonics/photodetector.lean`              | `examples/photonics/components/photodetector.eml`       | 2/2 |
+| `photonics/modulator.lean`                  | `examples/photonics/components/modulator.eml`           | 2/2 |
+| `photonics/phase_shifter.lean`              | `examples/photonics/components/phase_shifter.eml`       | 2/2 |
+| `photonics/directional_coupler.lean`        | `examples/photonics/components/directional_coupler.eml` | 3/3 |
+| `photonics/mach_zehnder.lean`               | `examples/photonics/components/mach_zehnder.eml`        | 3/3 |
+| `photonics/ring_resonator.lean`             | `examples/photonics/components/ring_resonator.eml`      | 3/3 |
+| **Photonic-computing subtotal**             |                                              | **19/19** |
+
 ### Carrier-substrate demos (proof of substrate)
 
 | Proof file                                | Source EML                                            | Tier | Theorems closed |
@@ -43,7 +57,7 @@ circuit files.
 | `carriers/cnot.lean`                      | `quantum/cnot.eml`                                    | T7 amplitude | 3/3 |
 | `carriers/grover_oracle.lean`             | `quantum/grover_oracle.eml`                           | T7 amplitude | 2/2 |
 | **Carrier subtotal**                      |                                                       |              | **47/47** |
-| **Grand total**                           |                                                       |              | **64/64** |
+| **Grand total** (incl. P1 photonics)      |                                                       |              | **83/83** |
 
 Carriers per tier:
   T2 electronics : 3 demos / 7 obligations

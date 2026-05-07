@@ -1,0 +1,58 @@
+// photodetector.eml -- P1 PHOTONIC COMPONENT LIBRARY (3/8)
+//
+// Photodiode -- the optical-to-electrical converter that ends
+// every photonic compute pipeline.  In the linear regime
+// (well below saturation) the photocurrent is responsivity
+// times incident optical power:
+//
+//   I_ph = R * P_optical                  [A] = [A/W] * [W]
+//
+// Responsivity R depends on quantum efficiency eta and
+// wavelength lambda:
+//
+//   R = (eta * q * lambda) / (h * c)      = eta * (lambda / 1.24) for Si at 1.55um
+//
+// Chain order 0 (algebraic).
+//
+// @verify obligations:
+//   1. Photocurrent at zero optical power is zero (dark-current
+//      branch handled separately).
+//   2. Responsivity is positive whenever quantum efficiency
+//      is positive -- the witness for "the detector detects".
+
+module photodetector;
+
+const R_SI_1550: Real = 1.25       // A/W, Si at 1550 nm with 100% QE
+
+// Linear-regime photocurrent.
+fn photocurrent(p_optical: Real, responsivity: Real) -> Real
+    where chain_order <= 0
+    requires (p_optical >= 0.0)
+    requires (responsivity > 0.0)
+{
+    responsivity * p_optical
+}
+
+// At zero optical power the photocurrent vanishes -- no signal,
+// no photogeneration.  (Dark current is a separate noise term
+// modelled at the controller level.)
+@verify(lean, theorem = "photodetector_dark_current_zero")
+fn current_at_zero_power(responsivity: Real) -> Real
+    where chain_order <= 0
+    ensures (result == 0.0)
+{
+    responsivity * 0.0
+}
+
+// Photocurrent is non-negative whenever both responsivity and
+// optical power are non-negative -- the detector cannot produce
+// negative current from non-negative inputs.
+@verify(lean, theorem = "photodetector_nonneg_current")
+fn nonneg_current(p: Real, r: Real) -> Real
+    where chain_order <= 0
+    requires (r >= 0.0)
+    requires (p >= 0.0)
+    ensures (result >= 0.0)
+{
+    r * p
+}

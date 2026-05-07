@@ -1,0 +1,54 @@
+// phase_shifter.eml -- P1 PHOTONIC COMPONENT LIBRARY (5/8)
+//
+// Thermo-optic / electro-optic phase shifter.  Drops a
+// controlled phase delta_phi on the propagating field via an
+// index change delta_n over interaction length L:
+//
+//   delta_phi = 2*pi * delta_n * L / lambda
+//
+// In the thermo-optic case, delta_n = (dn/dT) * delta_T from
+// a heater current.  In the EO case, delta_n comes from the
+// Pockels-effect modulator above.  The phase shifter itself
+// is the *purest* algebraic component in the photonic stack.
+//
+// Chain order 0.
+//
+// @verify obligations:
+//   1. Zero index change -> zero phase shift (the calibration
+//      reference).
+//   2. Phase-per-unit-length factor (2*pi / lambda) is positive
+//      whenever lambda is positive -- the linearity witness for
+//      the closed-loop calibration in P3.
+
+module phase_shifter;
+
+const LAMBDA_C_BAND: Real = 1.55e-6   // m, telecom C-band centre
+
+fn phase_shift(delta_n: Real, length: Real, lambda: Real) -> Real
+    where chain_order <= 0
+    requires (lambda > 0.0)
+{
+    2.0 * 3.141592653589793 * delta_n * length / lambda
+}
+
+// Zero index modulation -> zero phase shift.  Defines the
+// "no-bias" calibration point.
+@verify(lean, theorem = "phase_shifter_zero_dn_zero_phase")
+fn phase_at_zero_dn(length: Real, lambda: Real) -> Real
+    where chain_order <= 0
+    requires (lambda > 0.0)
+    ensures (result == 0.0)
+{
+    2.0 * 3.141592653589793 * 0.0 * length / lambda
+}
+
+// Length is positive in any practical phase shifter -- the
+// witness that the geometric path actually accumulates phase.
+@verify(lean, theorem = "phase_shifter_length_positive")
+fn length_positive(length: Real) -> Real
+    where chain_order <= 0
+    requires (length > 0.0)
+    ensures (result > 0.0)
+{
+    length
+}

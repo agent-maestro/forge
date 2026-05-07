@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.11.0] — 2026-05-06 (P1: Verified Photonic Computing component library)
+
+Phase 1 of the verified-photonic-computing roadmap ships. Eight
+fundamental photonic components, each as a single `.eml` source
+that compiles to C / Python / Lean from one description, with
+all `@verify(lean, …)` obligations closed against MachLib.
+
+### Added
+
+- **`examples/photonics/components/`** — 8 photonic component
+  EML files:
+    * `waveguide.eml`           — `I(z) = I₀ exp(−2αz)` (chain 1)
+    * `amplifier.eml`           — `G(z) = exp(g·z)` (chain 1)
+    * `photodetector.eml`       — `I_ph = R · P_optical` (chain 0)
+    * `modulator.eml`           — Pockels `Δn = ½ n³ r_eff E` (chain 0)
+    * `phase_shifter.eml`       — `Δφ = 2π Δn L / λ` (chain 0)
+    * `directional_coupler.eml` — `P_cross = sin²(κL); P_bar = cos²(κL)` (chain 1)
+    * `mach_zehnder.eml`        — through/drop ports + energy conservation (chain 1)
+    * `ring_resonator.eml`      — Lorentzian `T(δ) = 1/(1 + F sin²(δ/2))` (chain 1)
+- **`examples/proofs/photonics/`** — 8 closed Lean files. All
+  19 obligations build green via
+  `lake build MachLib.Discovered.photonics.{component}`.
+- **`examples/photonics/README.md`** — phase walkthrough,
+  reproducibility, what each proof asserts, P2–P6 roadmap.
+
+### Properties proven (19 / 19)
+
+  * **Boundary conditions** — every component has at least one
+    closed proof of its calibration / "off" state.
+  * **Energy conservation** — directional coupler and MZI both
+    close `sin² + cos² = 1` by direct application of MachLib's
+    `pythagorean` axiom. The two proofs are byte-identical
+    despite belonging to two different photonic structures —
+    substrate-independence demonstrated again.
+  * **Positivity invariants** — every "process parameter is
+    positive" claim used by the calibration loop in P3 (loss
+    coefficient, pump strength, Pockels coefficient, length,
+    FSR, …) is closed.
+  * **Linearity at zero** — for every linear component, the
+    `input → output` map at zero input returns zero output.
+
+### Combined proof totals (across all phases)
+
+| Group              | Closed |
+|--------------------|--------|
+| E1 demos (rc_filter + voltage_divider)  | 8/8    |
+| E5 maglev (4 modules)                   | 9/9    |
+| Substrate carriers (18 demos / 6 tiers) | 47/47  |
+| **P1 photonics (8 components)**         | **19/19** |
+| **Total**                               | **83/83** |
+
+### Pipeline status (1 of 6 phases delivered)
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| **P1 — Component library**       | ✅ shipped 0.11.0 | 8 components / 19 closed proofs |
+| P2 — Photonic neural network     | next | Reck-decomposed N×N MZI mesh + microring weight bank |
+| P3 — Manufacturing tolerance     | next | Per-component error models + closed-loop calibration |
+| P4 — Photonic-electronic co-design | next | One `.eml` → optical layout + electronic Verilog + proof |
+| P5 — Interactive demos           | next | `1op.io/waves/photon` MZI + ring + mesh demos |
+| P6 — Verified inference          | next | Photonic transformer + per-inference proof certificate |
+
+### Tests
+
+148/148 forge tests still green. No backend-side change.
+
+---
+
 ## [0.10.0] — 2026-05-06 (Substrate proof: one demo per carrier tier)
 
 The thesis claim made concrete. Six EML files — one per

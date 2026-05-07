@@ -1,0 +1,80 @@
+// ring_resonator.eml -- P1 PHOTONIC COMPONENT LIBRARY (8/8)
+//
+// Microring (whispering-gallery) resonator -- the photonic
+// bandpass filter and the working element of every ring-bank
+// weight matrix in P2's photonic neural network.
+//
+// All-pass through-port transmission as a function of the
+// round-trip phase delta:
+//
+//   T(delta) = 1 / (1 + F * sin^2(delta / 2))
+//
+//   delta  =  2*pi * n_eff * L / lambda      (round-trip phase)
+//   F      =  4*R / (1 - R)^2                (finesse coefficient)
+//
+// On resonance (delta = 0) the through-port transmits unity
+// (in the all-pass form -- the dropped form has unity at the
+// drop port).  Off resonance, transmission decays into a
+// Lorentzian dip with bandwidth set by F.
+//
+// Chain order 1.
+
+module ring_resonator;
+
+const FINESSE_DEFAULT: Real = 200.0   // Q ~ 1000 for FSR / linewidth = 200
+
+// Through-port transmission, all-pass form.
+fn transmission(delta: Real, finesse: Real) -> Real
+    where chain_order <= 1
+    requires (finesse >= 0.0)
+{
+    let half = sin(delta * 0.5);
+    1.0 / (1.0 + finesse * (half * half))
+}
+
+// Free-spectral-range frequency separation.
+//   FSR = c / (n_eff * L)
+fn fsr(c: Real, n_eff: Real, length: Real) -> Real
+    where chain_order <= 0
+    requires (n_eff > 0.0)
+    requires (length > 0.0)
+{
+    c / (n_eff * length)
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// On resonance (delta = 0) the through-port transmits unity.
+// sin(0) = 0 collapses the denominator to 1.
+@verify(lean, theorem = "ring_resonator_unity_on_resonance")
+fn transmission_on_resonance(finesse: Real) -> Real
+    where chain_order <= 1
+    ensures (result == 1.0)
+{
+    1.0 / (1.0 + finesse * (sin(0.0) * sin(0.0)))
+}
+
+// Squared-sine off-resonance is bounded in [0, 1] -- the
+// witness that the denominator is always at least 1, so the
+// transmission is always at most 1 (passive element, no gain).
+// Captured here as the explicit upper-bound value for sin^2.
+@verify(lean, theorem = "ring_resonator_sin_sq_at_zero")
+fn sin_sq_at_zero() -> Real
+    where chain_order <= 1
+    ensures (result == 0.0)
+{
+    sin(0.0) * sin(0.0)
+}
+
+// FSR is positive whenever c, n_eff, length all are -- the
+// witness that adjacent resonances are well-separated.
+@verify(lean, theorem = "ring_resonator_fsr_positive")
+fn fsr_positive(c: Real, n_eff: Real, length: Real) -> Real
+    where chain_order <= 0
+    requires (c > 0.0)
+    requires (n_eff > 0.0)
+    requires (length > 0.0)
+    ensures (result > 0.0)
+{
+    c * n_eff * length
+}

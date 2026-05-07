@@ -1,0 +1,61 @@
+// waveguide.eml -- P1 PHOTONIC COMPONENT LIBRARY (1/8)
+//
+// Optical waveguide -- the copper trace of photonic computing.
+// A coherent field propagating along z with propagation constant
+// beta and amplitude attenuation alpha:
+//
+//   E(z) = E_0 * exp(i*beta*z - alpha*z)
+//
+// The intensity (the observable for a square-law detector) is:
+//
+//   |E(z)|^2 = |E_0|^2 * exp(-2*alpha*z)
+//
+// We carry the *intensity* form below since it is what every
+// downstream photodetector or photodetector-equivalent
+// converges on.  The `i*beta*z` phase factor cancels in the
+// |.|^2; alpha (Np/m) sets the loss budget per unit length.
+//
+// Chain order 1 (single transcendental).
+//
+// @verify obligations:
+//   1. Output intensity at z=0 equals input intensity (no
+//      propagation, no loss).
+//   2. Loss coefficient is positive whenever the waveguide is
+//      lossy (witness for the analyzer that exp(-2*alpha*z) <= 1
+//      monotonically -- alpha > 0 keeps the exponent non-positive).
+
+module waveguide;
+
+const ALPHA_DEFAULT: Real = 0.5  // Np/m, typical low-loss SOI
+
+// Intensity (W/m^2 in linear units, normalised here).
+fn intensity(z: Real, i_in: Real, alpha: Real) -> Real
+    where chain_order <= 1
+    requires (i_in >= 0.0)
+    requires (alpha >= 0.0)
+{
+    i_in * exp(-2.0 * alpha * z)
+}
+
+// At the input plane (z = 0) the propagated intensity equals
+// the input intensity -- the trivial boundary condition every
+// downstream calibration relies on.
+@verify(lean, theorem = "waveguide_intensity_at_origin")
+fn intensity_at_origin(i_in: Real, alpha: Real) -> Real
+    where chain_order <= 1
+    ensures (result == i_in)
+{
+    i_in * exp(-2.0 * alpha * 0.0)
+}
+
+// Loss coefficient is positive in any real waveguide -- the
+// witness used by the error-propagation analysis to bound
+// downstream signal degradation.
+@verify(lean, theorem = "waveguide_loss_positive")
+fn loss_positive(alpha: Real) -> Real
+    where chain_order <= 0
+    requires (alpha > 0.0)
+    ensures (result > 0.0)
+{
+    alpha
+}

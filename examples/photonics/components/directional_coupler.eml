@@ -1,0 +1,69 @@
+// directional_coupler.eml -- P1 PHOTONIC COMPONENT LIBRARY (6/8)
+//
+// 2x2 directional coupler -- the optical voltage divider.  Two
+// adjacent waveguides exchange power via evanescent coupling
+// over interaction length L with coupling coefficient kappa:
+//
+//   P_cross = sin^2(kappa * L)
+//   P_bar   = cos^2(kappa * L)
+//
+// Chain order 1.
+//
+// The killer @verify obligation is energy conservation:
+//
+//   P_cross + P_bar  =  sin^2(theta) + cos^2(theta)  =  1
+//
+// which closes by direct application of MachLib's `pythagorean`
+// axiom -- the Lean proof is one line.
+
+module directional_coupler;
+
+const KAPPA_DEFAULT: Real = 1000.0   // 1/m, typical SOI evanescent coupling
+
+// Cross-port power fraction.
+fn p_cross(kappa: Real, length: Real) -> Real
+    where chain_order <= 1
+{
+    sin(kappa * length) * sin(kappa * length)
+}
+
+// Bar-port power fraction.
+fn p_bar(kappa: Real, length: Real) -> Real
+    where chain_order <= 1
+{
+    cos(kappa * length) * cos(kappa * length)
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// At zero coupling-length product, all power exits the bar
+// port unchanged: P_bar(0) = cos^2(0) = 1.
+@verify(lean, theorem = "directional_coupler_bar_at_zero")
+fn p_bar_at_zero() -> Real
+    where chain_order <= 1
+    ensures (result == 1.0)
+{
+    cos(0.0) * cos(0.0)
+}
+
+// And no power crosses: P_cross(0) = sin^2(0) = 0.
+@verify(lean, theorem = "directional_coupler_cross_at_zero")
+fn p_cross_at_zero() -> Real
+    where chain_order <= 1
+    ensures (result == 0.0)
+{
+    sin(0.0) * sin(0.0)
+}
+
+// Energy conservation: P_cross + P_bar = sin^2 + cos^2 = 1
+// for every coupling-length product.  Closes by direct
+// application of MachLib's `pythagorean` axiom.  The witness
+// that no power is lost in an ideal coupler -- the property
+// every downstream mesh-accuracy proof leans on.
+@verify(lean, theorem = "directional_coupler_energy_conserved")
+fn energy_witness(theta: Real) -> Real
+    where chain_order <= 1
+    ensures (result == 1.0)
+{
+    sin(theta) * sin(theta) + cos(theta) * cos(theta)
+}

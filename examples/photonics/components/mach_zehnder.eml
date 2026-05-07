@@ -1,0 +1,73 @@
+// mach_zehnder.eml -- P1 PHOTONIC COMPONENT LIBRARY (7/8)
+//
+// Mach-Zehnder interferometer -- the photonic transistor.  Two
+// 50/50 couplers sandwich two arms of variable optical length;
+// the relative phase delta_phi between the arms drives the
+// output between full transmission and full extinction:
+//
+//   I_through = I_in * cos^2(delta_phi / 2)
+//   I_drop    = I_in * sin^2(delta_phi / 2)
+//
+// At delta_phi = 0      -> I_through = I_in, I_drop = 0       (logic 1)
+// At delta_phi = pi     -> I_through = 0,    I_drop = I_in    (logic 0)
+//
+// Energy conservation through the device follows directly from
+// sin^2 + cos^2 = 1 (the Pythagorean closure of the substrate).
+//
+// Chain order 1.
+
+module mach_zehnder;
+
+// Through-port intensity for input intensity I_in and arm
+// phase difference delta_phi.
+fn through(i_in: Real, delta_phi: Real) -> Real
+    where chain_order <= 1
+    requires (i_in >= 0.0)
+{
+    let half = cos(delta_phi * 0.5);
+    i_in * (half * half)
+}
+
+// Drop-port intensity (the complementary output).
+fn drop(i_in: Real, delta_phi: Real) -> Real
+    where chain_order <= 1
+    requires (i_in >= 0.0)
+{
+    let half = sin(delta_phi * 0.5);
+    i_in * (half * half)
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// At zero arm-phase difference the full input intensity
+// transmits through the bar port (logical 1).
+@verify(lean, theorem = "mzi_through_at_zero_phase")
+fn through_at_zero_phase(i_in: Real) -> Real
+    where chain_order <= 1
+    ensures (result == i_in)
+{
+    i_in * (cos(0.0) * cos(0.0))
+}
+
+// At zero arm-phase difference no power exits the drop port.
+@verify(lean, theorem = "mzi_drop_at_zero_phase")
+fn drop_at_zero_phase(i_in: Real) -> Real
+    where chain_order <= 1
+    ensures (result == 0.0)
+{
+    i_in * (sin(0.0) * sin(0.0))
+}
+
+// Energy conservation: through + drop = i_in for every
+// arm-phase difference.  In normalised form:
+//   cos^2(theta) + sin^2(theta) = 1
+// closed by direct application of MachLib's `pythagorean` axiom
+// (note the cos-sin order here is swapped from the standard
+// statement; we re-arrange via add_comm).
+@verify(lean, theorem = "mzi_energy_conserved")
+fn energy_witness(theta: Real) -> Real
+    where chain_order <= 1
+    ensures (result == 1.0)
+{
+    sin(theta) * sin(theta) + cos(theta) * cos(theta)
+}

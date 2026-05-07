@@ -1,0 +1,54 @@
+// amplifier.eml -- P1 PHOTONIC COMPONENT LIBRARY (2/8)
+//
+// Semiconductor optical amplifier (SOA).  Inverse of waveguide
+// loss: power scales exponentially with length under a
+// pumped-medium gain coefficient g [1/m]:
+//
+//   G(z) = exp(g * z)              (small-signal regime)
+//
+// Reality: SOAs saturate.  At small input we approximate as
+// pure exponential; the saturation band is captured later in
+// p3 (tolerance_model) where the manufacturable bound is set.
+//
+// Chain order 1.
+//
+// @verify obligations:
+//   1. Gain at z = 0 equals 1 (unity transmission with no
+//      length, the calibration anchor).
+//   2. Gain coefficient is positive whenever the device is
+//      pumped above transparency -- the witness that the
+//      amplifier amplifies.
+
+module amplifier;
+
+const G_DEFAULT: Real = 100.0   // 1/m, typical InP SOA
+
+// Small-signal power gain.
+fn gain(z: Real, g: Real) -> Real
+    where chain_order <= 1
+    requires (g >= 0.0)
+    requires (z >= 0.0)
+{
+    exp(g * z)
+}
+
+// At z = 0 the gain is exactly 1 -- the device contributes no
+// amplification before any propagation length has been crossed.
+@verify(lean, theorem = "amplifier_gain_at_origin")
+fn gain_at_origin(g: Real) -> Real
+    where chain_order <= 1
+    ensures (result == exp(0.0))
+{
+    exp(g * 0.0)
+}
+
+// Gain coefficient is positive whenever the SOA is pumped
+// above transparency -- the precondition for net amplification.
+@verify(lean, theorem = "amplifier_pump_positive")
+fn pump_positive(g: Real) -> Real
+    where chain_order <= 0
+    requires (g > 0.0)
+    ensures (result > 0.0)
+{
+    g
+}
