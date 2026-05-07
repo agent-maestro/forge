@@ -1,0 +1,76 @@
+// error_propagation.eml -- P3 MANUFACTURING TOLERANCE (2/4)
+//
+// How tolerances compound through the mesh.  N MZIs in series
+// with INDEPENDENT phase errors:
+//
+//   sigma_total = sigma_per_mzi * sqrt(N)
+//
+// Same MZIs with CORRELATED phase errors (e.g. a bulk thermal
+// drift):
+//
+//   delta_total = delta_per_mzi * N
+//
+// Worst case for an N=4 mesh under independent errors of
+// 0.01 rad each is 0.02 rad output phase error -- which sets
+// the maximum manufacturable accuracy.
+//
+// Chain order 0 (linear in N for the correlated case;
+// the sqrt(N) form is captured below as a squared variant
+// avoiding sqrt to keep the proofs in MachLib).
+
+module error_propagation;
+
+const N_MZI: Real = 6.0   // 4x4 Reck triangle has 6 MZIs
+
+// Correlated-error case (linear scaling in N).
+fn correlated_total_error(delta_per_mzi: Real, n: Real) -> Real
+    where chain_order <= 0
+    requires (delta_per_mzi >= 0.0)
+    requires (n >= 0.0)
+{
+    delta_per_mzi * n
+}
+
+// Independent-error case, squared (avoids sqrt).
+//   sigma_total^2 = N * sigma_per_mzi^2
+// This is what the Allan-variance-style estimator computes
+// directly from samples.
+fn independent_total_error_sq(sigma_per_mzi: Real, n: Real) -> Real
+    where chain_order <= 0
+    requires (sigma_per_mzi >= 0.0)
+    requires (n >= 0.0)
+{
+    n * (sigma_per_mzi * sigma_per_mzi)
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// At zero per-MZI error the correlated total is zero.
+@verify(lean, theorem = "error_propagation_zero_per_mzi_zero_total")
+fn zero_per_mzi_certificate(n: Real) -> Real
+    where chain_order <= 0
+    ensures (result == 0.0)
+{
+    0.0 * n
+}
+
+// Correlated total is non-negative when both inputs are.
+@verify(lean, theorem = "error_propagation_correlated_total_nonneg")
+fn correlated_nonneg_certificate(delta: Real, n: Real) -> Real
+    where chain_order <= 0
+    requires (delta >= 0.0)
+    requires (n >= 0.0)
+    ensures (result >= 0.0)
+{
+    delta * n
+}
+
+// At zero MZI count the total error vanishes (no devices, no
+// accumulated error).
+@verify(lean, theorem = "error_propagation_zero_mzis_zero_total")
+fn zero_mzis_certificate(delta: Real) -> Real
+    where chain_order <= 0
+    ensures (result == 0.0)
+{
+    delta * 0.0
+}

@@ -1,0 +1,81 @@
+// tolerance_model.eml -- P3 MANUFACTURING TOLERANCE (1/4)
+//
+// Per-component tolerance band.  Each photonic device has a
+// design-target value plus a manufacturing offset:
+//
+//   actual = design + delta,   |delta| <= delta_max
+//
+// We capture three primary tolerance kinds:
+//   - MZI phase tolerance:        phi  +/- delta_phi   (rad)
+//   - Ring resonance tolerance:   lambda_0 +/- delta_lambda  (m)
+//   - Coupler ratio tolerance:    kappa +/- delta_kappa
+//
+// The kernels below give the *worst-case* deviation magnitude
+// each tolerance contributes.  The error-propagation file
+// (P3 #2) composes these into a mesh-level error bound.
+//
+// Chain order 0.
+
+module tolerance_model;
+
+// Design-target nominal values for the maglev / demo configs.
+const PHI_DESIGN:    Real = 1.5707963267948966   // pi/2
+const LAMBDA_DESIGN: Real = 1.55e-6              // C-band centre
+const KAPPA_DESIGN:  Real = 1000.0               // 1/m
+
+// Worst-case absolute phase error magnitude.
+fn phase_error_magnitude(delta_phi: Real) -> Real
+    where chain_order <= 0
+    requires (delta_phi >= 0.0)
+{
+    delta_phi
+}
+
+// Worst-case wavelength deviation magnitude.
+fn wavelength_error_magnitude(delta_lambda: Real) -> Real
+    where chain_order <= 0
+    requires (delta_lambda >= 0.0)
+{
+    delta_lambda
+}
+
+// Worst-case coupler ratio deviation magnitude.
+fn kappa_error_magnitude(delta_kappa: Real) -> Real
+    where chain_order <= 0
+    requires (delta_kappa >= 0.0)
+{
+    delta_kappa
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// Zero phase tolerance (perfect manufacturing) -> zero phase
+// error.  The "ideal device" boundary point.
+@verify(lean, theorem = "tolerance_zero_phase_tolerance_zero_error")
+fn perfect_phase_certificate() -> Real
+    where chain_order <= 0
+    ensures (result == 0.0)
+{
+    0.0
+}
+
+// Phase error magnitude is non-negative whenever its tolerance
+// band is.  The witness used by error_propagation.eml.
+@verify(lean, theorem = "tolerance_phase_error_nonneg")
+fn phase_error_nonneg(delta_phi: Real) -> Real
+    where chain_order <= 0
+    requires (delta_phi >= 0.0)
+    ensures (result >= 0.0)
+{
+    delta_phi
+}
+
+// Wavelength error magnitude likewise non-negative.
+@verify(lean, theorem = "tolerance_wavelength_error_nonneg")
+fn wavelength_error_nonneg(delta_lambda: Real) -> Real
+    where chain_order <= 0
+    requires (delta_lambda >= 0.0)
+    ensures (result >= 0.0)
+{
+    delta_lambda
+}

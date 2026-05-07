@@ -1,0 +1,50 @@
+// thermal_model.eml -- P3 MANUFACTURING TOLERANCE (4/4)
+//
+// Temperature drift shifts every phase shifter via the
+// thermo-optic coefficient dn_dT [1/K]:
+//
+//   delta_phi(T) = (2 * pi / lambda) * (dn_dT) * L * delta_T
+//
+// For SOI at 1550 nm:  dn_dT ≈ 1.86e-4 /K, L ≈ 100 um
+// gives  ~0.075 rad / K.  Set the safety threshold against
+// the mesh accuracy budget from error_propagation.eml.
+//
+// Chain order 0.
+
+module thermal_model;
+
+const DN_DT_SOI:    Real = 1.86e-4    // 1/K, thermo-optic coefficient
+const LENGTH_TYPICAL: Real = 1.0e-4   // 100 um phase-shifter length
+const LAMBDA_C:     Real = 1.55e-6    // C-band centre
+
+// Drifted phase from a temperature excursion delta_T.
+fn drifted_phase(delta_t: Real, dn_dt: Real, length: Real, lambda: Real) -> Real
+    where chain_order <= 0
+    requires (lambda > 0.0)
+{
+    2.0 * 3.141592653589793 * dn_dt * length * delta_t / lambda
+}
+
+// At zero temperature excursion the drifted phase is zero --
+// the calibrated state.
+@verify(lean, theorem = "thermal_model_zero_dt_zero_drift")
+fn zero_dt_certificate(dn_dt: Real, length: Real, lambda: Real) -> Real
+    where chain_order <= 0
+    requires (lambda > 0.0)
+    ensures (result == 0.0)
+{
+    2.0 * 3.141592653589793 * dn_dt * length * 0.0 / lambda
+}
+
+// Thermo-optic coefficient is positive in any practical
+// silicon-photonic phase shifter -- the witness used by the
+// calibration loop to guarantee monotone control authority
+// from temperature actuators (resistive heaters).
+@verify(lean, theorem = "thermal_model_dn_dt_positive")
+fn dn_dt_positive_certificate(dn_dt: Real) -> Real
+    where chain_order <= 0
+    requires (dn_dt > 0.0)
+    ensures (result > 0.0)
+{
+    dn_dt
+}

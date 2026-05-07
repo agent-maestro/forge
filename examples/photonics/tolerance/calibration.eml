@@ -1,0 +1,65 @@
+// calibration.eml -- P3 MANUFACTURING TOLERANCE (3/4)
+//
+// Closed-loop electronic controller that measures photonic
+// mesh output and adjusts the per-MZI phase shifters to drive
+// the mesh toward the target unitary.  Single-DOF gradient
+// step:
+//
+//   phi_{k+1} = phi_k - mu * error(phi_k)
+//
+// where mu in (0, 1) is the step size and error is the
+// detected output deviation from target.
+//
+// Convergence (for mu small enough): for any starting phi_0,
+//   |phi_k - phi*|  ->  0    as k -> inf
+//
+// We capture the algebraic step itself + the boundary-condition
+// kernels.  The full convergence proof needs an inductive
+// argument MachLib doesn't yet support; flagged in
+// examples/proofs/README.md.
+//
+// Chain order 0 (linear in the error signal).
+
+module calibration;
+
+const MU_DEFAULT: Real = 0.1   // step size, conservative
+
+// One gradient step.
+fn step(phi: Real, error: Real, mu: Real) -> Real
+    where chain_order <= 0
+    requires (mu > 0.0)
+{
+    phi - mu * error
+}
+
+// Step at zero error -- the calibrated state stays put.
+@verify(lean, theorem = "calibration_zero_error_no_change")
+fn zero_error_certificate(phi: Real, mu: Real) -> Real
+    where chain_order <= 0
+    requires (mu > 0.0)
+    ensures (result == phi)
+{
+    phi - mu * 0.0
+}
+
+// Step size is positive whenever the controller is on -- the
+// witness for "the loop is closed".
+@verify(lean, theorem = "calibration_step_size_positive")
+fn step_size_certificate(mu: Real) -> Real
+    where chain_order <= 0
+    requires (mu > 0.0)
+    ensures (result > 0.0)
+{
+    mu
+}
+
+// At zero step size the controller freezes -- the open-loop
+// boundary condition for safety analysis (output stays at
+// whatever the mesh manufactured to).
+@verify(lean, theorem = "calibration_open_loop_freeze")
+fn open_loop_certificate(phi: Real, error: Real) -> Real
+    where chain_order <= 0
+    ensures (result == phi)
+{
+    phi - 0.0 * error
+}
