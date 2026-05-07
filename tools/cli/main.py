@@ -109,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="eml-compile",
         description=(
             "Monogate Forge -- the EML-lang compiler. "
-            "Compile one .eml source to 34 different targets: software, "
+            "Compile one .eml source to 35 different targets: software, "
             "GPU shaders, FPGA RTL, formal-verification proofs, and "
             "safety-critical avionics."
         ),
@@ -130,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
             "  Pro:   verilog, vhdl, systemverilog, chisel, llvm,\n"
             "         hlsl, glsl, glsles, wgsl, metal, swift,\n"
             "         luau, gdscript, ada, autosar, aadl, ros2,\n"
-            "         coq, isabelle, solidity, spice\n"
+            "         coq, isabelle, solidity, spice, kicad\n"
             "  Get a Pro license at https://monogateforge.com/get-started\n"
             "\n"
             "DOCS\n"
@@ -156,10 +156,11 @@ def main(argv: list[str] | None = None) -> int:
         "solidity",
         "zkproof",
         "spice",
+        "kicad",
         "all",
     ], help=("Output target. 'all' runs every backend your "
             "license tier permits (Free: 12 application + Lean + "
-            "zkproof; Pro: all 34) and writes <stem>.<ext> files "
+            "zkproof; Pro: all 35) and writes <stem>.<ext> files "
             "into --output (must be a directory) or alongside the "
             "source. See `--help` epilog for the tier list."))
     parser.add_argument("-o", "--output", type=Path,
@@ -1838,6 +1839,36 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
         else:
             print(lean_source, end="")
+        return 0
+
+    if args.target == "kicad":
+        # Phase E2 of the Math-to-Manufactured-PCB pipeline. Compile
+        # an EML circuit module to a KiCad 8 .kicad_sch schematic
+        # file. Same decorator convention as --target spice
+        # (@spice_resistor, @spice_capacitor, @spice_voltage, ...);
+        # one EML source -> simulatable netlist (spice) AND editable
+        # schematic (kicad), no duplication.
+        from software.backends.kicad_backend import (
+            KiCadBackend, CompileError as KiCadErr,
+        )
+        try:
+            kicad_result = KiCadBackend(
+                optimize=not args.no_optimize,
+            ).compile_full(mod)
+        except KiCadErr as e:
+            print(f"compile error (kicad backend): {e}", file=sys.stderr)
+            return 1
+        kicad_source = kicad_result.schematic
+        if args.output:
+            args.output.write_text(kicad_source, encoding="utf-8")
+            _maybe_write_sidecar(args.output)
+            print(f"wrote {args.output} "
+                  f"({kicad_result.component_count} component(s), "
+                  f"{kicad_result.label_count} label(s), "
+                  f"libs: {', '.join(kicad_result.used_lib_ids)})",
+                  file=sys.stderr)
+        else:
+            print(kicad_source, end="")
         return 0
 
     if args.target == "spice":

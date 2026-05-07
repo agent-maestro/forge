@@ -74,10 +74,11 @@ PRO_TARGETS: frozenset[str] = frozenset({
     "swift",
     # Gaming
     "luau", "gdscript",
-    # Hardware-design — Phase E1 of the Math-to-Manufactured-PCB
-    # pipeline. ngspice netlist emission. KiCad netlist (E2) will
-    # join this group when it lands.
+    # Hardware-design — Phases E1+E2 of the Math-to-Manufactured-PCB
+    # pipeline. ngspice netlist (E1) + KiCad 8 .kicad_sch schematic
+    # (E2). JLCPCB BOM (E3) is a CLI subcommand, not a backend.
     "spice",
+    "kicad",
 })
 
 

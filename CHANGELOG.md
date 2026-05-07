@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.0] — 2026-05-06 (Phase E2: KiCad backend, schematic emission)
+
+Backend #35 ships. Phase E2 of the math-to-PCB roadmap compiles
+the same `@spice_<component>`-decorated EML modules used by the
+SPICE backend (E1) to KiCad 8 `.kicad_sch` schematic files. One
+EML source now produces both a simulatable netlist and an
+editable schematic with no duplication.
+
+### Added
+
+- **`@target kicad`** — emits a KiCad 8 schematic file
+  (S-expression format, version `20231120`) with embedded
+  `lib_symbols` stubs so the file is self-contained: KiCad
+  opens it without requiring the standard `Device` /
+  `Simulation_SPICE` libraries to be present on disk. Component
+  types covered: R / C / L / V / I (decorator → KiCad symbol
+  mapped explicitly).
+- **Connectivity via labels.** Each pin gets a label whose text
+  equals the net name from the SPICE decoration (`a`, `b` kw).
+  KiCad treats matching label names as electrically connected,
+  so no wire-routing solver is needed for v1 schematics.
+- **Deterministic UUIDs.** All UUIDs (root, per-symbol, per-pin,
+  per-label) derive from a SHA-256 stream seeded by the module
+  name + ordered component list. Same EML in → byte-identical
+  `.kicad_sch` out, so diffs between revisions show only the
+  fields the user actually changed.
+- **CLI wiring** — `kicad` added to `--target` choices, the help
+  text ("34 → 35"), the TIERS epilog (Pro), `tools/license/
+  verifier.PRO_TARGETS`, and `tools/cli/audit._BACKEND_INVOKERS`.
+  Audit gracefully treats `no SPICE-decorated` modules as `skip`,
+  matching the existing FPGA-target convention.
+- **Tests** — 25 KiCad-specific cases covering S-expression
+  well-formedness, required top-level keys, version pinning,
+  lib_symbol pruning to used types only, reference-designator
+  matching, label connectivity counts (e.g. `in` appears at both
+  R1.pin1 and Vin.pin1), determinism, SI value pretty-printing,
+  and float-precision artifact regression.
+
+### Verification (manual — out of CI)
+
+The backend can't run KiCad in CI; structural conformance is the
+only automated check. To verify a generated schematic actually
+opens cleanly:
+
+    eml-compile examples/rc_filter.eml --target kicad -o rc_filter.kicad_sch
+    # then File > Open in KiCad 8
+
+### Deferred to E2.5 / later phases
+
+- Multi-pin devices (op-amps, MOSFETs, ICs) — the v1 layout
+  grid only knows 2-pin vertical components.
+- Hierarchical sheets / sheet pins.
+- PCB layout (`.kicad_pcb`) — planned for E4.
+- Pretty graphics on the embedded `lib_symbol` stubs (KiCad's
+  "Update Symbols from Library" replaces them with the canonical
+  pretty versions on demand).
+
+---
+
 ## [0.5.0] — 2026-05-06 (Phase E1: SPICE backend, math → manufactured PCB pipeline begins)
 
 Backend #34 ships. Phase E1 of the

@@ -109,6 +109,7 @@ _BACKEND_INVOKERS: list[tuple[str, Callable, bool]] = [
     ("wasm",          _make_software_invoke("software.backends.wasm_backend",   "Backend"), False),
     ("matlab",        _make_software_invoke("software.backends.matlab_backend", "Backend"), False),
     ("spice",         _make_software_invoke("software.backends.spice_backend",  "Backend"), False),
+    ("kicad",         _make_software_invoke("software.backends.kicad_backend",  "Backend"), False),
     ("ros2",          _make_software_invoke("software.backends.ros2_backend",   "Backend"), False),
     ("autosar",       _make_software_invoke("software.backends.autosar_backend","Backend"), False),
     ("aadl",          _make_software_invoke("software.backends.aadl_backend",   "Backend"), False),
@@ -266,6 +267,13 @@ def _try_backends(mod, has_verify: bool) -> list[BackendResult]:
                 results.append(
                     BackendResult(name=name, status="skip",
                                   error="no @target(fpga) function")
+                )
+            # SPICE / KiCad backends refuse modules lacking any
+            # @spice_<component> decoration — same shape, surface as skip.
+            elif "no SPICE-decorated" in msg:
+                results.append(
+                    BackendResult(name=name, status="skip",
+                                  error="no @spice_<component> decoration")
                 )
             else:
                 results.append(
