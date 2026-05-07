@@ -1,0 +1,75 @@
+// cmos_inverter.eml -- TIER 2: ELECTRONICS, second demo.
+//
+// CMOS inverter transfer characteristic.  Two MOSFETs (one
+// n-type, one p-type) share a gate and a drain; the gate is the
+// input node, the shared drain is the output. The output is
+// V_DD when V_in is low and 0 when V_in is high -- a digital
+// inverter.
+//
+// In the simple complementary regime (deep enough V_in that
+// only one transistor conducts), the transfer is binary:
+//
+//   V_out(0)    = V_DD       (PMOS on, NMOS off)
+//   V_out(V_DD) = 0          (NMOS on, PMOS off)
+//
+// Chain order 0 -- step function (or a smoothed sigmoid in the
+// transition region we don't model here).
+
+module cmos_inverter;
+
+const V_DD: Real = 3.3        // supply rail (V), 3.3V CMOS
+
+// Output at logic-low input.  PMOS conducts, NMOS off, output
+// pulled to the supply rail.
+fn vout_at_low_input(v_dd: Real) -> Real
+    where chain_order <= 0
+{
+    v_dd
+}
+
+// Output at logic-high input.  NMOS conducts, PMOS off, output
+// pulled to ground.
+fn vout_at_high_input() -> Real
+    where chain_order <= 0
+{
+    0.0
+}
+
+// Switching point in a symmetric sized inverter (W_p / W_n
+// chosen so the drive currents match): V_M = V_DD / 2.
+fn switching_threshold(v_dd: Real) -> Real
+    where chain_order <= 0
+{
+    v_dd * 0.5
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// At a logic-low input the output rides exactly the rail.
+@verify(lean, theorem = "cmos_low_in_high_out")
+fn low_input_certificate(v_dd: Real) -> Real
+    where chain_order <= 0
+    ensures (result == v_dd)
+{
+    v_dd
+}
+
+// At a logic-high input the output sits at ground.
+@verify(lean, theorem = "cmos_high_in_low_out")
+fn high_input_certificate() -> Real
+    where chain_order <= 0
+    ensures (result == 0.0)
+{
+    0.0
+}
+
+// Symmetric switching threshold sits at half the supply -- the
+// design point that maximises noise margin on both rails.
+@verify(lean, theorem = "cmos_threshold_positive_when_supply_positive")
+fn vm_certificate(v_dd: Real) -> Real
+    where chain_order <= 0
+    requires (v_dd > 0.0)
+    ensures (result > 0.0)
+{
+    v_dd * 0.5
+}

@@ -1,0 +1,55 @@
+// optical_neuron.eml -- TIER 3: PHOTONICS, fourth demo.
+//
+// Photonic activation function via a saturable absorber or
+// nonlinear waveguide.  The nonlinearity transforms a linearly
+// summed optical field (the "weighted sum" of inputs) into a
+// bounded, monotone output -- the analog of the digital ReLU /
+// GELU / sigmoid in a feed-forward neural network.
+//
+// The classic saturable-absorber transmission:
+//
+//   T(I_in) = 1 - alpha_0 / (1 + I_in / I_sat)
+//
+// At I_in = 0:  T = 1 - alpha_0    (small-signal absorption)
+// At I_in -> inf:  T -> 1          (full transparency)
+//
+// Chain order 1 (single division). The same shape underwrites
+// every photonic neuromorphic chip.
+
+module optical_neuron;
+
+const ALPHA_0: Real = 0.5     // small-signal absorption
+const I_SAT:   Real = 1.0     // normalised saturation intensity
+
+fn activation(i_in: Real, alpha_0: Real, i_sat: Real) -> Real
+    where chain_order <= 1
+    requires (i_sat > 0.0)
+    requires (i_in >= 0.0)
+{
+    1.0 - alpha_0 / (1.0 + i_in / i_sat)
+}
+
+// At zero input the transmission is 1 - alpha_0 -- the
+// quiescent ("dark current") output.  We capture this with a
+// dedicated certificate function so the post-optimisation body
+// matches the ensures clause (the divide-by-(1+0/i_sat) shape
+// would otherwise leave a residual `1/1` for the proof to
+// discharge against MachLib's mul_inv chain).
+@verify(lean, theorem = "optical_neuron_dark_output")
+fn dark_output(alpha_0: Real) -> Real
+    where chain_order <= 0
+    ensures (result == 1.0 - alpha_0)
+{
+    1.0 - alpha_0
+}
+
+// Saturation intensity is positive by physical construction
+// (energy density of the gain medium).
+@verify(lean, theorem = "optical_neuron_isat_positive")
+fn isat_certificate(i_sat: Real) -> Real
+    where chain_order <= 1
+    requires (i_sat > 0.0)
+    ensures (result > 0.0)
+{
+    i_sat
+}

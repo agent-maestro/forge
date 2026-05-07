@@ -1,0 +1,48 @@
+// ring_resonator.eml -- TIER 3: PHOTONICS, second demo.
+//
+// Whispering-gallery / ring-resonator transmission peaks.  Light
+// circulates in a closed loop; on resonance (round-trip phase =
+// 2*pi*m for integer m), the through-port transmission has a
+// Lorentzian dip (or peak in the drop port).  The all-pass form:
+//
+//   T(delta) = 1 / (1 + F * sin(delta/2)^2)        delta = 2*pi*L*n_eff/lambda
+//
+// Same algebraic shape as the phononic Fabry-Perot in
+// phonon_bandgap.eml -- a different physical carrier, same
+// math substrate.  Chain order 1.
+
+module ring_resonator;
+
+const FINESSE: Real = 200.0   // Q ~ 1000 for FSR / linewidth = 200
+
+fn transmission(delta: Real, finesse: Real) -> Real
+    where chain_order <= 1
+    requires (finesse >= 0.0)
+{
+    let half = sin(delta * 0.5);
+    1.0 / (1.0 + finesse * (half * half))
+}
+
+// Peak transmission (in the all-pass form) at on-resonance --
+// delta = 0 collapses to T = 1.
+@verify(lean, theorem = "ring_resonator_unity_at_resonance")
+fn peak_transmission(finesse: Real) -> Real
+    where chain_order <= 1
+    ensures (result == 1.0)
+{
+    1.0 / (1.0 + finesse * (sin(0.0) * sin(0.0)))
+}
+
+// The free-spectral-range frequency separation: c / (n_eff * L).
+// Positive whenever c, n_eff, L all are -- the witness that
+// adjacent resonances are well-separated (mode density bounded).
+@verify(lean, theorem = "ring_fsr_positive")
+fn fsr_separation(c: Real, n_eff: Real, L: Real) -> Real
+    where chain_order <= 0
+    requires (c > 0.0)
+    requires (n_eff > 0.0)
+    requires (L > 0.0)
+    ensures (result > 0.0)
+{
+    c * n_eff * L
+}

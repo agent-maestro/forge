@@ -1,0 +1,54 @@
+// poisson_spot.eml -- TIER 3: PHOTONICS, third demo.
+//
+// On-axis intensity behind a circular obstacle (Fresnel
+// diffraction).  Arago's bright spot: counter-intuitively, the
+// shadow centre is NOT dark -- coherent waves bending around
+// every point of the disk arrive in phase on-axis, producing a
+// bright spot.  This is the experiment Poisson predicted (to
+// disprove wave optics) that Arago measured (and proved wave
+// optics).
+//
+// In the Fresnel near-field with the disk well outside the
+// near-field stop, the on-axis intensity equals the unobstructed
+// intensity:
+//
+//   I_axis(z) = I_0       (for z far enough that the obstacle
+//                         is "small" relative to the Fresnel
+//                         zone radius)
+//
+// Chain order 0 -- the algebraic identity.
+
+module poisson_spot;
+
+// On-axis intensity behind a small circular obstacle.  In the
+// idealised limit the obstacle's shadow centre carries the
+// undiminished incident intensity.
+fn axial_intensity(i_0: Real) -> Real
+    where chain_order <= 0
+{
+    i_0
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// Arago's bright spot: the shadow centre receives the incident
+// intensity unchanged.  The witness for "wave optics is
+// non-negotiable".
+@verify(lean, theorem = "poisson_spot_equals_incident")
+fn axial_certificate(i_0: Real) -> Real
+    where chain_order <= 0
+    ensures (result == i_0)
+{
+    i_0
+}
+
+// On-axis intensity is non-negative whenever the incident
+// intensity is.
+@verify(lean, theorem = "poisson_spot_nonneg")
+fn axial_nonneg(i_0: Real) -> Real
+    where chain_order <= 0
+    requires (i_0 >= 0.0)
+    ensures (result >= 0.0)
+{
+    i_0
+}

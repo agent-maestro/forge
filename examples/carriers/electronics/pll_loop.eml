@@ -1,0 +1,63 @@
+// pll_loop.eml -- TIER 2: ELECTRONICS, third demo.
+//
+// Phase-locked loop dynamics, type-1 (no integrator).  In the
+// linearised tracking regime the phase-error obeys:
+//
+//   d_phi(t) / dt = -K * sin(d_phi(t)) ~ -K * d_phi(t)   (small-angle)
+//
+// where K = K_VCO * K_PD is the loop gain.  A locked PLL has
+// d_phi -> 0; the locked steady-state phase error is zero, the
+// VCO control voltage is constant, and the output frequency
+// matches the reference.
+//
+// Chain order 0 (algebraic; small-angle approximation pulls the
+// trig out of the chain).
+
+module pll_loop;
+
+const K_VCO: Real = 1.0e6     // Hz/V, VCO sensitivity
+const K_PD:  Real = 0.5       // V/rad, phase-detector gain
+
+// Loop gain.  Larger K -> faster lock, smaller residual phase
+// error in the steady state, higher loop bandwidth.
+fn loop_gain(k_vco: Real, k_pd: Real) -> Real
+    where chain_order <= 0
+{
+    k_vco * k_pd
+}
+
+// Steady-state phase error in a locked, type-1 PLL with a
+// constant frequency offset df: e_ss = df / K. Demonstrated
+// here with df = 0 (matched reference) -> error = 0.
+fn steady_state_error_at_zero_offset(k: Real) -> Real
+    where chain_order <= 0
+    requires (k > 0.0)
+{
+    0.0 / k
+}
+
+// ── Mathematical certificates (Lean) ────────────────────────
+
+// Loop gain is positive whenever both stage gains are.  The
+// witness for "the loop will lock" -- a non-positive K either
+// stalls (K=0) or runs away (K<0).
+@verify(lean, theorem = "pll_loop_gain_positive")
+fn loop_gain_certificate(k_vco: Real, k_pd: Real) -> Real
+    where chain_order <= 0
+    requires (k_vco > 0.0)
+    requires (k_pd > 0.0)
+    ensures (result > 0.0)
+{
+    k_vco * k_pd
+}
+
+// At zero frequency offset the locked steady-state phase error
+// is exactly zero -- the lock IS the proof of zero residual.
+@verify(lean, theorem = "pll_zero_offset_zero_phase_error")
+fn ss_error_certificate(k: Real) -> Real
+    where chain_order <= 0
+    requires (k > 0.0)
+    ensures (result == 0.0)
+{
+    0.0 / k
+}
