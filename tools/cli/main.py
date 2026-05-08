@@ -843,7 +843,17 @@ def main(argv: list[str] | None = None) -> int:
         try:
             from software.backends.wgsl_backend import WGSLBackend
             wg_path = out_dir / f"{stem}.wgsl"
-            wg_src = WGSLBackend(optimize=not args.no_optimize).compile(mod)
+            # `namespace_constants=args.namespace_emitted_consts` to mirror the
+            # single-target dispatch at the bottom of this module — the
+            # multi-target loop was silently dropping the flag, so a
+            # multi-target compile produced bare `ZERO`/`ONE`/`PI` while a
+            # `--target wgsl` compile of the same source produced
+            # `<module>__ZERO`. That asymmetry tripped the engine's drift-
+            # check (which assumes the two backends agree).
+            wg_src = WGSLBackend(
+                optimize=not args.no_optimize,
+                namespace_constants=args.namespace_emitted_consts,
+            ).compile(mod)
             wg_path.write_text(wg_src, encoding="utf-8")
             results.append(("wgsl", wg_path, len(wg_src)))
         except Exception as e:  # noqa: BLE001
