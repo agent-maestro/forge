@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased] — first publicly-supported PyPI release
+
+The repository is flipping from PRIVATE to PUBLIC on GitHub and
+the wheel becomes the **first publicly-supported release** on
+PyPI. The earlier `0.1.0` and `0.2.0` tags on PyPI were
+exploratory placeholder pushes from internal experimentation;
+this is the version the README, the documentation site, and the
+monogate-engine consumer all assume people are installing.
+
+### Added
+
+- **`CODE_OF_CONDUCT.md`** — Contributor Covenant 2.1, contact
+  `contact@monogate.dev`. GitHub's community-health widget will
+  surface it.
+- **`SECURITY.md`** — coordinated-disclosure policy with a
+  90-day window. In scope: codegen correctness regressions,
+  license-token bypass, parser/loader path-traversal or
+  RCE, supply-chain attacks. Email `contact@monogate.dev`
+  with subject `[forge security]`.
+- **`.env.example`** — documents `MACHLIB_ROOT`, `MONOGATE_LICENSE`,
+  and `MONOGATE_ZK_BIN` so external contributors know which
+  environment variables the verification + Pro-license + ZK paths
+  consume.
+
+### Changed
+
+- `pyproject.toml` author + maintainer email set to the
+  project-level `contact@monogate.dev` (was a personal Gmail
+  address that PyPI scrapers would index immediately).
+- `tools/forge_graph.py:39` — internal Windows-machine path
+  comment removed.
+
+### Removed
+
+- `AGENT_FORGE.md` — internal agent-handoff scaffolding that
+  leaked Windows dev-machine paths and cross-repo references to
+  private siblings. Untracked + gitignored.
+- **`roadmap/business/` and `patents/strategy/` removed from
+  git history entirely.** These directories held internal
+  pricing strategy, beachhead customer profiles, certification
+  partner agreements, patent filing timelines, and prior-art
+  notes. The pricing tier model itself remains public — see
+  `README.md`'s Free/Pro/Enterprise/Silicon table — but the
+  internal sales motions and patent-filing schedule should not
+  be a competitor's first stop. Files remain on disk for local
+  reference; the `.gitignore` blocks future re-staging. History
+  was rewritten via `git filter-repo --invert-paths` so the
+  files are unrecoverable from any commit; if you cloned
+  from a snapshot before this release, please re-clone.
+
+### Fixed
+
+- (none in this release; see `0.12.0` for the substantive feature
+  set this version inherits.)
+
+### Notes for first-time installers
+
+```bash
+pip install monogate-forge
+eml-compile --version  # should print this version
+eml-compile examples/hello.eml --target rust -o /tmp/hello.rs
+```
+
+If you hit an issue, please open a GitHub issue against
+`agent-maestro/forge` (NOT a security report — see `SECURITY.md`
+for those).
+
+---
+
 ## [0.12.0] — 2026-05-06 (P2-P6: Verified Photonic Computing pipeline complete)
 
 The full verified-photonic-computing pipeline ships in one
