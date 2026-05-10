@@ -172,3 +172,21 @@ industries/**/build/
 # contributors.
 AGENT_FORGE.md
 .claude/
+
+# Internal business + patent strategy — never publish.
+#
+# Pricing intent + tier table are already public in README.md and
+# in the (now-untracked) roadmap/business/pricing.md mirror. Sales
+# motions, beachhead lists, partner agreements, patent filing
+# timelines, and prior-art notes are NOT public-facing. Keep them
+# on disk for local reference but out of git so they don't ship in
+# the public repo.
+#
+# NOTE: these files were tracked in earlier commits before this
+# rule landed. Untracking only stops FUTURE staging — the historic
+# contents are still recoverable from git log on commits before
+# this one. To remove them from history (required before any
+# public push), run `git filter-repo --path roadmap/business/
+# --path patents/strategy/ --invert-paths` and force-push.
+roadmap/business/
+patents/strategy/
