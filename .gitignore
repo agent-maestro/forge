@@ -166,3 +166,9 @@ desktop.ini
 # ──────────────────────────────────────────────────────────────────
 industries/
 industries/**/build/
+
+# Internal agent / dev scaffolding — leak Windows-machine paths
+# and cross-repo private-sibling references; no use to outside
+# contributors.
+AGENT_FORGE.md
+.claude/

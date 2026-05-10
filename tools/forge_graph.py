@@ -36,7 +36,7 @@ for stream in (sys.stdout, sys.stderr):
             pass
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent  # = D:/monogate-forge
+REPO_ROOT = Path(__file__).resolve().parent.parent  # forge repo root
 
 
 # ── Config: targets + classifications ─────────────────────────────────

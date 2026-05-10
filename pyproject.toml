@@ -9,11 +9,11 @@ description = "EML language and compiler for verified mathematical computation. 
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
-    { name = "Arturo R. Almaguer", email = "almaguer1986@gmail.com" },
+    { name = "Arturo R. Almaguer", email = "hi@monogate.dev" },
     { name = "Mosa Creates LLC" },
 ]
 maintainers = [
-    { name = "Arturo R. Almaguer", email = "almaguer1986@gmail.com" },
+    { name = "Arturo R. Almaguer", email = "hi@monogate.dev" },
 ]
 keywords = [
     "compiler",
