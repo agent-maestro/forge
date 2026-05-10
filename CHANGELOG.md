@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased] — first publicly-supported PyPI release
+## [0.12.1] — 2026-05-10 (first publicly-supported PyPI release)
 
 The repository is flipping from PRIVATE to PUBLIC on GitHub and
 the wheel becomes the **first publicly-supported release** on
@@ -59,8 +59,18 @@ monogate-engine consumer all assume people are installing.
 
 ### Fixed
 
-- (none in this release; see `0.12.0` for the substantive feature
-  set this version inherits.)
+- **`eml-compile --version` now reports the actual installed
+  version**, sourced from `importlib.metadata.version("monogate-forge")`
+  at runtime. The string was previously hardcoded as `0.4.0` in
+  `tools/cli/main.py:356` and would have shipped wrong against the
+  README's `pip install monogate-forge` quickstart.
+- **README's `hello.rs` snippet now matches actual codegen.** The
+  prior version of the README showed an aspirational `#[inline(always)]
+  + debug_assert! + clean expressions` form; real output is
+  `pub fn + assert! with panic message + parenthesised expressions
+  + use monogate_sys::*`. Header updated to explain the doc-comment
+  metadata block (chain order / cost class / drift risk / FPGA cycle
+  estimate) that ships on every emitted function.
 
 ### Notes for first-time installers
 

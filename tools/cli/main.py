@@ -21,6 +21,20 @@ import argparse
 import sys
 from pathlib import Path
 
+# Resolve the package version from installed metadata so `--version`
+# always tracks pyproject.toml. Falls back to the literal string only
+# if the package isn't installed (rare — e.g. running from a checkout
+# without `pip install -e .`).
+try:
+    from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+    try:
+        _VERSION = _pkg_version("monogate-forge")
+    except PackageNotFoundError:
+        _VERSION = "0.0.0+source"
+except ImportError:  # pragma: no cover — Python <3.8 unsupported
+    _VERSION = "0.0.0+source"
+
 # Make the repo root importable when this script is invoked directly
 # (e.g. `python tools/cli/main.py ...`). When installed via pip /
 # pyproject scripts entry, Python's import system handles this for us.
@@ -353,7 +367,7 @@ def main(argv: list[str] | None = None) -> int:
                              "text. Recommended for CI dashboards "
                              "and agents.")
     parser.add_argument("--version", action="version",
-                        version="eml-compile 0.4.0")
+                        version=f"eml-compile {_VERSION}")
     args = parser.parse_args(argv)
 
     if not args.source:

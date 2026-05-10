@@ -50,15 +50,27 @@ eml-compile hello.eml --target lean -o Hello.lean
 A snippet of `hello.rs`:
 
 ```rust
-#[inline(always)]
+use monogate_sys::*;
+
+/// pid
+/// Chain order: 0     Cost class: p0-d2-w0-c0
+/// EML depth:   2  Drift risk: LOW
+/// Dynamics:    0 osc, 0 decay  (predicted_r=0)
+/// FPGA est:   2 MAC, 0 exp, 0 ln, 0 trig -> 4 cy @ 32-bit
 pub fn pid(error: f64, integral: f64, derivative: f64) -> f64 {
-    debug_assert!((-1.0_f64) <= error && error <= 1.0_f64);
+    assert!((((-1.0) <= error) && (error <= 1.0)), "pid: requires ((((-1.0) <= error) && (error <= 1.0)))");
     let kp: f64 = 1.0;
     let ki: f64 = 0.2;
     let kd: f64 = 0.3;
-    kp * error + ki * integral + kd * derivative
+    (((kp * error) + (ki * integral)) + (kd * derivative))
 }
 ```
+
+Every emitted function carries its EML profile (chain order, cost
+class, drift risk, FPGA cycle estimate) in the doc-comment header
+so a reviewer can see the analysis without leaving the file. The
+`requires` contract from the EML source becomes a runtime `assert!`
+with the offending expression in the panic message.
 
 Five-minute tour: [`docs/quickstart.md`](docs/quickstart.md). Full tutorial: [monogate.dev/learn/eml/intro](https://monogate.dev/learn/eml/intro).
 
