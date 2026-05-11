@@ -64,6 +64,27 @@ _LIVE_TARGETS = {
 _PLANNED_TARGETS: dict[str, str] = {}
 
 
+def _find_proofs_root(source: Path) -> Path | None:
+    """Walk up from source.parent looking for a `proofs/` directory.
+
+    Used by --auto-theorems (safety) to place the Lean stub next
+    to the existing kernel proof files. MGE convention:
+        monogate-engine/eml/<category>/foo.eml  ←  source
+        monogate-engine/proofs/Proofs/Foo.lean  ←  destination
+
+    Returns the `proofs/` dir, or None if not found within 6 levels.
+    """
+    cur = source.parent.resolve()
+    for _ in range(6):
+        candidate = cur / "proofs"
+        if candidate.is_dir() and (candidate / "Proofs").is_dir():
+            return candidate
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+    return None
+
+
 def _print_profile_summary(mod) -> None:
     """One-line profile for each function. Used when --profile-only."""
     print(f"# Module: {mod.name or '(unnamed)'}  "
@@ -652,6 +673,37 @@ def main(argv: list[str] | None = None) -> int:
             print(f"--auto-theorems: wrote {dest} "
                   f"({dest.stat().st_size} bytes)",
                   file=sys.stderr)
+
+        # Phase 1 Moat 1 step 3 — also emit safety theorem stubs
+        # for any @verify(<safety_class>, ...) annotations.
+        try:
+            from software.verification.safety import (
+                SafetyBackend, emit_lean_stub, write_lean_stub,
+            )
+            backend = SafetyBackend()
+            source_text = args.source.read_text(encoding="utf-8")
+            safety_results = backend.run_on_source(
+                source_text, kernel_name=args.source.stem)
+            # The Lean output goes next to the kernel's existing
+            # Proofs/ dir if any (looking up two levels from
+            # eml/<category>/foo.eml → proofs/Proofs/), or to the
+            # source's parent if no convention found.
+            engine_root = _find_proofs_root(args.source)
+            proofs_dir = engine_root / "Proofs" if engine_root else \
+                args.source.parent
+            for r in safety_results:
+                if r.declared_max_freq_hz is None:
+                    continue
+                try:
+                    emit = emit_lean_stub(r, proofs_root=proofs_dir)
+                    written = write_lean_stub(emit)
+                    print(f"--auto-theorems (safety): wrote {written} "
+                          f"({written.stat().st_size} bytes)",
+                          file=sys.stderr)
+                except NotImplementedError:
+                    pass  # Phase 2+ classes not yet supported
+        except ImportError:
+            pass  # safety module not installed -- skip silently
 
     # ── --explain -> per-function optimizer diff ─────────────
     if args.explain:

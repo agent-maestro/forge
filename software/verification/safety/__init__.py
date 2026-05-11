@@ -25,6 +25,12 @@ from .safety_backend import (
     TemporalFrequencyAnalyzer,
     analyze_file,
 )
+from .lean_emit import (
+    LeanEmitResult,
+    emit_lean_stub,
+    write_lean_stub,
+    kernel_name_to_module_path,
+)
 
 __all__ = [
     "SafetyBackend",
@@ -33,4 +39,8 @@ __all__ = [
     "SafetyViolation",
     "TemporalFrequencyAnalyzer",
     "analyze_file",
+    "LeanEmitResult",
+    "emit_lean_stub",
+    "write_lean_stub",
+    "kernel_name_to_module_path",
 ]
