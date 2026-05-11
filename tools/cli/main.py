@@ -350,6 +350,24 @@ def main(argv: list[str] | None = None) -> int:
                              "without this flag behaviour is byte-identical to "
                              "pre-v0.5. Warnings are emitted to stderr; the "
                              "compile still succeeds.")
+    parser.add_argument("--strict-safety", action="store_true",
+                        default=False,
+                        help="(Phase 1 Moat 1) Make @verify(<safety_class>, ...) "
+                             "violations on confidence = 'advisory' or "
+                             "'unsupported' also abort compilation (default: "
+                             "only 'verified' and 'static_analysis' violations "
+                             "abort). Use this in CI to enforce safety claims "
+                             "strictly. See "
+                             "monogate-research/roadmap/safety-verification-"
+                             "protocol.md for the contract.")
+    parser.add_argument("--skip-safety", action="store_true",
+                        default=False,
+                        help="(Phase 1 Moat 1) Skip the safety-check phase. "
+                             "Compilation proceeds even if @verify(safety = ...) "
+                             "annotations would otherwise abort. EMERGENCY USE "
+                             "ONLY — bypasses photosensitivity, motion-sickness, "
+                             "and other formal safety guarantees. Logs the "
+                             "skip to stderr.")
     parser.add_argument("--explain", action="store_true",
                         help="Print a per-function diff showing which "
                              "optimizer passes fired, before/after "
@@ -503,6 +521,27 @@ def main(argv: list[str] | None = None) -> int:
 
     profiler = Profiler()
     profiler.profile_module(mod)
+
+    # ── Phase 1 Moat 1: safety check (@verify(<safety_class>, ...)) ─
+    # Runs the SafetyBackend across the parsed module's source.
+    # Aborts compilation on confidence ∈ {verified, static_analysis} +
+    # VIOLATION. Warns on advisory + unsupported (documented gaps).
+    # --strict-safety: also abort on advisory + unsupported.
+    # --skip-safety: bypass (emergency use; logs to stderr).
+    # Backward-compatible: kernels with no @verify(safety = ...)
+    # annotations get a silent no-op.
+    try:
+        from lang.safety import check_module as _safety_check, SafetyError
+        _safety_check(
+            args.source,
+            strict=getattr(args, "strict_safety", False),
+            skip=getattr(args, "skip_safety", False),
+        )
+    except SafetyError as e:
+        print(str(e), file=sys.stderr)
+        return 1
+    except ImportError:
+        pass  # lang.safety not yet installed in older envs -- skip silently
 
     # ── Fingerprint (Phase 0 of the Verification Network) ────
     # Computed once after profiling so the deterministic profile
