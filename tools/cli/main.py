@@ -144,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="eml-compile",
         description=(
             "Monogate Forge -- the EML-lang compiler. "
-            "Compile one .eml source to 35 different targets: software, "
+            "Compile one .eml source to 36 different targets: software, "
             "GPU shaders, FPGA RTL, formal-verification proofs, and "
             "safety-critical avionics."
         ),
@@ -195,8 +195,8 @@ def main(argv: list[str] | None = None) -> int:
         "jlcpcb",
         "all",
     ], help=("Output target. 'all' runs every backend your "
-            "license tier permits (Free: 12 application + Lean + "
-            "zkproof; Pro: all 35 + jlcpcb bundle) and writes <stem>.<ext> files "
+            "license tier permits (Free: 13 targets including "
+            "zkproof; Pro: 23 additional targets) and writes <stem>.<ext> files "
             "into --output (must be a directory) or alongside the "
             "source. See `--help` epilog for the tier list."))
     parser.add_argument("-o", "--output", type=Path,

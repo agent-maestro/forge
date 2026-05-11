@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/pypi/pyversions/monogate-forge.svg)](https://pypi.org/project/monogate-forge/)
 
-**Forge is the EML language and compiler. Write a math kernel once, compile it to 33 different targets — software, GPU shaders, FPGA RTL, formal-verification proofs, and safety-critical avionics — with chain-order analysis and Lean-checkable contracts on every function.**
+**Forge is the EML language and compiler. Write a math kernel once, compile it to 36 targets — software, GPU shaders, FPGA RTL, manufacturing artifacts, formal-verification proofs, and safety-critical avionics — with chain-order analysis and Lean-checkable contracts on every function.**
 
 ---
 
@@ -78,7 +78,7 @@ Five-minute tour: [`docs/quickstart.md`](docs/quickstart.md). Full tutorial: [mo
 
 ## What you get
 
-**33 backends.** Every kernel compiles to all of these from the same source.
+**36 targets.** Every kernel compiles to all of these from the same source.
 
 ### Software (general-purpose)
 | Target | Flag | Tier |
@@ -118,6 +118,13 @@ Five-minute tour: [`docs/quickstart.md`](docs/quickstart.md). Full tutorial: [mo
 | VHDL | `--target vhdl` | Pro |
 | Chisel / FIRRTL | `--target chisel` | Pro |
 
+### Manufacturing / circuits
+| Target | Flag | Tier |
+|---|---|---|
+| spice | `--target spice` | Pro |
+| kicad | `--target kicad` | Pro |
+| jlcpcb | `--target jlcpcb` | Pro |
+
 ### Formal verification
 | Target | Flag | Tier |
 |---|---|---|
@@ -149,7 +156,7 @@ Five-minute tour: [`docs/quickstart.md`](docs/quickstart.md). Full tutorial: [mo
 |---|---|---|
 | Plonky2 ZK circuits (research) | `--target zkproof` | Free |
 
-The Free tier — 13 targets covering general-purpose software (C, C++, Rust, Python, Go, Java, Kotlin, C#, JavaScript), web/edge runtimes (WebAssembly), MATLAB, Lean 4 proofs, and the research-tier Plonky2 ZK prover — is enough to take any EML kernel from your laptop to the browser to a formal proof without a license. A Pro license unlocks the remaining 20: hardware (Verilog, VHDL, SystemVerilog, Chisel, LLVM IR), GPU shaders (HLSL, GLSL, GLSL ES, WGSL, Metal), Apple Swift, safety-critical (Ada, AUTOSAR, AADL, ROS 2), Coq, Isabelle/HOL, Solidity, and gaming (Luau, GDScript). Get a license at [monogateforge.com/get-started](https://monogateforge.com/get-started).
+The Free tier — 13 targets covering general-purpose software (C, C++, Rust, Python, Go, Java, Kotlin, C#, JavaScript), web/edge runtimes (WebAssembly), MATLAB, Lean 4 proofs, and the research-tier `zkproof` target — is enough to take any EML kernel from your laptop to the browser to a formal proof without a license. A Pro license unlocks the remaining 23: hardware (Verilog, VHDL, SystemVerilog, Chisel, LLVM IR), manufacturing/circuits (spice, kicad, jlcpcb), GPU shaders (HLSL, GLSL, GLSL ES, WGSL, Metal), Apple Swift, safety-critical (Ada, AUTOSAR, AADL, ROS 2), Coq, Isabelle/HOL, Solidity, and gaming (Luau, GDScript). Get a license at [monogateforge.com/get-started](https://monogateforge.com/get-started).
 
 ---
 
