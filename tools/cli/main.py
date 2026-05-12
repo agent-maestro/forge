@@ -10,9 +10,8 @@ Phase 1 + 2.1 surface live today:
     eml-compile <file.eml> --target c       # emit C99 to stdout
     eml-compile <file.eml> --target c -o out.c
 
-Targets that print "not built yet" gracefully: rust, python, llvm,
-wasm, verilog, vhdl, chisel, lean. Each lands per the phase plan
-in roadmap/phases/.
+All parser-accepted targets are wired. License tiering is defined
+in tools/license/verifier.py and mirrored by ORDERED_TARGETS below.
 """
 
 from __future__ import annotations
@@ -53,11 +52,27 @@ for stream in (sys.stdout, sys.stderr):
             pass
 
 
-# Backends that are wired today.
-_LIVE_TARGETS = {
-    "c", "rust", "python", "llvm", "wasm",
-    "verilog", "vhdl", "chisel", "lean",
-}
+from tools.license.verifier import FREE_TARGETS, PRO_TARGETS
+
+
+# Single ordered target registry for argparse choices and --target all.
+# Tier membership is intentionally imported from tools/license/verifier.py,
+# so the CLI path cannot drift from license enforcement.
+ORDERED_TARGETS: tuple[str, ...] = (
+    "c", "cpp", "rust", "python", "go", "java", "kotlin", "csharp",
+    "javascript", "wasm", "matlab", "lean", "zkproof",
+    "verilog", "systemverilog", "vhdl", "chisel", "llvm",
+    "hlsl", "glsl", "glsles", "wgsl", "metal", "swift",
+    "ada", "autosar", "aadl", "ros2", "coq", "isabelle",
+    "solidity", "luau", "gdscript", "spice", "kicad", "jlcpcb",
+)
+
+TARGET_CHOICES: tuple[str, ...] = (*ORDERED_TARGETS, "all")
+
+
+def target_all_expansion() -> tuple[str, ...]:
+    """Return the deterministic --target all expansion order."""
+    return ORDERED_TARGETS
 
 # Backends that print "not built yet" with a phase pointer. Empty
 # now -- every target the parser accepts is wired.
@@ -178,23 +193,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("source", type=Path, nargs="?",
                         help="Path to a .eml source file")
-    parser.add_argument("--target", choices=[
-        "c", "cpp", "rust", "python", "llvm", "wasm",
-        "verilog", "systemverilog", "vhdl", "chisel", "lean",
-        "ada", "matlab",
-        "coq", "isabelle", "ros2",
-        "java", "kotlin", "csharp", "hlsl", "glsl", "glsles",
-        "wgsl", "metal", "swift",
-        "javascript", "luau",
-        "gdscript",
-        "go", "autosar", "aadl",
-        "solidity",
-        "zkproof",
-        "spice",
-        "kicad",
-        "jlcpcb",
-        "all",
-    ], help=("Output target. 'all' runs every backend your "
+    parser.add_argument("--target", choices=TARGET_CHOICES,
+                        help=("Output target. 'all' runs every target your "
             "license tier permits (Free: 13 targets including "
             "zkproof; Pro: 23 additional targets) and writes <stem>.<ext> files "
             "into --output (must be a directory) or alongside the "
@@ -749,7 +749,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"# fingerprint: {sidecar}", file=sys.stderr)
         return 0
 
-    # ── --target all -> run every live backend ────────────────
+    # ── --target all -> run every target permitted by tier ─────
     if args.target == "all":
         out_dir = args.output if args.output else args.source.parent
         if out_dir.exists() and not out_dir.is_dir() and args.output:
@@ -772,16 +772,21 @@ def main(argv: list[str] | None = None) -> int:
                 sidecar.write_text(payload, encoding="utf-8")
             print(f"# fingerprint: {sidecar}", file=sys.stderr)
 
-        # Per-iteration license gate. Pro backends short-circuit
+        # Per-iteration license gate. Pro targets short-circuit
         # by raising _ProTierRequired, which is caught explicitly
         # before each block's generic `except Exception` so the
         # skip lands in `skipped_pro` instead of being mis-labeled
         # as a runtime error.
         is_pro = license_ is not None and license_.tier == "pro"
-        skipped_pro: list[str] = []
+        skipped_pro: set[str] = set()
 
         class _ProTierRequired(Exception):
             pass
+
+        def _require_pro(target: str) -> None:
+            if not is_pro:
+                skipped_pro.add(target)
+                raise _ProTierRequired
 
         # C
         from software.backends.c_backend import CBackend
@@ -803,7 +808,7 @@ def main(argv: list[str] | None = None) -> int:
 
         # Ada / SPARK (writes .ads + .adb) — Pro tier
         try:
-            if not is_pro: skipped_pro.append("ada"); raise _ProTierRequired
+            _require_pro("ada")
             from software.backends.ada_backend import AdaBackend
             ada_art = AdaBackend(optimize=not args.no_optimize).compile_full(mod)
             ads_path = out_dir / f"{stem}.ads"
@@ -831,7 +836,7 @@ def main(argv: list[str] | None = None) -> int:
 
         # Coq (only if any @verify block) — Pro tier
         try:
-            if not is_pro: skipped_pro.append("coq"); raise _ProTierRequired
+            _require_pro("coq")
             from software.verification.coq.coq_backend import CoqBackend
             coq_src = CoqBackend(optimize=not args.no_optimize).compile(mod)
             if coq_src:
@@ -846,7 +851,7 @@ def main(argv: list[str] | None = None) -> int:
 
         # Isabelle/HOL (only if any @verify block) — Pro tier
         try:
-            if not is_pro: skipped_pro.append("isabelle"); raise _ProTierRequired
+            _require_pro("isabelle")
             from software.verification.isabelle.isabelle_backend import (
                 IsabelleBackend,
             )
@@ -898,17 +903,21 @@ def main(argv: list[str] | None = None) -> int:
 
         # HLSL shader function library
         try:
+            _require_pro("hlsl")
             from software.backends.hlsl_backend import HLSLBackend
             hl_path = out_dir / f"{stem}.hlsl"
             hl_src = HLSLBackend(optimize=not args.no_optimize).compile(mod)
             hl_path.write_text(hl_src, encoding="utf-8")
             results.append(("hlsl", hl_path, len(hl_src)))
+        except _ProTierRequired:
+            pass
         except Exception as e:  # noqa: BLE001
             results.append(("hlsl", Path("<skipped>"), 0))
             print(f"  hlsl skipped: {e}", file=sys.stderr)
 
         # GLSL desktop function library (Godot, OpenGL 3.3+)
         try:
+            _require_pro("glsl")
             from software.backends.glsl_backend import GLSLBackend
             gl_path = out_dir / f"{stem}.glsl"
             gl_src = GLSLBackend(
@@ -916,12 +925,15 @@ def main(argv: list[str] | None = None) -> int:
             ).compile(mod)
             gl_path.write_text(gl_src, encoding="utf-8")
             results.append(("glsl", gl_path, len(gl_src)))
+        except _ProTierRequired:
+            pass
         except Exception as e:  # noqa: BLE001
             results.append(("glsl", Path("<skipped>"), 0))
             print(f"  glsl skipped: {e}", file=sys.stderr)
 
         # GLSL ES function library (WebGL 2.0, mobile OpenGL ES 3.0)
         try:
+            _require_pro("glsles")
             from software.backends.glsl_backend import GLSLBackend
             gles_path = out_dir / f"{stem}.glsles"
             gles_src = GLSLBackend(
@@ -929,23 +941,29 @@ def main(argv: list[str] | None = None) -> int:
             ).compile(mod)
             gles_path.write_text(gles_src, encoding="utf-8")
             results.append(("glsles", gles_path, len(gles_src)))
+        except _ProTierRequired:
+            pass
         except Exception as e:  # noqa: BLE001
             results.append(("glsles", Path("<skipped>"), 0))
             print(f"  glsles skipped: {e}", file=sys.stderr)
 
         # GDScript (Godot 4.x)
         try:
+            _require_pro("gdscript")
             from software.backends.gdscript_backend import GDScriptBackend
             gd_path = out_dir / f"{stem}.gd"
             gd_src = GDScriptBackend(optimize=not args.no_optimize).compile(mod)
             gd_path.write_text(gd_src, encoding="utf-8")
             results.append(("gdscript", gd_path, len(gd_src)))
+        except _ProTierRequired:
+            pass
         except Exception as e:  # noqa: BLE001
             results.append(("gdscript", Path("<skipped>"), 0))
             print(f"  gdscript skipped: {e}", file=sys.stderr)
 
         # WGSL (WebGPU)
         try:
+            _require_pro("wgsl")
             from software.backends.wgsl_backend import WGSLBackend
             wg_path = out_dir / f"{stem}.wgsl"
             # `namespace_constants=args.namespace_emitted_consts` to mirror the
@@ -961,28 +979,36 @@ def main(argv: list[str] | None = None) -> int:
             ).compile(mod)
             wg_path.write_text(wg_src, encoding="utf-8")
             results.append(("wgsl", wg_path, len(wg_src)))
+        except _ProTierRequired:
+            pass
         except Exception as e:  # noqa: BLE001
             results.append(("wgsl", Path("<skipped>"), 0))
             print(f"  wgsl skipped: {e}", file=sys.stderr)
 
         # Metal (Apple iOS / macOS / iPadOS shaders)
         try:
+            _require_pro("metal")
             from software.backends.metal_backend import MetalBackend
             mt_path = out_dir / f"{stem}.metal"
             mt_src = MetalBackend(optimize=not args.no_optimize).compile(mod)
             mt_path.write_text(mt_src, encoding="utf-8")
             results.append(("metal", mt_path, len(mt_src)))
+        except _ProTierRequired:
+            pass
         except Exception as e:  # noqa: BLE001
             results.append(("metal", Path("<skipped>"), 0))
             print(f"  metal skipped: {e}", file=sys.stderr)
 
         # Swift
         try:
+            _require_pro("swift")
             from software.backends.swift_backend import SwiftBackend
             sw_path = out_dir / f"{stem}.swift"
             sw_src = SwiftBackend(optimize=not args.no_optimize).compile(mod)
             sw_path.write_text(sw_src, encoding="utf-8")
             results.append(("swift", sw_path, len(sw_src)))
+        except _ProTierRequired:
+            pass
         except Exception as e:  # noqa: BLE001
             results.append(("swift", Path("<skipped>"), 0))
             print(f"  swift skipped: {e}", file=sys.stderr)
@@ -1004,11 +1030,14 @@ def main(argv: list[str] | None = None) -> int:
 
         # Luau (Roblox typed Lua)
         try:
+            _require_pro("luau")
             from software.backends.luau_backend import LuauBackend
             lu_path = out_dir / f"{stem}.luau"
             lu_src = LuauBackend(optimize=not args.no_optimize).compile(mod)
             lu_path.write_text(lu_src, encoding="utf-8")
             results.append(("luau", lu_path, len(lu_src)))
+        except _ProTierRequired:
+            pass
         except Exception as e:  # noqa: BLE001
             results.append(("luau", Path("<skipped>"), 0))
             print(f"  luau skipped: {e}", file=sys.stderr)
@@ -1026,7 +1055,7 @@ def main(argv: list[str] | None = None) -> int:
 
         # Solidity — Pro tier
         try:
-            if not is_pro: skipped_pro.append("solidity"); raise _ProTierRequired
+            _require_pro("solidity")
             from software.backends.solidity_backend import SolidityBackend
             sol_path = out_dir / f"{stem}.sol"
             sol_backend = SolidityBackend(
@@ -1074,7 +1103,7 @@ def main(argv: list[str] | None = None) -> int:
 
         # AUTOSAR (writes .arxml + .c) — Pro tier
         try:
-            if not is_pro: skipped_pro.append("autosar"); raise _ProTierRequired
+            _require_pro("autosar")
             from software.backends.autosar_backend import AutosarBackend
             au = AutosarBackend(
                 optimize=not args.no_optimize,
@@ -1093,7 +1122,7 @@ def main(argv: list[str] | None = None) -> int:
 
         # AADL — Pro tier
         try:
-            if not is_pro: skipped_pro.append("aadl"); raise _ProTierRequired
+            _require_pro("aadl")
             from software.backends.aadl_backend import AadlBackend
             aadl_path = out_dir / f"{stem}.aadl"
             aadl_src = AadlBackend(
@@ -1109,7 +1138,7 @@ def main(argv: list[str] | None = None) -> int:
 
         # ROS2 package (CMakeLists.txt + package.xml + node) — Pro tier
         try:
-            if not is_pro: skipped_pro.append("ros2"); raise _ProTierRequired
+            _require_pro("ros2")
             from software.backends.ros2_backend import Ros2Backend
             ros = Ros2Backend(optimize=not args.no_optimize).compile_full(mod)
             ros_dir = out_dir / ros.package_name
@@ -1148,7 +1177,7 @@ def main(argv: list[str] | None = None) -> int:
 
         # LLVM IR — Pro tier
         if not is_pro:
-            skipped_pro.append("llvm")
+            skipped_pro.add("llvm")
         else:
             from software.backends.llvm_backend import LLVMBackend
             ll_path = out_dir / f"{stem}.ll"
@@ -1156,22 +1185,19 @@ def main(argv: list[str] | None = None) -> int:
             ll_path.write_text(ll_src, encoding="utf-8")
             results.append(("llvm", ll_path, len(ll_src)))
 
-        # WASM (or LLVM-IR fallback when no llc/clang on PATH) — Pro tier
-        if not is_pro:
-            skipped_pro.append("wasm")
+        # WASM (or LLVM-IR fallback when no llc/clang on PATH) — Free tier
+        from software.backends.wasm_backend import WASMBackend
+        wasm_result = WASMBackend(
+            optimize=not args.no_optimize,
+        ).compile_full(mod)
+        if wasm_result.toolchain == "none":
+            wasm_path = out_dir / f"{stem}.wasm.ll"
+            wasm_path.write_text(wasm_result.ir, encoding="utf-8")
+            results.append(("wasm-ir", wasm_path, len(wasm_result.ir)))
         else:
-            from software.backends.wasm_backend import WASMBackend
-            wasm_result = WASMBackend(
-                optimize=not args.no_optimize,
-            ).compile_full(mod)
-            if wasm_result.toolchain == "none":
-                wasm_path = out_dir / f"{stem}.wasm.ll"
-                wasm_path.write_text(wasm_result.ir, encoding="utf-8")
-                results.append(("wasm-ir", wasm_path, len(wasm_result.ir)))
-            else:
-                wasm_path = out_dir / f"{stem}.wasm"
-                wasm_path.write_bytes(wasm_result.wasm)
-                results.append(("wasm", wasm_path, len(wasm_result.wasm)))
+            wasm_path = out_dir / f"{stem}.wasm"
+            wasm_path.write_bytes(wasm_result.wasm)
+            results.append(("wasm", wasm_path, len(wasm_result.wasm)))
 
         # Lean (only if any @verify(lean) blocks)
         from software.verification.lean.LeanBackend import LeanBackend
@@ -1184,7 +1210,7 @@ def main(argv: list[str] | None = None) -> int:
         # HDL backends (only if any @target(fpga) functions) — Pro tier
         try:
             if not is_pro:
-                skipped_pro.extend(["verilog", "systemverilog",
+                skipped_pro.update(["verilog", "systemverilog",
                                     "vhdl", "chisel"])
                 raise _ProTierRequired
             from hardware.allocator import FPGAAllocator
@@ -1225,9 +1251,107 @@ def main(argv: list[str] | None = None) -> int:
             pass  # already recorded in skipped_pro
         except Exception as e:  # noqa: BLE001 -- best-effort
             results.append(("verilog", Path("<skipped>"), 0))
+            results.append(("systemverilog", Path("<skipped>"), 0))
             results.append(("vhdl",    Path("<skipped>"), 0))
             results.append(("chisel",  Path("<skipped>"), 0))
             print(f"  hdl skipped: {e}", file=sys.stderr)
+
+        # ZK proof circuit bundle — Free tier
+        try:
+            from lang.fingerprint import fingerprint_module as _fp_mod
+            from lang.zkproof import (
+                canonical_circuit_hash,
+                circuit_to_dict,
+                compile_circuit,
+            )
+            _fp_for_zk = _fp or _fp_mod(mod)
+            circuits: list[dict] = []
+            skipped: list[tuple[str, str]] = []
+            for fn in mod.functions:
+                try:
+                    circuit = compile_circuit(fn)
+                except Exception as exc:  # noqa: BLE001
+                    skipped.append((fn.name, str(exc)))
+                    continue
+                circuits.append({
+                    "function": fn.name,
+                    "circuit_hash": canonical_circuit_hash(circuit),
+                    "fingerprint_module_hash": _fp_for_zk.module_hash,
+                    "circuit": circuit_to_dict(circuit),
+                })
+            import json as _json
+            zk_payload = _json.dumps({
+                "spec": "monogate-zkcircuit/v1",
+                "module": _fp_for_zk.module["name"],
+                "module_hash": _fp_for_zk.module_hash,
+                "n_functions": len(circuits),
+                "n_skipped": len(skipped),
+                "skipped": [{"fn": n, "reason": r} for n, r in skipped],
+                "circuits": circuits,
+            }, indent=2, sort_keys=True)
+            zk_path = out_dir / f"{stem}.zk.json"
+            zk_path.write_text(zk_payload + "\n", encoding="utf-8")
+            results.append(("zkproof", zk_path, len(zk_payload)))
+        except Exception as e:  # noqa: BLE001
+            results.append(("zkproof", Path("<skipped>"), 0))
+            print(f"  zkproof skipped: {e}", file=sys.stderr)
+
+        # SPICE netlist — Pro tier
+        try:
+            _require_pro("spice")
+            from software.backends.spice_backend import SpiceBackend
+            spice_result = SpiceBackend(
+                optimize=not args.no_optimize,
+            ).compile_full(mod)
+            spice_path = out_dir / f"{stem}.spice"
+            spice_path.write_text(spice_result.netlist, encoding="utf-8")
+            results.append(("spice", spice_path, len(spice_result.netlist)))
+        except _ProTierRequired:
+            pass
+        except Exception as e:  # noqa: BLE001
+            results.append(("spice", Path("<skipped>"), 0))
+            print(f"  spice skipped: {e}", file=sys.stderr)
+
+        # KiCad schematic — Pro tier
+        try:
+            _require_pro("kicad")
+            from software.backends.kicad_backend import KiCadBackend
+            kicad_result = KiCadBackend(
+                optimize=not args.no_optimize,
+            ).compile_full(mod)
+            kicad_path = out_dir / f"{stem}.kicad_sch"
+            kicad_path.write_text(kicad_result.schematic, encoding="utf-8")
+            results.append(("kicad", kicad_path, len(kicad_result.schematic)))
+        except _ProTierRequired:
+            pass
+        except Exception as e:  # noqa: BLE001
+            results.append(("kicad", Path("<skipped>"), 0))
+            print(f"  kicad skipped: {e}", file=sys.stderr)
+
+        # JLCPCB manufacturing bundle — Pro tier
+        try:
+            _require_pro("jlcpcb")
+            from software.manufacturing import JLCPCBMapper
+            bundle = JLCPCBMapper().bundle(mod)
+            jlc_dir = out_dir / f"{stem}_jlcpcb"
+            jlc_dir.mkdir(parents=True, exist_ok=True)
+            bom_path = jlc_dir / f"{stem}.bom.csv"
+            cpl_path = jlc_dir / f"{stem}.cpl.csv"
+            manifest_path = jlc_dir / f"{stem}.jlc.json"
+            bom_path.write_text(bundle.bom_csv, encoding="utf-8")
+            cpl_path.write_text(bundle.cpl_csv, encoding="utf-8")
+            manifest_path.write_text(bundle.manifest, encoding="utf-8")
+            results.append((
+                "jlcpcb",
+                jlc_dir,
+                len(bundle.bom_csv) + len(bundle.cpl_csv)
+                + len(bundle.manifest),
+            ))
+        except _ProTierRequired:
+            pass
+        except Exception as e:  # noqa: BLE001
+            results.append(("jlcpcb", Path("<skipped>"), 0))
+            print(f"  jlcpcb skipped: {e}", file=sys.stderr)
 
         print(f"# eml-compile --target all  ->  {out_dir}  "
               f"(tier: {tier_label})")
@@ -1238,8 +1362,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  [ok]   {target:8s} {path}  ({nbytes:,} bytes)")
         if skipped_pro:
             print(
-                f"  [pro]  {len(skipped_pro)} backends skipped "
-                f"(Pro tier): {', '.join(sorted(set(skipped_pro)))}",
+                f"  [pro]  {len(skipped_pro)} targets skipped "
+                f"(Pro tier): {', '.join(sorted(skipped_pro))}",
                 file=sys.stderr,
             )
             print(
