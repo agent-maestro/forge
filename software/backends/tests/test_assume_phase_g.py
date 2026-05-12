@@ -1,4 +1,4 @@
-"""Phase G tests: assume clause lowering across all 33 backends.
+"""Phase G tests: assume clause lowering across Forge target categories.
 
 TDD: RED phase. Tests written before implementation.
 

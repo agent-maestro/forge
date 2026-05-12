@@ -3,8 +3,8 @@
 > **Audience.** Anyone who can write an equation.
 > **Prerequisite.** Algebra. That's it.
 > **What you'll build.** Six lessons, five minutes each. By the
-> end you'll have written your own equation, compiled it to nine
-> targets including FPGA hardware, added formal verification, and
+> end you'll have written your own equation, compiled it across the
+> Forge target tiers including FPGA hardware, added formal verification, and
 > read the chain-order profile that predicts numerical behaviour.
 
 ---
@@ -15,7 +15,7 @@
 In 30 minutes you will:
 
   1. Write your first equation in EML-lang
-  2. Compile it to 9 targets (C, Rust, Verilog, Lean...)
+  2. Compile it across the Free and Pro target tiers
   3. Read a chain-order profile
   4. Build a PID controller
   5. Add formal verification

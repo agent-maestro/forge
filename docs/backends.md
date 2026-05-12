@@ -1,6 +1,8 @@
 # Backends
 
-Every `.eml` source file compiles to **32 different targets**. This page documents each one: CLI flag, file extension, what it's for, and tier.
+Every `.eml` source file can compile to **36 targets**: 13 Free targets
+and 23 Pro targets. This page documents each one: CLI flag, file
+extension, what it's for, and tier.
 
 ```bash
 # Compile to one target:
@@ -156,6 +158,11 @@ All shader backends emit **function libraries** (no entry-point markers, no `[[k
 **Use it for:** machine-checked correctness proofs, MachLib integration.
 **Notes:** every function with a `requires`/`ensures` block becomes a Lean theorem skeleton with `sorry` placeholders; functions tagged `@verify` get strict `theorem` form. The MachLib root (`--machlib-root`) supplies pre-proved lemmas — see [verify guide](verify-guide.md).
 
+### zkproof — `--target zkproof` (Free)
+**Extension:** `.zk.json`
+**Use it for:** proof-carrying arithmetic traces and research-tier ZK workflows.
+**Notes:** arithmetic-only kernels emit concrete proof artifacts; unsupported transcendental paths fall back to the transparent stub until the circuit path lands.
+
 ### Coq — `--target coq` (Pro)
 **Extension:** `.v`
 **Use it for:** Coq-resident research projects, formal proofs in the Coq ecosystem.
@@ -220,13 +227,38 @@ Companion flags:
 
 ---
 
+## Electronics / EDA
+
+### SPICE — `--target spice` (Pro)
+**Extension:** `.spice`
+**Use it for:** circuit simulation netlists and electronics analysis workflows.
+**Notes:** emits text netlists for supported circuit kernels and reports clear skips when a source file has no SPICE-shaped circuit annotations.
+
+### KiCad — `--target kicad` (Pro)
+**Extension:** `.kicad_sch`
+**Use it for:** schematic export into KiCad-oriented PCB workflows.
+**Notes:** emits schematic artifacts for supported circuit kernels and reports clear skips when a source file has no KiCad-shaped circuit annotations.
+
+### JLCPCB — `--target jlcpcb` (Pro)
+**Extension:** `.zip` / bundle directory
+**Use it for:** fabrication-oriented PCB output bundles.
+**Notes:** emits supported manufacturing artifacts from circuit kernels and reports clear skips when a source file has no PCB-manufacturing annotations.
+
+---
+
 ## The `all` meta-target
 
 ```bash
 eml-compile my_file.eml --target all -o build/
 ```
 
-`all` runs every backend your tier permits and writes one file per target into the output directory. On the Free tier you'll get 12 files; on Pro you'll get all 32. Use it for cross-target equivalence testing — the bit-equivalence harness in `tests/equivalence/` validates that the C, Rust, Python, and Verilog paths produce identical results within ULP tolerance.
+`all` runs every target your tier permits and writes one file per target
+into the output directory. On the Free tier you'll get 13 targets,
+including `zkproof`; on Pro you'll get all 36 targets, including
+`spice`, `kicad`, and `jlcpcb`. Use it for cross-target equivalence
+testing — the bit-equivalence harness in `tests/equivalence/` validates
+that the C, Rust, Python, and Verilog paths produce identical results
+within ULP tolerance.
 
 ---
 
