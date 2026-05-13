@@ -31,14 +31,14 @@ both binaries on PATH and lights up:
 - **Workspace symbol search** (Ctrl+T) — fuzzy match across every indexed file
 - **FPGA status bar** — LUT / DSP / cycle estimates per file
 - **Inline profile lenses** — chain order + cost class above each fn header
-- **Compile commands** for all 32 backends (palette + right-click)
+- **Compile commands** for all 36 targets (palette + right-click)
 
 The compile commands are tier-gated:
 
-| Tier | Backends |
+| Tier | Targets |
 |---|---|
-| Free | C, C++, Rust, Python, Go, Java, Kotlin, C#, JavaScript, WebAssembly, MATLAB, Lean 4 |
-| Pro  | Verilog, SystemVerilog, VHDL, Chisel, LLVM IR, HLSL, GLSL, GLSL ES, WGSL, Metal, Swift, Ada/SPARK, AUTOSAR, AADL, ROS 2, Coq, Isabelle/HOL, Solidity, Luau, GDScript |
+| Free | C, C++, Rust, Python, Go, Java, Kotlin, C#, JavaScript, WebAssembly, MATLAB, Lean 4, zkproof |
+| Pro  | Verilog, SystemVerilog, VHDL, Chisel, LLVM IR, HLSL, GLSL, GLSL ES, WGSL, Metal, Swift, Ada/SPARK, AUTOSAR, AADL, ROS 2, Coq, Isabelle/HOL, Solidity, Luau, GDScript, SPICE, KiCad, JLCPCB |
 
 ## Install
 

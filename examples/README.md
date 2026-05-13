@@ -45,5 +45,5 @@ Forge Pro plans at <https://monogateforge.com/get-started>.
 
 The compiler is open. The kernels are the product. Anyone can
 write their own `.eml`, profile it with `eml-cost`, and compile
-to any of the 32 backends. The pre-verified domain library is
+to any of the 36 targets. The pre-verified domain library is
 what's gated.

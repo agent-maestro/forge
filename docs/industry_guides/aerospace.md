@@ -68,7 +68,7 @@ time:
 - Cross-target equivalence pass/fail in the bottom panel after
   every save
 
-Compile any kernel to all 32 backends in one command:
+Compile any kernel to all 36 targets in one command:
 
 ```
 eml-compile <kernel>.eml --target all -o build/

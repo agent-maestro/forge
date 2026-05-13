@@ -1,7 +1,7 @@
 {
   "name": "monogate-forge-vscode",
   "displayName": "Monogate Forge",
-  "description": "EML-lang for VS Code. Free: syntax + snippets + completion + outline. With Forge CLI: LSP (errors-as-you-type, hover, cross-file goto-def + references + rename, format, workspace symbol search), builtin docs, inline profiling, FPGA status, multi-target compile across all 32 backends.",
+  "description": "EML-lang for VS Code. Free: syntax + snippets + completion + outline. With Forge CLI: LSP (errors-as-you-type, hover, cross-file goto-def + references + rename, format, workspace symbol search), builtin docs, inline profiling, FPGA status, multi-target compile across 36 targets.",
   "version": "0.10.0",
   "publisher": "Monogate",
   "license": "MIT",

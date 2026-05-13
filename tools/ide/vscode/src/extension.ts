@@ -15,7 +15,7 @@
  *                           for the active .eml when it has at least
  *                           one @target(fpga) function.
  *
- *   "Compile to..." picker  Single-target QuickPick across all 32
+ *   "Compile to..." picker  Single-target QuickPick across all 36 targets
  *                           live backends, tagged [Free] / [Pro] in
  *                           the description so users see licensing
  *                           before they hit a token check.
