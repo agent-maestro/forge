@@ -18,8 +18,28 @@ from typing import Literal
 
 
 BoundaryMode = Literal["raw", "guarded", "log-domain candidate"]
+BoundaryEventClass = Literal[
+    "interior_sample",
+    "corner_concentration",
+    "domain_wall",
+    "overflow_wall",
+    "saturation_shelf",
+    "phantom_attractor",
+    "guard_rescue",
+    "log_domain_rescue",
+]
 SCHEMA_VERSION = "forge.optimizer.boundary_run_benchmark.v1"
 ELECTRONICS_PACKET_SCHEMA = "monogate-electronics.boundary-run.v0"
+EVENT_CLASSES: list[BoundaryEventClass] = [
+    "interior_sample",
+    "corner_concentration",
+    "domain_wall",
+    "overflow_wall",
+    "saturation_shelf",
+    "phantom_attractor",
+    "guard_rescue",
+    "log_domain_rescue",
+]
 
 
 @dataclass(frozen=True)
@@ -42,26 +62,39 @@ def run_boundary_experiment(config: BoundaryRunConfig) -> dict:
         center_hit = normalized_radius <= 0.33
         pressure = max_abs * math.log2(config.dimension + config.tree_depth)
         domain_draw = rng.random()
+        raw_would_fail = pressure > 4.15 or domain_draw < config.dimension / 520
+        raw_would_saturate = max_abs > 0.96
 
         if config.mode == "raw":
-            domain_failure = pressure > 4.15 or domain_draw < config.dimension / 520
-            saturation_event = max_abs > 0.96
+            domain_failure = raw_would_fail
+            saturation_event = raw_would_saturate
         elif config.mode == "guarded":
             domain_failure = pressure > 5.8 and domain_draw < 0.08
             saturation_event = max_abs > 0.97
         else:
             domain_failure = False
             saturation_event = max_abs > 0.992
+        event_class = classify_boundary_event(
+            mode=config.mode,
+            boundary_hit=boundary_hit,
+            center_hit=center_hit,
+            domain_failure=domain_failure,
+            saturation_event=saturation_event,
+            raw_would_fail=raw_would_fail,
+            pressure=pressure,
+        )
 
         frames.append(
             {
                 "sample_index": sample_index,
                 "max_abs_coordinate": round(max_abs, 4),
+                "pressure": round(pressure, 4),
                 "boundary_hit": boundary_hit,
                 "center_hit": center_hit,
                 "domain_failure": domain_failure,
                 "saturation_event": saturation_event,
                 "finite_survived": not domain_failure,
+                "event_class": event_class,
             }
         )
 
@@ -69,6 +102,10 @@ def run_boundary_experiment(config: BoundaryRunConfig) -> dict:
     boundary_hits = sum(1 for frame in frames if frame["boundary_hit"])
     domain_failures = sum(1 for frame in frames if frame["domain_failure"])
     saturation_events = sum(1 for frame in frames if frame["saturation_event"])
+    event_counts = {
+        event_class: sum(1 for frame in frames if frame["event_class"] == event_class)
+        for event_class in EVENT_CLASSES
+    }
 
     return {
         "schema_version": ELECTRONICS_PACKET_SCHEMA,
@@ -86,6 +123,7 @@ def run_boundary_experiment(config: BoundaryRunConfig) -> dict:
         "domain_failures": domain_failures,
         "saturation_events": saturation_events,
         "finite_survival_rate": round((config.sample_count - domain_failures) / config.sample_count, 4),
+        "event_counts": event_counts,
         "trace_preview": frames[:12],
         "boundary_flags": {
             "live_serial_capture_performed": False,
@@ -94,6 +132,33 @@ def run_boundary_experiment(config: BoundaryRunConfig) -> dict:
             "fpga_programming_performed": False,
         },
     }
+
+
+def classify_boundary_event(
+    *,
+    mode: BoundaryMode,
+    boundary_hit: bool,
+    center_hit: bool,
+    domain_failure: bool,
+    saturation_event: bool,
+    raw_would_fail: bool,
+    pressure: float,
+) -> BoundaryEventClass:
+    if mode == "log-domain candidate" and raw_would_fail and not domain_failure:
+        return "log_domain_rescue"
+    if mode == "guarded" and raw_would_fail and not domain_failure:
+        return "guard_rescue"
+    if domain_failure and pressure > 4.15:
+        return "overflow_wall"
+    if domain_failure:
+        return "domain_wall"
+    if saturation_event:
+        return "saturation_shelf"
+    if center_hit and 3.05 <= pressure <= 3.3:
+        return "phantom_attractor"
+    if boundary_hit:
+        return "corner_concentration"
+    return "interior_sample"
 
 
 def benchmark(dimensions: list[int], modes: list[BoundaryMode], sample_count: int, tree_depth: int, seed: int) -> dict:
@@ -153,12 +218,12 @@ def write_outputs(packet: dict, output_json: Path, output_markdown: Path) -> Non
         f"Electronics packet schema: `{packet['electronics_packet_schema']}`",
         f"Runs: `{packet['run_count']}`",
         "",
-        "| dimension | mode | boundary hits | center hits | domain failures | saturation events | finite survival |",
-        "|---:|---|---:|---:|---:|---:|---:|",
+        "| dimension | mode | dominant event | boundary hits | center hits | domain failures | saturation events | finite survival |",
+        "|---:|---|---|---:|---:|---:|---:|---:|",
     ]
     for run in packet["runs"]:
         lines.append(
-            f"| {run['dimension']} | {run['mode']} | {run['boundary_hits']} | "
+            f"| {run['dimension']} | {run['mode']} | {dominant_event(run['event_counts'])} | {run['boundary_hits']} | "
             f"{run['center_hits']} | {run['domain_failures']} | {run['saturation_events']} | "
             f"{run['finite_survival_rate']:.4f} |"
         )
@@ -172,6 +237,10 @@ def write_outputs(packet: dict, output_json: Path, output_markdown: Path) -> Non
         ]
     )
     output_markdown.write_text("\n".join(lines), encoding="utf-8")
+
+
+def dominant_event(event_counts: dict[str, int]) -> str:
+    return max(event_counts.items(), key=lambda item: item[1])[0]
 
 
 def main() -> int:
