@@ -1,0 +1,2423 @@
+{
+  "schema_version": "forge.optimizer.boundary_run_benchmark.v1",
+  "electronics_packet_schema": "monogate-electronics.boundary-run.v0",
+  "run_count": 18,
+  "dimensions": [
+    2,
+    4,
+    8,
+    16,
+    32,
+    64
+  ],
+  "modes": [
+    "raw",
+    "guarded",
+    "log-domain candidate"
+  ],
+  "sample_count": 256,
+  "tree_depth": 8,
+  "seed": 1701,
+  "runs": [
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 2,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "raw",
+      "seed": 1735,
+      "center_hits": 36,
+      "boundary_hits": 70,
+      "domain_failures": 0,
+      "saturation_events": 25,
+      "finite_survival_rate": 1.0,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.6813,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.7688,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.1123,
+          "boundary_hit": false,
+          "center_hit": true,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.8191,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.9632,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.7088,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.6188,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.906,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.4665,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.8272,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.7912,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.1814,
+          "boundary_hit": false,
+          "center_hit": true,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 2,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "guarded",
+      "seed": 1736,
+      "center_hits": 47,
+      "boundary_hits": 62,
+      "domain_failures": 0,
+      "saturation_events": 13,
+      "finite_survival_rate": 1.0,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.9657,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.9619,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.6817,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.6274,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.9497,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.2566,
+          "boundary_hit": false,
+          "center_hit": true,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.9333,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.7736,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.8806,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.4523,
+          "boundary_hit": false,
+          "center_hit": true,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.8557,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.8733,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 2,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "log-domain candidate",
+      "seed": 1737,
+      "center_hits": 46,
+      "boundary_hits": 57,
+      "domain_failures": 0,
+      "saturation_events": 2,
+      "finite_survival_rate": 1.0,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.6844,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.377,
+          "boundary_hit": false,
+          "center_hit": true,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.1546,
+          "boundary_hit": false,
+          "center_hit": true,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.4736,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.9094,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.7186,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.9598,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.6808,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.7223,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.7795,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.4117,
+          "boundary_hit": false,
+          "center_hit": true,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.6562,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 4,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "raw",
+      "seed": 1769,
+      "center_hits": 12,
+      "boundary_hits": 93,
+      "domain_failures": 3,
+      "saturation_events": 36,
+      "finite_survival_rate": 0.9883,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.9508,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.6113,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.3903,
+          "boundary_hit": false,
+          "center_hit": true,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.8099,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.839,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.9771,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.9792,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.945,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.8111,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.5258,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.8715,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.9495,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 4,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "guarded",
+      "seed": 1770,
+      "center_hits": 17,
+      "boundary_hits": 102,
+      "domain_failures": 0,
+      "saturation_events": 36,
+      "finite_survival_rate": 1.0,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.9644,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.8307,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.7438,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.6279,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.9036,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.9813,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.9786,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.9989,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.8823,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.882,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.9882,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.3908,
+          "boundary_hit": false,
+          "center_hit": true,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 4,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "log-domain candidate",
+      "seed": 1771,
+      "center_hits": 12,
+      "boundary_hits": 105,
+      "domain_failures": 0,
+      "saturation_events": 7,
+      "finite_survival_rate": 1.0,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.925,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.9786,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.9103,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.7391,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.5766,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.8483,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.9342,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.9981,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.9648,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.7775,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.592,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.9133,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 8,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "raw",
+      "seed": 1837,
+      "center_hits": 3,
+      "boundary_hits": 167,
+      "domain_failures": 4,
+      "saturation_events": 69,
+      "finite_survival_rate": 0.9844,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.9946,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.8223,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.8161,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.9883,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.9968,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.9853,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.9813,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.8144,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.9332,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.9444,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.9595,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.9182,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 8,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "guarded",
+      "seed": 1838,
+      "center_hits": 3,
+      "boundary_hits": 162,
+      "domain_failures": 0,
+      "saturation_events": 52,
+      "finite_survival_rate": 1.0,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.8652,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.8372,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.8559,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.9434,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.9434,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.7926,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.9562,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.7304,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.9886,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.9848,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.8892,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.7242,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 8,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "log-domain candidate",
+      "seed": 1839,
+      "center_hits": 4,
+      "boundary_hits": 167,
+      "domain_failures": 0,
+      "saturation_events": 9,
+      "finite_survival_rate": 1.0,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.8995,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.9809,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.9278,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.8441,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.9503,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.8554,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.9125,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.9353,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.8681,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.9633,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.8937,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.7838,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 16,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "raw",
+      "seed": 1973,
+      "center_hits": 0,
+      "boundary_hits": 223,
+      "domain_failures": 211,
+      "saturation_events": 125,
+      "finite_survival_rate": 0.1758,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.9557,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": false,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.9617,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.9881,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.9121,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": false,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.856,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.9223,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": false,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.9856,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.9493,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": false,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.9692,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.8522,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.9587,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": false,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.9443,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": false,
+          "finite_survived": false
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 16,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "guarded",
+      "seed": 1974,
+      "center_hits": 0,
+      "boundary_hits": 224,
+      "domain_failures": 0,
+      "saturation_events": 96,
+      "finite_survival_rate": 1.0,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.8901,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.9614,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.9133,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.9439,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.9391,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.9121,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.9716,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.9939,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.8333,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.9724,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.9595,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.8705,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 16,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "log-domain candidate",
+      "seed": 1975,
+      "center_hits": 1,
+      "boundary_hits": 224,
+      "domain_failures": 0,
+      "saturation_events": 25,
+      "finite_survival_rate": 1.0,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.9422,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.7331,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.9606,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.9462,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.9057,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.8942,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.9336,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.8604,
+          "boundary_hit": false,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.9663,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.9758,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.9685,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.9589,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 32,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "raw",
+      "seed": 2245,
+      "center_hits": 0,
+      "boundary_hits": 253,
+      "domain_failures": 256,
+      "saturation_events": 177,
+      "finite_survival_rate": 0.0,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.9426,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": false,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.9742,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.8969,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": false,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.9595,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": false,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.9817,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.9976,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.9398,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": false,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.9312,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": false,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.9756,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.9545,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": false,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.9885,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.9523,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": false,
+          "finite_survived": false
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 32,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "guarded",
+      "seed": 2246,
+      "center_hits": 0,
+      "boundary_hits": 251,
+      "domain_failures": 0,
+      "saturation_events": 153,
+      "finite_survival_rate": 1.0,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.999,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.993,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.9208,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.9853,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.9737,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.9767,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.9385,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.9912,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.9962,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.9916,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.9892,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.9507,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 32,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "log-domain candidate",
+      "seed": 2247,
+      "center_hits": 0,
+      "boundary_hits": 252,
+      "domain_failures": 0,
+      "saturation_events": 55,
+      "finite_survival_rate": 1.0,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.9818,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.9814,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.9949,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.9854,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.9206,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.9994,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.966,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.8979,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.9949,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.9974,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.9748,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.9295,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 64,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "raw",
+      "seed": 2789,
+      "center_hits": 0,
+      "boundary_hits": 256,
+      "domain_failures": 256,
+      "saturation_events": 237,
+      "finite_survival_rate": 0.0,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.9854,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.9858,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.982,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.9839,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.9741,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.9943,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.9561,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": false,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.9901,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.9889,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.988,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.9852,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.9367,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": false,
+          "finite_survived": false
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 64,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "guarded",
+      "seed": 2790,
+      "center_hits": 0,
+      "boundary_hits": 255,
+      "domain_failures": 20,
+      "saturation_events": 214,
+      "finite_survival_rate": 0.9219,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.9977,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.9986,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": true,
+          "saturation_event": true,
+          "finite_survived": false
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.9937,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.9948,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.9963,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 0.963,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.9988,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.9795,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.9839,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.9997,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.9991,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.9858,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    },
+    {
+      "schema_version": "monogate-electronics.boundary-run.v0",
+      "course": "006-ee-math-kernels",
+      "module": "optimization-boundary",
+      "simulated": true,
+      "hardware_observed": false,
+      "dimension": 64,
+      "tree_depth": 8,
+      "sample_count": 256,
+      "mode": "log-domain candidate",
+      "seed": 2791,
+      "center_hits": 0,
+      "boundary_hits": 256,
+      "domain_failures": 0,
+      "saturation_events": 111,
+      "finite_survival_rate": 1.0,
+      "trace_preview": [
+        {
+          "sample_index": 0,
+          "max_abs_coordinate": 0.9948,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 1,
+          "max_abs_coordinate": 0.9994,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 2,
+          "max_abs_coordinate": 0.989,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 3,
+          "max_abs_coordinate": 0.9854,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 4,
+          "max_abs_coordinate": 0.9701,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 5,
+          "max_abs_coordinate": 1.0,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 6,
+          "max_abs_coordinate": 0.999,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 7,
+          "max_abs_coordinate": 0.9553,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 8,
+          "max_abs_coordinate": 0.9519,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 9,
+          "max_abs_coordinate": 0.9968,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 10,
+          "max_abs_coordinate": 0.9955,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": true,
+          "finite_survived": true
+        },
+        {
+          "sample_index": 11,
+          "max_abs_coordinate": 0.9754,
+          "boundary_hit": true,
+          "center_hit": false,
+          "domain_failure": false,
+          "saturation_event": false,
+          "finite_survived": true
+        }
+      ],
+      "boundary_flags": {
+        "live_serial_capture_performed": false,
+        "hardware_action_performed": false,
+        "esp32_flash_performed": false,
+        "fpga_programming_performed": false
+      }
+    }
+  ],
+  "boundaries": {
+    "simulated": true,
+    "hardware_observed": false,
+    "semantic_rewrite_claim": false,
+    "optimizer_release_claim": false
+  }
+}
