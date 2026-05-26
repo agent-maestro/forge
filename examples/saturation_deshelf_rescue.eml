@@ -1,0 +1,14 @@
+// saturation_deshelf_rescue.eml -- fixture for the saturation-shelf
+// proof-carrying rescue packet.
+//
+// The raw response is finite and bounded, but large inputs collapse onto the
+// clamp shelf. The deshelf replay inspects pre-clamp pressure so the trace can
+// recover measurable boundary structure.
+
+module saturation_deshelf_rescue;
+
+fn saturated_response(x: Real) -> Real
+    where chain_order <= 1
+{
+    clamp(exp(x), 0.0, 1.0)
+}

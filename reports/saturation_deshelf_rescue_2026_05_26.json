@@ -1,0 +1,155 @@
+{
+  "schema_version": "forge.optimizer.saturation_deshelf_rescue.v1",
+  "function_family": "saturated_response",
+  "source_path": "examples/saturation_deshelf_rescue.eml",
+  "eml_shape": "fn saturated_response(x: Real) -> Real { clamp(exp(x), 0.0, 1.0) }",
+  "profile": {
+    "status": "ok",
+    "chain_order": 1,
+    "max_path_r": 1,
+    "eml_depth": 2,
+    "structural_overhead": 0,
+    "cost_class": "p1-d2-w1-c0",
+    "is_pfaffian_not_eml": false,
+    "predicted_depth": 1,
+    "dynamics": {
+      "oscillations": 0,
+      "decays": 1,
+      "predicted_r": 1
+    },
+    "node_count": 2,
+    "stability_warnings": [],
+    "fp16_drift_risk": "MEDIUM",
+    "fpga_estimate": {
+      "exp_units": 1,
+      "ln_units": 0,
+      "trig_units": 0,
+      "mac_units": 2,
+      "estimated_latency_cycles": 4,
+      "precision_bits_needed": 32
+    }
+  },
+  "rescue_operator": "saturation_deshelf",
+  "expected_transition": "saturation_shelf->corner_concentration",
+  "composed_transition_demo": "saturation_shelf->interior_sample",
+  "machlib_obligation": "ClampInvariantObligation",
+  "intervention_obligation": "ClampDeshelfInterventionObligation",
+  "deshelf": {
+    "clamp_min": 0.0,
+    "clamp_max": 1.0,
+    "boundary_pressure": 3.0,
+    "finite_trace_preserved": true,
+    "clamp_invariant_preserved": true,
+    "measurable_boundary_structure_restored": true,
+    "function_boundary_preserved": true
+  },
+  "sample_count": 5,
+  "saturation_event_count": 3,
+  "deshelved_event_count": 2,
+  "has_transition_witness": true,
+  "frames": [
+    {
+      "sample_index": 0,
+      "probe_coordinate": -2.0,
+      "raw": {
+        "finite": true,
+        "value": 0.1353352832,
+        "pre_clamp_pressure": 0.126928011,
+        "shelf_distance": -0.8646647168,
+        "event_class": "interior_sample"
+      },
+      "deshelf": {
+        "event_class": "interior_sample",
+        "pre_clamp_pressure": 0.126928011,
+        "measurable_boundary_structure": false,
+        "finite": true
+      },
+      "transition": "interior_sample->interior_sample",
+      "deshelf_transition": false
+    },
+    {
+      "sample_index": 1,
+      "probe_coordinate": 0.0,
+      "raw": {
+        "finite": true,
+        "value": 1.0,
+        "pre_clamp_pressure": 0.6931471806,
+        "shelf_distance": 0.0,
+        "event_class": "interior_sample"
+      },
+      "deshelf": {
+        "event_class": "interior_sample",
+        "pre_clamp_pressure": 0.6931471806,
+        "measurable_boundary_structure": false,
+        "finite": true
+      },
+      "transition": "interior_sample->interior_sample",
+      "deshelf_transition": false
+    },
+    {
+      "sample_index": 2,
+      "probe_coordinate": 2.0,
+      "raw": {
+        "finite": true,
+        "value": 1.0,
+        "pre_clamp_pressure": 2.126928011,
+        "shelf_distance": 6.3890560989,
+        "event_class": "saturation_shelf"
+      },
+      "deshelf": {
+        "event_class": "saturation_shelf",
+        "pre_clamp_pressure": 2.126928011,
+        "measurable_boundary_structure": false,
+        "finite": true
+      },
+      "transition": "saturation_shelf->saturation_shelf",
+      "deshelf_transition": false
+    },
+    {
+      "sample_index": 3,
+      "probe_coordinate": 4.0,
+      "raw": {
+        "finite": true,
+        "value": 1.0,
+        "pre_clamp_pressure": 4.0181499279,
+        "shelf_distance": 53.5981500331,
+        "event_class": "saturation_shelf"
+      },
+      "deshelf": {
+        "event_class": "corner_concentration",
+        "pre_clamp_pressure": 4.0181499279,
+        "measurable_boundary_structure": true,
+        "finite": true
+      },
+      "transition": "saturation_shelf->corner_concentration",
+      "deshelf_transition": true
+    },
+    {
+      "sample_index": 4,
+      "probe_coordinate": 8.0,
+      "raw": {
+        "finite": true,
+        "value": 1.0,
+        "pre_clamp_pressure": 8.0003354064,
+        "shelf_distance": 2979.9579870417,
+        "event_class": "saturation_shelf"
+      },
+      "deshelf": {
+        "event_class": "corner_concentration",
+        "pre_clamp_pressure": 8.0003354064,
+        "measurable_boundary_structure": true,
+        "finite": true
+      },
+      "transition": "saturation_shelf->corner_concentration",
+      "deshelf_transition": true
+    }
+  ],
+  "boundaries": {
+    "analysis_only": true,
+    "simulated_trace": true,
+    "semantic_rewrite_claim": false,
+    "optimizer_release_claim": false,
+    "hardware_observed": false,
+    "global_optimizer_win_claim": false
+  }
+}
