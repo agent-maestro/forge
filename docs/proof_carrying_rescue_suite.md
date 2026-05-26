@@ -43,11 +43,12 @@ semantic rewrite, optimizer release, hardware capture, or completed formal proof
 Use:
 
 ```text
-python tools/proof_carrying_rescue_replay.py \
-  reports/proof_carrying_rescue_suite_v0_2026_05_26.json \
-  --strict
+forge rescue --suite --strict
 ```
 
 The replay validator checks lane completeness, expected transitions, obligation
 names, witness flags, embedded packet agreement, and conservative boundary
 flags.
+
+See `docs/research_artifact_contract.md` for the ownership and CI contract
+connecting Forge, monogate.dev, monogate.org, monogate.net, and MachLib.

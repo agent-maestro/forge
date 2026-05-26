@@ -1,0 +1,65 @@
+name: rescue-suite
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  rescue-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Forge
+        run: python -m pip install -e .
+
+      - name: Regenerate rescue suite bundle
+        run: python -m tools.cli.forge rescue --suite --strict
+
+      - name: Check generated artifacts are committed
+        run: |
+          git diff --exit-code -- \
+            reports/proof_carrying_rescue_suite_v0_2026_05_26.json \
+            reports/proof_carrying_rescue_replay_v0_2026_05_26.json \
+            reports/proof_carrying_rescue_suite_v0_2026_05_26.md \
+            reports/proof_carrying_rescue_explorer_fixture_v0_2026_05_26.json
+
+      - name: Replay manifest
+        run: |
+          python tools/proof_carrying_rescue_replay.py \
+            reports/proof_carrying_rescue_suite_v0_2026_05_26.json \
+            --strict \
+            --json /tmp/proof_carrying_rescue_replay_check.json
+
+      - name: Guard conservative claim flags
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path("reports/proof_carrying_rescue_suite_v0_2026_05_26.json").read_text())
+          fixture = json.loads(Path("reports/proof_carrying_rescue_explorer_fixture_v0_2026_05_26.json").read_text())
+          replay = json.loads(Path("reports/proof_carrying_rescue_replay_v0_2026_05_26.json").read_text())
+
+          assert manifest["boundaries"]["semantic_rewrite_claim"] is False
+          assert manifest["boundaries"]["optimizer_release_claim"] is False
+          assert manifest["boundaries"]["hardware_observed"] is False
+          assert manifest["boundaries"]["completed_formal_proof_claim"] is False
+          assert fixture["schemaVersion"] == "monogate.dev.rescue_suite_explorer_fixture.v0"
+          assert fixture["replayStatus"]["valid"] is True
+          assert replay["valid"] is True
+          assert len(fixture["lanes"]) == 4
+          PY
+
+      - name: Rescue tests
+        run: |
+          pytest \
+            tests/benchmarks/test_proof_carrying_rescue_suite.py \
+            tests/benchmarks/test_proof_carrying_rescue_replay.py \
+            tests/benchmarks/test_forge_rescue_cli.py
