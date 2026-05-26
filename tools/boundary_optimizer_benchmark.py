@@ -68,6 +68,17 @@ RESCUE_OPERATORS: dict[BoundaryIntervention, dict[str, str]] = {
         "obligation": "clamp_invariant",
     },
 }
+RESCUE_NORMAL_EVENTS: set[BoundaryEventClass] = {
+    "interior_sample",
+    "guard_rescue",
+    "log_domain_rescue",
+}
+UNSAFE_BOUNDARY_EVENTS: set[BoundaryEventClass] = {
+    "domain_wall",
+    "overflow_wall",
+    "saturation_shelf",
+    "phantom_attractor",
+}
 
 
 @dataclass(frozen=True)
@@ -199,6 +210,47 @@ def build_transition_counts(frames: list[dict]) -> dict[str, int]:
         transition = f"{previous['event_class']}->{current['event_class']}"
         counts[transition] = counts.get(transition, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def parse_transition(transition: str) -> tuple[BoundaryEventClass, BoundaryEventClass]:
+    left, separator, right = transition.partition("->")
+    if separator != "->":
+        raise ValueError(f"invalid boundary transition: {transition}")
+    if left not in EVENT_CLASSES or right not in EVENT_CLASSES:
+        raise ValueError(f"unknown boundary event in transition: {transition}")
+    return left, right  # type: ignore[return-value]
+
+
+def compose_transition(left: str, right: str) -> str | None:
+    """Compose `A->B` with `B->C` into `A->C` when the endpoint matches."""
+    left_from, left_to = parse_transition(left)
+    right_from, right_to = parse_transition(right)
+    if left_to != right_from:
+        return None
+    return f"{left_from}->{right_to}"
+
+
+def compose_transition_path(transitions: list[str]) -> str | None:
+    if not transitions:
+        return None
+    composed = transitions[0]
+    for transition in transitions[1:]:
+        next_composed = compose_transition(composed, transition)
+        if next_composed is None:
+            return None
+        composed = next_composed
+    return composed
+
+
+def is_rescue_normal_event(event_class: str) -> bool:
+    if event_class not in EVENT_CLASSES:
+        raise ValueError(f"unknown boundary event: {event_class}")
+    return event_class in RESCUE_NORMAL_EVENTS
+
+
+def is_rescue_transition(transition: str) -> bool:
+    from_event, to_event = parse_transition(transition)
+    return from_event in UNSAFE_BOUNDARY_EVENTS and to_event in RESCUE_NORMAL_EVENTS
 
 
 def transition_entropy(transition_counts: dict[str, int]) -> float:

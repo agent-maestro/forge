@@ -3,8 +3,12 @@ from tools.boundary_optimizer_benchmark import (
     benchmark,
     build_transition_counts,
     classify_boundary_event,
+    compose_transition,
+    compose_transition_path,
     dominant_transition,
     intervention_benchmark,
+    is_rescue_normal_event,
+    is_rescue_transition,
     run_boundary_experiment,
     run_intervention_pair,
     transition_entropy,
@@ -80,6 +84,32 @@ def test_transition_graph_helpers():
     assert transitions["guard_rescue->guard_rescue"] == 1
     assert transition_entropy(transitions) > 0
     assert dominant_transition(transitions) is not None
+
+
+def test_boundary_calculus_composes_matching_paths():
+    assert (
+        compose_transition("domain_wall->log_domain_rescue", "log_domain_rescue->interior_sample")
+        == "domain_wall->interior_sample"
+    )
+    assert compose_transition("domain_wall->log_domain_rescue", "guard_rescue->interior_sample") is None
+    assert (
+        compose_transition_path(
+            [
+                "domain_wall->log_domain_rescue",
+                "log_domain_rescue->corner_concentration",
+                "corner_concentration->interior_sample",
+            ]
+        )
+        == "domain_wall->interior_sample"
+    )
+
+
+def test_boundary_calculus_names_rescue_normal_events():
+    assert is_rescue_normal_event("interior_sample") is True
+    assert is_rescue_normal_event("guard_rescue") is True
+    assert is_rescue_normal_event("domain_wall") is False
+    assert is_rescue_transition("overflow_wall->guard_rescue") is True
+    assert is_rescue_transition("saturation_shelf->corner_concentration") is False
 
 
 def test_intervention_pair_emits_rescue_contract():
