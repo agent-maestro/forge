@@ -1,0 +1,14 @@
+{
+  "schema_version": "forge.optimizer.proof_carrying_rescue_replay.v0",
+  "source_schema": "forge.optimizer.proof_carrying_rescue_suite.v0",
+  "valid": true,
+  "issue_count": 0,
+  "issues": [],
+  "lane_count": 4,
+  "operators": [
+    "guard_clamp",
+    "log_domain_lift",
+    "precision_escape",
+    "saturation_deshelf"
+  ]
+}
