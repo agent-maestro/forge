@@ -1,0 +1,184 @@
+{
+  "schema_version": "forge.optimizer.guard_clamp_rescue.v1",
+  "function_family": "exp_pressure",
+  "source_path": "examples/guard_clamp_rescue.eml",
+  "eml_shape": "fn exp_pressure(x: Real) -> Real { exp(x) + exp(x * x) }",
+  "profile": {
+    "status": "ok",
+    "chain_order": 2,
+    "max_path_r": 1,
+    "eml_depth": 3,
+    "structural_overhead": 2,
+    "cost_class": "p2-d3-w1-c0",
+    "is_pfaffian_not_eml": false,
+    "predicted_depth": 3,
+    "dynamics": {
+      "oscillations": 0,
+      "decays": 2,
+      "predicted_r": 2
+    },
+    "node_count": 3,
+    "stability_warnings": [],
+    "fp16_drift_risk": "MEDIUM",
+    "fpga_estimate": {
+      "exp_units": 2,
+      "ln_units": 0,
+      "trig_units": 0,
+      "mac_units": 3,
+      "estimated_latency_cycles": 6,
+      "precision_bits_needed": 32
+    }
+  },
+  "rescue_operator": "guard_clamp",
+  "expected_transition": "overflow_wall->guard_rescue",
+  "composed_transition_demo": "overflow_wall->interior_sample",
+  "machlib_obligation": "OutputSafetyObligation",
+  "intervention_obligation": "OutputSafetyInterventionObligation",
+  "guard": {
+    "clamp": 8.0,
+    "bounded_coordinates": true,
+    "output_safety_preserved": true,
+    "function_boundary_preserved": true
+  },
+  "sample_count": 6,
+  "raw_finite_count": 3,
+  "guarded_finite_count": 6,
+  "survival_delta": 3,
+  "rescued_event_count": 3,
+  "has_transition_witness": true,
+  "frames": [
+    {
+      "sample_index": 0,
+      "raw_coordinate": 1.0,
+      "guarded_coordinate": 1.0,
+      "guard_clamped": false,
+      "raw": {
+        "finite": true,
+        "bounded_output": true,
+        "value": 5.43656366,
+        "event_class": "interior_sample"
+      },
+      "guarded": {
+        "finite": true,
+        "bounded_output": true,
+        "value": 5.43656366,
+        "event_class": "interior_sample",
+        "within_guard_bounds": true
+      },
+      "transition": "interior_sample->interior_sample",
+      "rescue_transition": false
+    },
+    {
+      "sample_index": 1,
+      "raw_coordinate": 4.0,
+      "guarded_coordinate": 4.0,
+      "guard_clamped": false,
+      "raw": {
+        "finite": true,
+        "bounded_output": true,
+        "value": 8886165.11865791,
+        "event_class": "interior_sample"
+      },
+      "guarded": {
+        "finite": true,
+        "bounded_output": true,
+        "value": 8886165.11865791,
+        "event_class": "interior_sample",
+        "within_guard_bounds": true
+      },
+      "transition": "interior_sample->interior_sample",
+      "rescue_transition": false
+    },
+    {
+      "sample_index": 2,
+      "raw_coordinate": 10.0,
+      "guarded_coordinate": 8.0,
+      "guard_clamped": true,
+      "raw": {
+        "finite": true,
+        "bounded_output": true,
+        "value": 2.6881171418161356e+43,
+        "event_class": "interior_sample"
+      },
+      "guarded": {
+        "finite": true,
+        "bounded_output": true,
+        "value": 6.235149080811617e+27,
+        "event_class": "interior_sample",
+        "within_guard_bounds": true
+      },
+      "transition": "interior_sample->interior_sample",
+      "rescue_transition": false
+    },
+    {
+      "sample_index": 3,
+      "raw_coordinate": 30.0,
+      "guarded_coordinate": 8.0,
+      "guard_clamped": true,
+      "raw": {
+        "finite": false,
+        "bounded_output": false,
+        "value": null,
+        "event_class": "overflow_wall"
+      },
+      "guarded": {
+        "finite": true,
+        "bounded_output": true,
+        "value": 6.235149080811617e+27,
+        "event_class": "guard_rescue",
+        "within_guard_bounds": true
+      },
+      "transition": "overflow_wall->guard_rescue",
+      "rescue_transition": true
+    },
+    {
+      "sample_index": 4,
+      "raw_coordinate": 710.0,
+      "guarded_coordinate": 8.0,
+      "guard_clamped": true,
+      "raw": {
+        "finite": false,
+        "bounded_output": false,
+        "value": null,
+        "event_class": "overflow_wall"
+      },
+      "guarded": {
+        "finite": true,
+        "bounded_output": true,
+        "value": 6.235149080811617e+27,
+        "event_class": "guard_rescue",
+        "within_guard_bounds": true
+      },
+      "transition": "overflow_wall->guard_rescue",
+      "rescue_transition": true
+    },
+    {
+      "sample_index": 5,
+      "raw_coordinate": 800.0,
+      "guarded_coordinate": 8.0,
+      "guard_clamped": true,
+      "raw": {
+        "finite": false,
+        "bounded_output": false,
+        "value": null,
+        "event_class": "overflow_wall"
+      },
+      "guarded": {
+        "finite": true,
+        "bounded_output": true,
+        "value": 6.235149080811617e+27,
+        "event_class": "guard_rescue",
+        "within_guard_bounds": true
+      },
+      "transition": "overflow_wall->guard_rescue",
+      "rescue_transition": true
+    }
+  ],
+  "boundaries": {
+    "analysis_only": true,
+    "simulated_trace": true,
+    "semantic_rewrite_claim": false,
+    "optimizer_release_claim": false,
+    "hardware_observed": false
+  }
+}

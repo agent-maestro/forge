@@ -1,0 +1,15 @@
+// guard_clamp_rescue.eml -- fixture for the overflow/output-safety
+// proof-carrying rescue packet.
+//
+// Raw optimizer coordinates with large x can drive exp(x * x) beyond finite
+// evaluation. The guard-clamp intervention bounds the internal evaluation
+// coordinate while preserving the public function boundary as analysis-only
+// evidence.
+
+module guard_clamp_rescue;
+
+fn exp_pressure(x: Real) -> Real
+    where chain_order <= 2
+{
+    exp(x) + exp(x * x)
+}
