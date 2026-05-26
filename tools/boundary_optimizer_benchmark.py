@@ -18,6 +18,7 @@ from typing import Literal
 
 
 BoundaryMode = Literal["raw", "guarded", "log-domain candidate"]
+BoundaryIntervention = Literal["log_domain_lift", "guard_clamp", "precision_escape", "saturation_deshelf"]
 BoundaryEventClass = Literal[
     "interior_sample",
     "corner_concentration",
@@ -29,6 +30,7 @@ BoundaryEventClass = Literal[
     "log_domain_rescue",
 ]
 SCHEMA_VERSION = "forge.optimizer.boundary_run_benchmark.v1"
+INTERVENTION_SCHEMA_VERSION = "forge.optimizer.boundary_intervention_benchmark.v1"
 ELECTRONICS_PACKET_SCHEMA = "monogate-electronics.boundary-run.v0"
 EVENT_CLASSES: list[BoundaryEventClass] = [
     "interior_sample",
@@ -40,6 +42,32 @@ EVENT_CLASSES: list[BoundaryEventClass] = [
     "guard_rescue",
     "log_domain_rescue",
 ]
+RESCUE_OPERATORS: dict[BoundaryIntervention, dict[str, str]] = {
+    "log_domain_lift": {
+        "from_event": "domain_wall",
+        "to_event": "log_domain_rescue",
+        "target_mode": "log-domain candidate",
+        "obligation": "positive_coordinate_preservation",
+    },
+    "guard_clamp": {
+        "from_event": "overflow_wall",
+        "to_event": "guard_rescue",
+        "target_mode": "guarded",
+        "obligation": "output_safety",
+    },
+    "precision_escape": {
+        "from_event": "phantom_attractor",
+        "to_event": "interior_sample",
+        "target_mode": "log-domain candidate",
+        "obligation": "precision_sensitivity",
+    },
+    "saturation_deshelf": {
+        "from_event": "saturation_shelf",
+        "to_event": "corner_concentration",
+        "target_mode": "guarded",
+        "obligation": "clamp_invariant",
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -223,6 +251,99 @@ def benchmark(dimensions: list[int], modes: list[BoundaryMode], sample_count: in
     }
 
 
+def intervention_benchmark(dimensions: list[int], sample_count: int, tree_depth: int, seed: int) -> dict:
+    pairs = []
+    for dimension in dimensions:
+        for index, intervention in enumerate(RESCUE_OPERATORS):
+            pair_seed = seed + dimension * 101 + index
+            pairs.append(run_intervention_pair(dimension, sample_count, tree_depth, pair_seed, intervention))
+    return {
+        "schema_version": INTERVENTION_SCHEMA_VERSION,
+        "source_benchmark_schema": SCHEMA_VERSION,
+        "electronics_packet_schema": ELECTRONICS_PACKET_SCHEMA,
+        "pair_count": len(pairs),
+        "dimensions": dimensions,
+        "sample_count": sample_count,
+        "tree_depth": tree_depth,
+        "seed": seed,
+        "rescue_operators": RESCUE_OPERATORS,
+        "pairs": pairs,
+        "boundaries": {
+            "simulated": True,
+            "hardware_observed": False,
+            "semantic_rewrite_claim": False,
+            "optimizer_release_claim": False,
+        },
+    }
+
+
+def run_intervention_pair(
+    dimension: int,
+    sample_count: int,
+    tree_depth: int,
+    seed: int,
+    intervention: BoundaryIntervention,
+) -> dict:
+    operator = RESCUE_OPERATORS[intervention]
+    target_mode = operator["target_mode"]
+    raw = run_boundary_experiment(
+        BoundaryRunConfig(
+            dimension=dimension,
+            tree_depth=tree_depth,
+            sample_count=sample_count,
+            mode="raw",
+            seed=seed,
+        )
+    )
+    intervened = run_boundary_experiment(
+        BoundaryRunConfig(
+            dimension=dimension,
+            tree_depth=tree_depth,
+            sample_count=sample_count,
+            mode=target_mode,  # type: ignore[arg-type]
+            seed=seed,
+        )
+    )
+    from_event = operator["from_event"]
+    to_event = operator["to_event"]
+    raw_bad = raw["event_counts"].get(from_event, 0)
+    intervened_bad = intervened["event_counts"].get(from_event, 0)
+    rescued = intervened["event_counts"].get(to_event, 0)
+    return {
+        "intervention": intervention,
+        "from_event": from_event,
+        "to_event": to_event,
+        "obligation": operator["obligation"],
+        "dimension": dimension,
+        "tree_depth": tree_depth,
+        "sample_count": sample_count,
+        "seed": seed,
+        "raw": summarize_run(raw),
+        "intervened": summarize_run(intervened),
+        "bad_event_delta": raw_bad - intervened_bad,
+        "rescued_event_count": rescued,
+        "finite_survival_delta": round(intervened["finite_survival_rate"] - raw["finite_survival_rate"], 4),
+        "transition_entropy_delta": round(intervened["transition_entropy"] - raw["transition_entropy"], 4),
+        "expected_transition": f"{from_event}->{to_event}",
+        "intervention_claim": "simulated_pairwise_benchmark",
+    }
+
+
+def summarize_run(run: dict) -> dict:
+    return {
+        "mode": run["mode"],
+        "center_hits": run["center_hits"],
+        "boundary_hits": run["boundary_hits"],
+        "domain_failures": run["domain_failures"],
+        "saturation_events": run["saturation_events"],
+        "finite_survival_rate": run["finite_survival_rate"],
+        "dominant_event": dominant_event(run["event_counts"]),
+        "dominant_transition": run["dominant_transition"],
+        "transition_entropy": run["transition_entropy"],
+        "event_counts": run["event_counts"],
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dimensions", nargs="+", type=int, default=[2, 4, 8, 16, 32, 64])
@@ -232,6 +353,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--strict", action="store_true")
     parser.add_argument("--json", type=Path, default=Path("reports/boundary_optimizer_benchmark_2026_05_26.json"))
     parser.add_argument("--markdown", type=Path, default=Path("reports/boundary_optimizer_benchmark_2026_05_26.md"))
+    parser.add_argument(
+        "--intervention-json",
+        type=Path,
+        default=Path("reports/boundary_intervention_benchmark_2026_05_26.json"),
+    )
+    parser.add_argument(
+        "--intervention-markdown",
+        type=Path,
+        default=Path("reports/boundary_intervention_benchmark_2026_05_26.md"),
+    )
     return parser.parse_args()
 
 
@@ -269,6 +400,39 @@ def write_outputs(packet: dict, output_json: Path, output_markdown: Path) -> Non
     output_markdown.write_text("\n".join(lines), encoding="utf-8")
 
 
+def write_intervention_outputs(packet: dict, output_json: Path, output_markdown: Path) -> None:
+    output_json.parent.mkdir(parents=True, exist_ok=True)
+    output_markdown.parent.mkdir(parents=True, exist_ok=True)
+    output_json.write_text(json.dumps(packet, indent=2) + "\n", encoding="utf-8")
+
+    lines = [
+        "# Boundary Intervention Benchmark",
+        "",
+        f"Schema: `{packet['schema_version']}`",
+        f"Pairs: `{packet['pair_count']}`",
+        "",
+        "| dimension | intervention | expected transition | obligation | raw survival | intervened survival | survival delta | bad-event delta | rescued count | entropy delta |",
+        "|---:|---|---|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for pair in packet["pairs"]:
+        lines.append(
+            f"| {pair['dimension']} | {pair['intervention']} | `{pair['expected_transition']}` | "
+            f"{pair['obligation']} | {pair['raw']['finite_survival_rate']:.4f} | "
+            f"{pair['intervened']['finite_survival_rate']:.4f} | {pair['finite_survival_delta']:.4f} | "
+            f"{pair['bad_event_delta']} | {pair['rescued_event_count']} | {pair['transition_entropy_delta']:.4f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "This benchmark is simulated and pairwise. It tests whether named rescue",
+            "operators change boundary-event dynamics; it does not claim a semantic",
+            "rewrite, optimizer release, serial capture, or hardware observation.",
+            "",
+        ]
+    )
+    output_markdown.write_text("\n".join(lines), encoding="utf-8")
+
+
 def dominant_event(event_counts: dict[str, int]) -> str:
     return max(event_counts.items(), key=lambda item: item[1])[0]
 
@@ -277,7 +441,9 @@ def main() -> int:
     args = parse_args()
     modes: list[BoundaryMode] = ["raw", "guarded", "log-domain candidate"]
     packet = benchmark(args.dimensions, modes, args.sample_count, args.tree_depth, args.seed)
+    intervention_packet = intervention_benchmark(args.dimensions, args.sample_count, args.tree_depth, args.seed)
     write_outputs(packet, args.json, args.markdown)
+    write_intervention_outputs(intervention_packet, args.intervention_json, args.intervention_markdown)
     if args.strict:
         if packet["run_count"] == 0:
             raise SystemExit("no benchmark runs emitted")
@@ -290,8 +456,15 @@ def main() -> int:
             log_domain = by_key[(dimension, "log-domain candidate")]
             if log_domain["finite_survival_rate"] < raw["finite_survival_rate"]:
                 raise SystemExit(f"log-domain survival regressed at dimension {dimension}")
+        if intervention_packet["pair_count"] == 0:
+            raise SystemExit("no intervention pairs emitted")
+        for pair in intervention_packet["pairs"]:
+            if pair["finite_survival_delta"] < 0:
+                raise SystemExit(f"intervention survival regressed: {pair['intervention']} d={pair['dimension']}")
     print(f"Wrote {args.json}")
     print(f"Wrote {args.markdown}")
+    print(f"Wrote {args.intervention_json}")
+    print(f"Wrote {args.intervention_markdown}")
     print("BOUNDARY_OPTIMIZER_BENCHMARK_OK")
     return 0
 

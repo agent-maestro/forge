@@ -4,7 +4,9 @@ from tools.boundary_optimizer_benchmark import (
     build_transition_counts,
     classify_boundary_event,
     dominant_transition,
+    intervention_benchmark,
     run_boundary_experiment,
+    run_intervention_pair,
     transition_entropy,
 )
 
@@ -78,3 +80,22 @@ def test_transition_graph_helpers():
     assert transitions["guard_rescue->guard_rescue"] == 1
     assert transition_entropy(transitions) > 0
     assert dominant_transition(transitions) is not None
+
+
+def test_intervention_pair_emits_rescue_contract():
+    pair = run_intervention_pair(64, 512, 8, 1701, "log_domain_lift")
+
+    assert pair["intervention"] == "log_domain_lift"
+    assert pair["expected_transition"] == "domain_wall->log_domain_rescue"
+    assert pair["obligation"] == "positive_coordinate_preservation"
+    assert pair["finite_survival_delta"] >= 0
+    assert pair["intervention_claim"] == "simulated_pairwise_benchmark"
+
+
+def test_intervention_benchmark_covers_all_rescue_operators():
+    packet = intervention_benchmark([16], 256, 8, 1701)
+    interventions = {pair["intervention"] for pair in packet["pairs"]}
+
+    assert packet["schema_version"] == "forge.optimizer.boundary_intervention_benchmark.v1"
+    assert interventions == {"log_domain_lift", "guard_clamp", "precision_escape", "saturation_deshelf"}
+    assert packet["boundaries"]["optimizer_release_claim"] is False
