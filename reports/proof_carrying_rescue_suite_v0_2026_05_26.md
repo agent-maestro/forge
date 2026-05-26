@@ -13,18 +13,19 @@ Complete v0: `True`
 
 ## Obligation Registry
 
-| rescue operator | routed | witnessed | proven | CI guarded | public-copy safe |
-|---|---:|---:|---:|---:|---:|
-| `log_domain_lift` | true | true | true | true | true |
-| `guard_clamp` | true | true | true | true | true |
-| `precision_escape` | true | true | false | true | false |
-| `saturation_deshelf` | true | true | true | true | false |
+| rescue operator | routed | witnessed | proven | semantic strength | public-copy safe |
+|---|---:|---:|---:|---|---:|
+| `log_domain_lift` | true | true | true | `concrete_sample_invariant` | true |
+| `guard_clamp` | true | true | true | `concrete_sample_invariant` | true |
+| `precision_escape` | true | true | false | `packet_bridge_only` | false |
+| `saturation_deshelf` | true | true | true | `concrete_sample_invariant` | false |
 
 ## Reviewer Approval Gate
 
 Decision: `approved_for_existing_public_surfaces`
 Surface allowed: `True`
 Deploy allowed: `True`
+Semantic rewrite claim: `False`
 
 This manifest is analysis-only. It aggregates the four v0 proof-carrying
 rescue packets; it does not claim semantic rewrites, optimizer release,

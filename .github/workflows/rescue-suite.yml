@@ -62,8 +62,18 @@ jobs:
           assert registry["entry_count"] == 4
           proven = {entry["rescue_operator"] for entry in registry["entries"] if entry["status"]["proven"]}
           assert {"log_domain_lift", "guard_clamp", "saturation_deshelf"} <= proven
+          strengths = {
+              entry["rescue_operator"]: entry["semantic_contract"]["semantic_strength"]
+              for entry in registry["entries"]
+          }
+          assert strengths["precision_escape"] == "packet_bridge_only"
+          assert strengths["log_domain_lift"] == "concrete_sample_invariant"
+          assert strengths["guard_clamp"] == "concrete_sample_invariant"
+          assert strengths["saturation_deshelf"] == "concrete_sample_invariant"
           assert approval["surface_allowed"] is True
           assert approval["deploy_allowed"] is True
+          assert approval["semantic_summary"]["packet_bridge_only"] == ["precision_escape"]
+          assert approval["semantic_summary"]["semantic_rewrite_claim"] is False
           assert approval["electronics_boundary"]["future_physical_packets_must_use_evidence_grammar"] is True
           PY
 

@@ -10,7 +10,16 @@
       "machlib_obligation": "PositiveCoordinateObligation",
       "source_path": "examples/proof_carrying_rescue.eml",
       "schema_version": "forge.optimizer.proof_carrying_rescue.v1",
-      "has_transition_witness": true
+      "has_transition_witness": true,
+      "semantic_contract": {
+        "semantic_strength": "concrete_sample_invariant",
+        "accepts": "raw domain_wall samples with non-positive log coordinates",
+        "restores": "positive internal coordinates via exp(theta)",
+        "allowed_change": "coordinate representation may change from raw x to lifted internal coordinate",
+        "must_not_claim": "global semantic rewrite equivalence for arbitrary programs",
+        "preservation_scope": "local invariant restoration",
+        "public_copy_safe": true
+      }
     },
     {
       "rescue_operator": "guard_clamp",
@@ -18,7 +27,16 @@
       "machlib_obligation": "OutputSafetyObligation",
       "source_path": "examples/guard_clamp_rescue.eml",
       "schema_version": "forge.optimizer.guard_clamp_rescue.v1",
-      "has_transition_witness": true
+      "has_transition_witness": true,
+      "semantic_contract": {
+        "semantic_strength": "concrete_sample_invariant",
+        "accepts": "raw overflow_wall samples that exceed the guard's finite evaluation envelope",
+        "restores": "bounded guarded coordinate/output witness",
+        "allowed_change": "coordinate may be clamped to the configured guard limit",
+        "must_not_claim": "optimizer-wide boundedness or production safety",
+        "preservation_scope": "local output-safety restoration",
+        "public_copy_safe": true
+      }
     },
     {
       "rescue_operator": "precision_escape",
@@ -26,7 +44,16 @@
       "machlib_obligation": "PrecisionSensitivityObligation",
       "source_path": "examples/precision_escape_rescue.eml",
       "schema_version": "forge.optimizer.precision_escape_rescue.v1",
-      "has_transition_witness": true
+      "has_transition_witness": true,
+      "semantic_contract": {
+        "semantic_strength": "packet_bridge_only",
+        "accepts": "phantom_attractor samples where a low-precision trace stalls near a basin",
+        "restores": "inspectable higher-precision escape witness",
+        "allowed_change": "numeric precision and probe coordinate may change to expose a descent direction",
+        "must_not_claim": "concrete MachLib sample invariant or general precision-correctness theorem",
+        "preservation_scope": "inspectability only; deliberately weaker than the other v0 lanes",
+        "public_copy_safe": false
+      }
     },
     {
       "rescue_operator": "saturation_deshelf",
@@ -34,7 +61,16 @@
       "machlib_obligation": "ClampInvariantObligation",
       "source_path": "examples/saturation_deshelf_rescue.eml",
       "schema_version": "forge.optimizer.saturation_deshelf_rescue.v1",
-      "has_transition_witness": true
+      "has_transition_witness": true,
+      "semantic_contract": {
+        "semantic_strength": "concrete_sample_invariant",
+        "accepts": "saturation_shelf samples collapsed by clamped output",
+        "restores": "pre-clamp pressure within the declared clamp interval",
+        "allowed_change": "trace may expose pre-clamp pressure instead of only clamped output",
+        "must_not_claim": "rescue-normal completion or equivalence for all saturation rewrites",
+        "preservation_scope": "local clamp-invariant restoration",
+        "public_copy_safe": false
+      }
     }
   ],
   "boundaries": {
@@ -740,6 +776,15 @@
           "public_copy_safe": true,
           "blocked": false
         },
+        "semantic_contract": {
+          "semantic_strength": "concrete_sample_invariant",
+          "accepts": "raw domain_wall samples with non-positive log coordinates",
+          "restores": "positive internal coordinates via exp(theta)",
+          "allowed_change": "coordinate representation may change from raw x to lifted internal coordinate",
+          "must_not_claim": "global semantic rewrite equivalence for arbitrary programs",
+          "preservation_scope": "local invariant restoration",
+          "public_copy_safe": true
+        },
         "machlib_witness": {
           "theorem": "log_domain_positive_coordinate_witness_discharges_concrete_obligation",
           "concrete_obligation": "ConcretePositiveCoordinateObligation"
@@ -758,6 +803,15 @@
           "ci_guarded": true,
           "public_copy_safe": true,
           "blocked": false
+        },
+        "semantic_contract": {
+          "semantic_strength": "concrete_sample_invariant",
+          "accepts": "raw overflow_wall samples that exceed the guard's finite evaluation envelope",
+          "restores": "bounded guarded coordinate/output witness",
+          "allowed_change": "coordinate may be clamped to the configured guard limit",
+          "must_not_claim": "optimizer-wide boundedness or production safety",
+          "preservation_scope": "local output-safety restoration",
+          "public_copy_safe": true
         },
         "machlib_witness": {
           "theorem": "guard_clamp_output_safety_witness_discharges_concrete_obligation",
@@ -778,6 +832,15 @@
           "public_copy_safe": false,
           "blocked": false
         },
+        "semantic_contract": {
+          "semantic_strength": "packet_bridge_only",
+          "accepts": "phantom_attractor samples where a low-precision trace stalls near a basin",
+          "restores": "inspectable higher-precision escape witness",
+          "allowed_change": "numeric precision and probe coordinate may change to expose a descent direction",
+          "must_not_claim": "concrete MachLib sample invariant or general precision-correctness theorem",
+          "preservation_scope": "inspectability only; deliberately weaker than the other v0 lanes",
+          "public_copy_safe": false
+        },
         "machlib_witness": null,
         "review_note": "Packet bridge exists; concrete sample-level theorem remains future work."
       },
@@ -793,6 +856,15 @@
           "ci_guarded": true,
           "public_copy_safe": false,
           "blocked": false
+        },
+        "semantic_contract": {
+          "semantic_strength": "concrete_sample_invariant",
+          "accepts": "saturation_shelf samples collapsed by clamped output",
+          "restores": "pre-clamp pressure within the declared clamp interval",
+          "allowed_change": "trace may expose pre-clamp pressure instead of only clamped output",
+          "must_not_claim": "rescue-normal completion or equivalence for all saturation rewrites",
+          "preservation_scope": "local clamp-invariant restoration",
+          "public_copy_safe": false
         },
         "machlib_witness": {
           "theorem": "saturation_deshelf_clamp_witness_discharges_concrete_obligation",
@@ -815,6 +887,20 @@
     "decision": "approved_for_existing_public_surfaces",
     "surface_allowed": true,
     "deploy_allowed": true,
+    "semantic_summary": {
+      "strength_by_operator": {
+        "log_domain_lift": "concrete_sample_invariant",
+        "guard_clamp": "concrete_sample_invariant",
+        "precision_escape": "packet_bridge_only",
+        "saturation_deshelf": "concrete_sample_invariant"
+      },
+      "concrete_sample_invariant_count": 3,
+      "packet_bridge_only": [
+        "precision_escape"
+      ],
+      "semantic_rewrite_claim": false,
+      "reviewer_note": "Three lanes restore concrete local invariants; precision_escape remains packet-bridge-only until a concrete MachLib sample invariant is discharged."
+    },
     "electronics_boundary": {
       "hardware_action_allowed": false,
       "future_physical_packets_must_use_evidence_grammar": true,

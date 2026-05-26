@@ -34,12 +34,14 @@ obligation is not the same as a completed semantic rewrite theorem.
 
 The obligation registry is the reviewer surface for each lane. Every entry
 must say whether the obligation is routed, witnessed, proven by a concrete
-MachLib theorem, CI guarded, public-copy safe, or blocked.
+MachLib theorem, semantically tiered, CI guarded, public-copy safe, or blocked.
 
 The approval gate is the deploy/surfacing contract. It must remain
 machine-readable and conservative: public surfaces are allowed only when replay
 is valid, the registry covers all lanes, conservative flags remain false, and at
-least one concrete MachLib witness is present.
+least one concrete MachLib witness is present. It must also expose the semantic
+summary so reviewers can distinguish concrete sample invariants from packet
+bridges.
 
 Future electronics physical packets are separate from the software rescue
 suite, but they must speak the same evidence grammar: source, capture mode,
@@ -53,6 +55,7 @@ The rescue-suite CI job must fail when:
 - committed reports drift from generated reports
 - replay validation fails
 - obligation registry coverage changes unexpectedly
+- semantic-strength fields drift unexpectedly
 - approval gate blocks surfacing or deploy
 - the Explorer fixture no longer mirrors a valid replay
 - conservative claim flags flip to true
@@ -68,6 +71,8 @@ The v0 rescue suite claims:
 - one concrete positive-coordinate witness theorem for the log-domain lane
 - one concrete output-safety witness theorem for the guard-clamp lane
 - one concrete clamp-invariant witness theorem for the saturation-deshelf lane
+- a semantic-strength registry that marks `precision_escape` as
+  `packet_bridge_only`
 - reviewer approval for the existing generated public/dev surfaces
 
 The v0 rescue suite does not claim:
@@ -75,5 +80,6 @@ The v0 rescue suite does not claim:
 - production optimizer rewrites
 - hardware observation
 - completed full semantic correctness for all rescue operators
+- a concrete sample-invariant proof for the precision-escape lane
 - authorization for hardware action
 - peer-reviewed mathematical finality

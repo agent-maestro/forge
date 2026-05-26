@@ -36,6 +36,20 @@
     "decision": "approved_for_existing_public_surfaces",
     "surface_allowed": true,
     "deploy_allowed": true,
+    "semantic_summary": {
+      "strength_by_operator": {
+        "log_domain_lift": "concrete_sample_invariant",
+        "guard_clamp": "concrete_sample_invariant",
+        "precision_escape": "packet_bridge_only",
+        "saturation_deshelf": "concrete_sample_invariant"
+      },
+      "concrete_sample_invariant_count": 3,
+      "packet_bridge_only": [
+        "precision_escape"
+      ],
+      "semantic_rewrite_claim": false,
+      "reviewer_note": "Three lanes restore concrete local invariants; precision_escape remains packet-bridge-only until a concrete MachLib sample invariant is discharged."
+    },
     "electronics_boundary": {
       "hardware_action_allowed": false,
       "future_physical_packets_must_use_evidence_grammar": true,
@@ -65,6 +79,15 @@
       "toEvent": "log_domain_rescue",
       "transition": "domain_wall->log_domain_rescue",
       "obligation": "PositiveCoordinateObligation",
+      "semanticContract": {
+        "semantic_strength": "concrete_sample_invariant",
+        "accepts": "raw domain_wall samples with non-positive log coordinates",
+        "restores": "positive internal coordinates via exp(theta)",
+        "allowed_change": "coordinate representation may change from raw x to lifted internal coordinate",
+        "must_not_claim": "global semantic rewrite equivalence for arbitrary programs",
+        "preservation_scope": "local invariant restoration",
+        "public_copy_safe": true
+      },
       "source": "examples/proof_carrying_rescue.eml",
       "fixture": "fn positive_log_energy(x: Real) -> Real requires (x > 0.0) { ln(x) + sqrt(x) + 1.0 / x }",
       "packetSchema": "forge.optimizer.proof_carrying_rescue.v1",
@@ -215,6 +238,15 @@
       "toEvent": "guard_rescue",
       "transition": "overflow_wall->guard_rescue",
       "obligation": "OutputSafetyObligation",
+      "semanticContract": {
+        "semantic_strength": "concrete_sample_invariant",
+        "accepts": "raw overflow_wall samples that exceed the guard's finite evaluation envelope",
+        "restores": "bounded guarded coordinate/output witness",
+        "allowed_change": "coordinate may be clamped to the configured guard limit",
+        "must_not_claim": "optimizer-wide boundedness or production safety",
+        "preservation_scope": "local output-safety restoration",
+        "public_copy_safe": true
+      },
       "source": "examples/guard_clamp_rescue.eml",
       "fixture": "fn exp_pressure(x: Real) -> Real { exp(x) + exp(x * x) }",
       "packetSchema": "forge.optimizer.guard_clamp_rescue.v1",
@@ -365,6 +397,15 @@
       "toEvent": "interior_sample",
       "transition": "phantom_attractor->interior_sample",
       "obligation": "PrecisionSensitivityObligation",
+      "semanticContract": {
+        "semantic_strength": "packet_bridge_only",
+        "accepts": "phantom_attractor samples where a low-precision trace stalls near a basin",
+        "restores": "inspectable higher-precision escape witness",
+        "allowed_change": "numeric precision and probe coordinate may change to expose a descent direction",
+        "must_not_claim": "concrete MachLib sample invariant or general precision-correctness theorem",
+        "preservation_scope": "inspectability only; deliberately weaker than the other v0 lanes",
+        "public_copy_safe": false
+      },
       "source": "examples/precision_escape_rescue.eml",
       "fixture": "fn quantized_basin(x: Real) -> Real { let dx = x - 0.375; dx * dx }",
       "packetSchema": "forge.optimizer.precision_escape_rescue.v1",
@@ -467,6 +508,15 @@
       "toEvent": "corner_concentration",
       "transition": "saturation_shelf->corner_concentration",
       "obligation": "ClampInvariantObligation",
+      "semanticContract": {
+        "semantic_strength": "concrete_sample_invariant",
+        "accepts": "saturation_shelf samples collapsed by clamped output",
+        "restores": "pre-clamp pressure within the declared clamp interval",
+        "allowed_change": "trace may expose pre-clamp pressure instead of only clamped output",
+        "must_not_claim": "rescue-normal completion or equivalence for all saturation rewrites",
+        "preservation_scope": "local clamp-invariant restoration",
+        "public_copy_safe": false
+      },
       "source": "examples/saturation_deshelf_rescue.eml",
       "fixture": "fn saturated_response(x: Real) -> Real { clamp(exp(x), 0.0, 1.0) }",
       "packetSchema": "forge.optimizer.saturation_deshelf_rescue.v1",

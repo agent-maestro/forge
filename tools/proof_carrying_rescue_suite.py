@@ -28,6 +28,46 @@ REGISTRY_SCHEMA_VERSION = "forge.optimizer.rescue_obligation_registry.v0"
 APPROVAL_SCHEMA_VERSION = "forge.optimizer.rescue_artifact_approval.v0"
 
 
+SEMANTIC_CONTRACTS = {
+    "log_domain_lift": {
+        "semantic_strength": "concrete_sample_invariant",
+        "accepts": "raw domain_wall samples with non-positive log coordinates",
+        "restores": "positive internal coordinates via exp(theta)",
+        "allowed_change": "coordinate representation may change from raw x to lifted internal coordinate",
+        "must_not_claim": "global semantic rewrite equivalence for arbitrary programs",
+        "preservation_scope": "local invariant restoration",
+        "public_copy_safe": True,
+    },
+    "guard_clamp": {
+        "semantic_strength": "concrete_sample_invariant",
+        "accepts": "raw overflow_wall samples that exceed the guard's finite evaluation envelope",
+        "restores": "bounded guarded coordinate/output witness",
+        "allowed_change": "coordinate may be clamped to the configured guard limit",
+        "must_not_claim": "optimizer-wide boundedness or production safety",
+        "preservation_scope": "local output-safety restoration",
+        "public_copy_safe": True,
+    },
+    "precision_escape": {
+        "semantic_strength": "packet_bridge_only",
+        "accepts": "phantom_attractor samples where a low-precision trace stalls near a basin",
+        "restores": "inspectable higher-precision escape witness",
+        "allowed_change": "numeric precision and probe coordinate may change to expose a descent direction",
+        "must_not_claim": "concrete MachLib sample invariant or general precision-correctness theorem",
+        "preservation_scope": "inspectability only; deliberately weaker than the other v0 lanes",
+        "public_copy_safe": False,
+    },
+    "saturation_deshelf": {
+        "semantic_strength": "concrete_sample_invariant",
+        "accepts": "saturation_shelf samples collapsed by clamped output",
+        "restores": "pre-clamp pressure within the declared clamp interval",
+        "allowed_change": "trace may expose pre-clamp pressure instead of only clamped output",
+        "must_not_claim": "rescue-normal completion or equivalence for all saturation rewrites",
+        "preservation_scope": "local clamp-invariant restoration",
+        "public_copy_safe": False,
+    },
+}
+
+
 CONCRETE_WITNESSES = {
     "log_domain_lift": {
         "theorem": "log_domain_positive_coordinate_witness_discharges_concrete_obligation",
@@ -87,6 +127,7 @@ def run_suite() -> dict:
             "source_path": packet["source_path"],
             "schema_version": packet["schema_version"],
             "has_transition_witness": packet["has_transition_witness"],
+            "semantic_contract": SEMANTIC_CONTRACTS[packet["rescue_operator"]],
         }
         for packet in packets
     ]
@@ -124,9 +165,10 @@ def build_obligation_registry(manifest: dict) -> dict:
                     "witnessed": lane["has_transition_witness"] is True,
                     "proven": concrete is not None,
                     "ci_guarded": True,
-                    "public_copy_safe": operator in {"log_domain_lift", "guard_clamp"},
+                    "public_copy_safe": lane["semantic_contract"]["public_copy_safe"],
                     "blocked": False,
                 },
+                "semantic_contract": lane["semantic_contract"],
                 "machlib_witness": concrete,
                 "review_note": (
                     "Concrete sample-level MachLib witness exists."
@@ -163,6 +205,10 @@ def build_approval_gate(manifest: dict, replay: dict, registry: dict) -> dict:
                 issues.append(f"conservative_flag_flipped:{flag}")
     if not any(entry["status"]["proven"] for entry in registry["entries"]):
         issues.append("no_concrete_machlib_witness")
+    semantic_strengths = {
+        entry["rescue_operator"]: entry["semantic_contract"]["semantic_strength"]
+        for entry in registry["entries"]
+    }
 
     return {
         "schema_version": APPROVAL_SCHEMA_VERSION,
@@ -171,6 +217,20 @@ def build_approval_gate(manifest: dict, replay: dict, registry: dict) -> dict:
         "decision": "approved_for_existing_public_surfaces" if not issues else "blocked",
         "surface_allowed": not issues,
         "deploy_allowed": not issues,
+        "semantic_summary": {
+            "strength_by_operator": semantic_strengths,
+            "concrete_sample_invariant_count": sum(
+                1 for strength in semantic_strengths.values() if strength == "concrete_sample_invariant"
+            ),
+            "packet_bridge_only": [
+                operator for operator, strength in semantic_strengths.items() if strength == "packet_bridge_only"
+            ],
+            "semantic_rewrite_claim": False,
+            "reviewer_note": (
+                "Three lanes restore concrete local invariants; precision_escape remains packet-bridge-only "
+                "until a concrete MachLib sample invariant is discharged."
+            ),
+        },
         "electronics_boundary": {
             "hardware_action_allowed": False,
             "future_physical_packets_must_use_evidence_grammar": True,
@@ -237,8 +297,8 @@ def write_outputs(packet: dict, output_json: Path, output_markdown: Path) -> Non
                 "",
                 "## Obligation Registry",
                 "",
-                "| rescue operator | routed | witnessed | proven | CI guarded | public-copy safe |",
-                "|---|---:|---:|---:|---:|---:|",
+                "| rescue operator | routed | witnessed | proven | semantic strength | public-copy safe |",
+                "|---|---:|---:|---:|---|---:|",
             ]
         )
         for entry in packet["obligation_registry"]["entries"]:
@@ -246,7 +306,8 @@ def write_outputs(packet: dict, output_json: Path, output_markdown: Path) -> Non
             lines.append(
                 f"| `{entry['rescue_operator']}` | {str(status['routed']).lower()} | "
                 f"{str(status['witnessed']).lower()} | {str(status['proven']).lower()} | "
-                f"{str(status['ci_guarded']).lower()} | {str(status['public_copy_safe']).lower()} |"
+                f"`{entry['semantic_contract']['semantic_strength']}` | "
+                f"{str(status['public_copy_safe']).lower()} |"
             )
     if "approval_gate" in packet:
         lines.extend(
@@ -257,6 +318,7 @@ def write_outputs(packet: dict, output_json: Path, output_markdown: Path) -> Non
                 f"Decision: `{packet['approval_gate']['decision']}`",
                 f"Surface allowed: `{packet['approval_gate']['surface_allowed']}`",
                 f"Deploy allowed: `{packet['approval_gate']['deploy_allowed']}`",
+                f"Semantic rewrite claim: `{packet['approval_gate']['semantic_summary']['semantic_rewrite_claim']}`",
             ]
         )
     lines.extend(
@@ -342,6 +404,7 @@ def build_explorer_fixture(manifest: dict, replay: dict) -> dict:
                 "toEvent": to_event,
                 "transition": transition,
                 "obligation": packet["machlib_obligation"],
+                "semanticContract": SEMANTIC_CONTRACTS[packet["rescue_operator"]],
                 "source": packet["source_path"],
                 "fixture": packet["eml_shape"],
                 "packetSchema": packet["schema_version"],

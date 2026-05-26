@@ -39,6 +39,11 @@ def test_rescue_obligation_registry_marks_second_concrete_witness():
         "saturation_deshelf_clamp_witness_discharges_concrete_obligation"
     )
     assert by_operator["precision_escape"]["status"]["proven"] is False
+    assert by_operator["precision_escape"]["semantic_contract"]["semantic_strength"] == "packet_bridge_only"
+    assert by_operator["precision_escape"]["status"]["public_copy_safe"] is False
+    assert by_operator["log_domain_lift"]["semantic_contract"]["semantic_strength"] == "concrete_sample_invariant"
+    assert by_operator["guard_clamp"]["semantic_contract"]["semantic_strength"] == "concrete_sample_invariant"
+    assert by_operator["saturation_deshelf"]["semantic_contract"]["semantic_strength"] == "concrete_sample_invariant"
 
 
 def test_rescue_approval_gate_requires_electronics_evidence_grammar():
@@ -51,5 +56,8 @@ def test_rescue_approval_gate_requires_electronics_evidence_grammar():
     assert approval["decision"] == "approved_for_existing_public_surfaces"
     assert approval["surface_allowed"] is True
     assert approval["deploy_allowed"] is True
+    assert approval["semantic_summary"]["concrete_sample_invariant_count"] == 3
+    assert approval["semantic_summary"]["packet_bridge_only"] == ["precision_escape"]
+    assert approval["semantic_summary"]["semantic_rewrite_claim"] is False
     assert approval["electronics_boundary"]["hardware_action_allowed"] is False
     assert approval["electronics_boundary"]["future_physical_packets_must_use_evidence_grammar"] is True
