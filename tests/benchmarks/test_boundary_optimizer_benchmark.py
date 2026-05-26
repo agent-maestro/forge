@@ -1,8 +1,11 @@
 from tools.boundary_optimizer_benchmark import (
     BoundaryRunConfig,
     benchmark,
+    build_transition_counts,
     classify_boundary_event,
+    dominant_transition,
     run_boundary_experiment,
+    transition_entropy,
 )
 
 
@@ -24,6 +27,9 @@ def test_boundary_run_packet_matches_course_contract():
     assert packet["boundary_flags"]["live_serial_capture_performed"] is False
     assert packet["boundary_hits"] > packet["center_hits"]
     assert packet["event_counts"]["corner_concentration"] + packet["event_counts"]["guard_rescue"] > 0
+    assert packet["transition_counts"]
+    assert packet["transition_entropy"] >= 0
+    assert "->" in packet["dominant_transition"]
     assert packet["trace_preview"][0]["event_class"]
 
 
@@ -56,3 +62,19 @@ def test_boundary_classifier_priority():
         raw_would_fail=True,
         pressure=4.9,
     ) == "guard_rescue"
+
+
+def test_transition_graph_helpers():
+    frames = [
+        {"event_class": "interior_sample"},
+        {"event_class": "corner_concentration"},
+        {"event_class": "overflow_wall"},
+        {"event_class": "guard_rescue"},
+        {"event_class": "guard_rescue"},
+    ]
+    transitions = build_transition_counts(frames)
+
+    assert transitions["interior_sample->corner_concentration"] == 1
+    assert transitions["guard_rescue->guard_rescue"] == 1
+    assert transition_entropy(transitions) > 0
+    assert dominant_transition(transitions) is not None

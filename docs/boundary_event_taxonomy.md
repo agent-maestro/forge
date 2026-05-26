@@ -16,5 +16,12 @@ Forge labels each Optimization Boundary Lab sample with one event class:
 | `log_domain_rescue` | raw mode would fail, log-domain candidate survives | positive-coordinate rescue |
 
 The benchmark packet stores the class on each `trace_preview` frame and an
-`event_counts` summary per run. This is the contract consumed by Course 006 and
-mapped into MachLib obligations.
+`event_counts` summary per run. It also stores:
+
+- `transition_counts`: event-to-event counts such as
+  `corner_concentration->overflow_wall`;
+- `transition_entropy`: compact measure of transition diversity;
+- `dominant_transition`: strongest observed flow in the run.
+
+This is the contract consumed by Course 006 and mapped into MachLib
+obligations.

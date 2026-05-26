@@ -106,6 +106,7 @@ def run_boundary_experiment(config: BoundaryRunConfig) -> dict:
         event_class: sum(1 for frame in frames if frame["event_class"] == event_class)
         for event_class in EVENT_CLASSES
     }
+    transition_counts = build_transition_counts(frames)
 
     return {
         "schema_version": ELECTRONICS_PACKET_SCHEMA,
@@ -124,6 +125,9 @@ def run_boundary_experiment(config: BoundaryRunConfig) -> dict:
         "saturation_events": saturation_events,
         "finite_survival_rate": round((config.sample_count - domain_failures) / config.sample_count, 4),
         "event_counts": event_counts,
+        "transition_counts": transition_counts,
+        "transition_entropy": round(transition_entropy(transition_counts), 4),
+        "dominant_transition": dominant_transition(transition_counts),
         "trace_preview": frames[:12],
         "boundary_flags": {
             "live_serial_capture_performed": False,
@@ -159,6 +163,31 @@ def classify_boundary_event(
     if boundary_hit:
         return "corner_concentration"
     return "interior_sample"
+
+
+def build_transition_counts(frames: list[dict]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for previous, current in zip(frames, frames[1:]):
+        transition = f"{previous['event_class']}->{current['event_class']}"
+        counts[transition] = counts.get(transition, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def transition_entropy(transition_counts: dict[str, int]) -> float:
+    total = sum(transition_counts.values())
+    if total == 0:
+        return 0.0
+    entropy = 0.0
+    for count in transition_counts.values():
+        p = count / total
+        entropy -= p * math.log2(p)
+    return entropy
+
+
+def dominant_transition(transition_counts: dict[str, int]) -> str | None:
+    if not transition_counts:
+        return None
+    return max(transition_counts.items(), key=lambda item: item[1])[0]
 
 
 def benchmark(dimensions: list[int], modes: list[BoundaryMode], sample_count: int, tree_depth: int, seed: int) -> dict:
@@ -218,12 +247,13 @@ def write_outputs(packet: dict, output_json: Path, output_markdown: Path) -> Non
         f"Electronics packet schema: `{packet['electronics_packet_schema']}`",
         f"Runs: `{packet['run_count']}`",
         "",
-        "| dimension | mode | dominant event | boundary hits | center hits | domain failures | saturation events | finite survival |",
-        "|---:|---|---|---:|---:|---:|---:|---:|",
+        "| dimension | mode | dominant event | dominant transition | entropy | boundary hits | center hits | domain failures | saturation events | finite survival |",
+        "|---:|---|---|---|---:|---:|---:|---:|---:|---:|",
     ]
     for run in packet["runs"]:
         lines.append(
-            f"| {run['dimension']} | {run['mode']} | {dominant_event(run['event_counts'])} | {run['boundary_hits']} | "
+            f"| {run['dimension']} | {run['mode']} | {dominant_event(run['event_counts'])} | "
+            f"{run['dominant_transition']} | {run['transition_entropy']:.4f} | {run['boundary_hits']} | "
             f"{run['center_hits']} | {run['domain_failures']} | {run['saturation_events']} | "
             f"{run['finite_survival_rate']:.4f} |"
         )

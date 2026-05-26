@@ -45,6 +45,19 @@
         "guard_rescue": 0,
         "log_domain_rescue": 0
       },
+      "transition_counts": {
+        "corner_concentration->corner_concentration": 5,
+        "corner_concentration->interior_sample": 38,
+        "corner_concentration->saturation_shelf": 1,
+        "interior_sample->corner_concentration": 35,
+        "interior_sample->interior_sample": 129,
+        "interior_sample->saturation_shelf": 22,
+        "saturation_shelf->corner_concentration": 5,
+        "saturation_shelf->interior_sample": 18,
+        "saturation_shelf->saturation_shelf": 2
+      },
+      "transition_entropy": 2.1835,
+      "dominant_transition": "interior_sample->interior_sample",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -212,6 +225,20 @@
         "guard_rescue": 1,
         "log_domain_rescue": 0
       },
+      "transition_counts": {
+        "corner_concentration->corner_concentration": 6,
+        "corner_concentration->interior_sample": 42,
+        "corner_concentration->saturation_shelf": 1,
+        "guard_rescue->interior_sample": 1,
+        "interior_sample->corner_concentration": 38,
+        "interior_sample->guard_rescue": 1,
+        "interior_sample->interior_sample": 141,
+        "interior_sample->saturation_shelf": 12,
+        "saturation_shelf->corner_concentration": 4,
+        "saturation_shelf->interior_sample": 9
+      },
+      "transition_entropy": 2.0036,
+      "dominant_transition": "interior_sample->interior_sample",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -379,6 +406,17 @@
         "guard_rescue": 0,
         "log_domain_rescue": 0
       },
+      "transition_counts": {
+        "corner_concentration->corner_concentration": 9,
+        "corner_concentration->interior_sample": 44,
+        "corner_concentration->saturation_shelf": 1,
+        "interior_sample->corner_concentration": 46,
+        "interior_sample->interior_sample": 152,
+        "interior_sample->saturation_shelf": 1,
+        "saturation_shelf->interior_sample": 2
+      },
+      "transition_entropy": 1.6159,
+      "dominant_transition": "interior_sample->interior_sample",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -546,6 +584,23 @@
         "guard_rescue": 0,
         "log_domain_rescue": 0
       },
+      "transition_counts": {
+        "corner_concentration->corner_concentration": 7,
+        "corner_concentration->domain_wall": 1,
+        "corner_concentration->interior_sample": 41,
+        "corner_concentration->saturation_shelf": 7,
+        "domain_wall->corner_concentration": 1,
+        "domain_wall->interior_sample": 2,
+        "interior_sample->corner_concentration": 39,
+        "interior_sample->domain_wall": 2,
+        "interior_sample->interior_sample": 99,
+        "interior_sample->saturation_shelf": 21,
+        "saturation_shelf->corner_concentration": 8,
+        "saturation_shelf->interior_sample": 20,
+        "saturation_shelf->saturation_shelf": 7
+      },
+      "transition_entropy": 2.7091,
+      "dominant_transition": "interior_sample->interior_sample",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -713,6 +768,22 @@
         "guard_rescue": 2,
         "log_domain_rescue": 0
       },
+      "transition_counts": {
+        "corner_concentration->corner_concentration": 15,
+        "corner_concentration->guard_rescue": 2,
+        "corner_concentration->interior_sample": 39,
+        "corner_concentration->saturation_shelf": 8,
+        "guard_rescue->corner_concentration": 1,
+        "guard_rescue->interior_sample": 1,
+        "interior_sample->corner_concentration": 37,
+        "interior_sample->interior_sample": 92,
+        "interior_sample->saturation_shelf": 24,
+        "saturation_shelf->corner_concentration": 10,
+        "saturation_shelf->interior_sample": 22,
+        "saturation_shelf->saturation_shelf": 4
+      },
+      "transition_entropy": 2.7668,
+      "dominant_transition": "interior_sample->interior_sample",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -880,6 +951,21 @@
         "guard_rescue": 0,
         "log_domain_rescue": 3
       },
+      "transition_counts": {
+        "corner_concentration->corner_concentration": 33,
+        "corner_concentration->interior_sample": 60,
+        "corner_concentration->log_domain_rescue": 1,
+        "corner_concentration->saturation_shelf": 2,
+        "interior_sample->corner_concentration": 58,
+        "interior_sample->interior_sample": 84,
+        "interior_sample->log_domain_rescue": 2,
+        "interior_sample->saturation_shelf": 5,
+        "log_domain_rescue->interior_sample": 3,
+        "saturation_shelf->corner_concentration": 4,
+        "saturation_shelf->interior_sample": 3
+      },
+      "transition_entropy": 2.3837,
+      "dominant_transition": "interior_sample->interior_sample",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -1047,6 +1133,23 @@
         "guard_rescue": 0,
         "log_domain_rescue": 0
       },
+      "transition_counts": {
+        "corner_concentration->corner_concentration": 43,
+        "corner_concentration->interior_sample": 34,
+        "corner_concentration->saturation_shelf": 19,
+        "domain_wall->corner_concentration": 2,
+        "domain_wall->interior_sample": 2,
+        "interior_sample->corner_concentration": 29,
+        "interior_sample->domain_wall": 1,
+        "interior_sample->interior_sample": 33,
+        "interior_sample->saturation_shelf": 25,
+        "saturation_shelf->corner_concentration": 22,
+        "saturation_shelf->domain_wall": 3,
+        "saturation_shelf->interior_sample": 19,
+        "saturation_shelf->saturation_shelf": 23
+      },
+      "transition_entropy": 3.2803,
+      "dominant_transition": "corner_concentration->corner_concentration",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -1214,6 +1317,25 @@
         "guard_rescue": 8,
         "log_domain_rescue": 0
       },
+      "transition_counts": {
+        "corner_concentration->corner_concentration": 41,
+        "corner_concentration->guard_rescue": 4,
+        "corner_concentration->interior_sample": 41,
+        "corner_concentration->saturation_shelf": 21,
+        "guard_rescue->corner_concentration": 1,
+        "guard_rescue->interior_sample": 3,
+        "guard_rescue->saturation_shelf": 4,
+        "interior_sample->corner_concentration": 44,
+        "interior_sample->guard_rescue": 2,
+        "interior_sample->interior_sample": 28,
+        "interior_sample->saturation_shelf": 15,
+        "saturation_shelf->corner_concentration": 22,
+        "saturation_shelf->guard_rescue": 2,
+        "saturation_shelf->interior_sample": 16,
+        "saturation_shelf->saturation_shelf": 11
+      },
+      "transition_entropy": 3.3281,
+      "dominant_transition": "interior_sample->corner_concentration",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -1381,6 +1503,22 @@
         "guard_rescue": 0,
         "log_domain_rescue": 3
       },
+      "transition_counts": {
+        "corner_concentration->corner_concentration": 86,
+        "corner_concentration->interior_sample": 60,
+        "corner_concentration->log_domain_rescue": 2,
+        "corner_concentration->saturation_shelf": 7,
+        "interior_sample->corner_concentration": 60,
+        "interior_sample->interior_sample": 25,
+        "interior_sample->log_domain_rescue": 1,
+        "interior_sample->saturation_shelf": 2,
+        "log_domain_rescue->corner_concentration": 1,
+        "log_domain_rescue->interior_sample": 2,
+        "saturation_shelf->corner_concentration": 7,
+        "saturation_shelf->interior_sample": 2
+      },
+      "transition_entropy": 2.4066,
+      "dominant_transition": "corner_concentration->corner_concentration",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -1548,6 +1686,21 @@
         "guard_rescue": 0,
         "log_domain_rescue": 0
       },
+      "transition_counts": {
+        "corner_concentration->interior_sample": 2,
+        "corner_concentration->overflow_wall": 11,
+        "domain_wall->interior_sample": 1,
+        "domain_wall->overflow_wall": 1,
+        "interior_sample->corner_concentration": 1,
+        "interior_sample->interior_sample": 2,
+        "interior_sample->overflow_wall": 29,
+        "overflow_wall->corner_concentration": 12,
+        "overflow_wall->domain_wall": 2,
+        "overflow_wall->interior_sample": 27,
+        "overflow_wall->overflow_wall": 167
+      },
+      "transition_entropy": 1.7614,
+      "dominant_transition": "overflow_wall->overflow_wall",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -1715,6 +1868,19 @@
         "guard_rescue": 203,
         "log_domain_rescue": 0
       },
+      "transition_counts": {
+        "corner_concentration->corner_concentration": 1,
+        "corner_concentration->guard_rescue": 19,
+        "corner_concentration->interior_sample": 2,
+        "guard_rescue->corner_concentration": 18,
+        "guard_rescue->guard_rescue": 161,
+        "guard_rescue->interior_sample": 24,
+        "interior_sample->corner_concentration": 2,
+        "interior_sample->guard_rescue": 23,
+        "interior_sample->interior_sample": 5
+      },
+      "transition_entropy": 1.8542,
+      "dominant_transition": "guard_rescue->guard_rescue",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -1882,6 +2048,18 @@
         "guard_rescue": 0,
         "log_domain_rescue": 200
       },
+      "transition_counts": {
+        "corner_concentration->interior_sample": 3,
+        "corner_concentration->log_domain_rescue": 21,
+        "interior_sample->corner_concentration": 4,
+        "interior_sample->interior_sample": 5,
+        "interior_sample->log_domain_rescue": 23,
+        "log_domain_rescue->corner_concentration": 20,
+        "log_domain_rescue->interior_sample": 24,
+        "log_domain_rescue->log_domain_rescue": 155
+      },
+      "transition_entropy": 1.9358,
+      "dominant_transition": "log_domain_rescue->log_domain_rescue",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -2049,6 +2227,11 @@
         "guard_rescue": 0,
         "log_domain_rescue": 0
       },
+      "transition_counts": {
+        "overflow_wall->overflow_wall": 255
+      },
+      "transition_entropy": 0.0,
+      "dominant_transition": "overflow_wall->overflow_wall",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -2216,6 +2399,11 @@
         "guard_rescue": 256,
         "log_domain_rescue": 0
       },
+      "transition_counts": {
+        "guard_rescue->guard_rescue": 255
+      },
+      "transition_entropy": 0.0,
+      "dominant_transition": "guard_rescue->guard_rescue",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -2383,6 +2571,11 @@
         "guard_rescue": 0,
         "log_domain_rescue": 256
       },
+      "transition_counts": {
+        "log_domain_rescue->log_domain_rescue": 255
+      },
+      "transition_entropy": 0.0,
+      "dominant_transition": "log_domain_rescue->log_domain_rescue",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -2550,6 +2743,11 @@
         "guard_rescue": 0,
         "log_domain_rescue": 0
       },
+      "transition_counts": {
+        "overflow_wall->overflow_wall": 255
+      },
+      "transition_entropy": 0.0,
+      "dominant_transition": "overflow_wall->overflow_wall",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -2717,6 +2915,14 @@
         "guard_rescue": 236,
         "log_domain_rescue": 0
       },
+      "transition_counts": {
+        "guard_rescue->guard_rescue": 217,
+        "guard_rescue->overflow_wall": 18,
+        "overflow_wall->guard_rescue": 18,
+        "overflow_wall->overflow_wall": 2
+      },
+      "transition_entropy": 0.7929,
+      "dominant_transition": "guard_rescue->guard_rescue",
       "trace_preview": [
         {
           "sample_index": 0,
@@ -2884,6 +3090,11 @@
         "guard_rescue": 0,
         "log_domain_rescue": 256
       },
+      "transition_counts": {
+        "log_domain_rescue->log_domain_rescue": 255
+      },
+      "transition_entropy": 0.0,
+      "dominant_transition": "log_domain_rescue->log_domain_rescue",
       "trace_preview": [
         {
           "sample_index": 0,
