@@ -1,0 +1,15 @@
+// proof_carrying_rescue.eml -- fixture for the first proof-carrying
+// boundary rescue packet.
+//
+// Raw optimizer coordinates can cross x <= 0 and hit a domain wall.
+// The log-domain lift uses x = exp(theta), preserving the public function
+// boundary while making the internal search coordinate positive.
+
+module proof_carrying_rescue;
+
+fn positive_log_energy(x: Real) -> Real
+    where chain_order <= 2
+    requires (x > 0.0)
+{
+    ln(x) + sqrt(x) + (1.0 / x)
+}
