@@ -67,22 +67,25 @@
       "status": {
         "routed": true,
         "witnessed": true,
-        "proven": false,
+        "proven": true,
         "ci_guarded": true,
-        "public_copy_safe": false,
+        "public_copy_safe": true,
         "blocked": false
       },
       "semantic_contract": {
-        "semantic_strength": "packet_bridge_only",
+        "semantic_strength": "concrete_sample_invariant",
         "accepts": "phantom_attractor samples where a low-precision trace stalls near a basin",
-        "restores": "inspectable higher-precision escape witness",
+        "restores": "higher-precision nonzero escape signal from a low-precision stall",
         "allowed_change": "numeric precision and probe coordinate may change to expose a descent direction",
-        "must_not_claim": "concrete MachLib sample invariant or general precision-correctness theorem",
-        "preservation_scope": "inspectability only; deliberately weaker than the other v0 lanes",
-        "public_copy_safe": false
+        "must_not_claim": "general convergence theorem or optimizer-wide precision-correctness theorem",
+        "preservation_scope": "local precision-sensitivity restoration",
+        "public_copy_safe": true
       },
-      "machlib_witness": null,
-      "review_note": "Packet bridge exists; concrete sample-level theorem remains future work."
+      "machlib_witness": {
+        "theorem": "precision_escape_witness_discharges_concrete_obligation",
+        "concrete_obligation": "ConcretePrecisionEscapeObligation"
+      },
+      "review_note": "Concrete sample-level MachLib witness exists."
     },
     {
       "rescue_operator": "saturation_deshelf",

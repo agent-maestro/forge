@@ -40,8 +40,8 @@ The approval gate is the deploy/surfacing contract. It must remain
 machine-readable and conservative: public surfaces are allowed only when replay
 is valid, the registry covers all lanes, conservative flags remain false, and at
 least one concrete MachLib witness is present. It must also expose the semantic
-summary so reviewers can distinguish concrete sample invariants from packet
-bridges.
+summary so reviewers can distinguish complete concrete sample-invariant
+coverage from any future packet-bridge-only lane.
 
 Future electronics physical packets are separate from the software rescue
 suite, but they must speak the same evidence grammar: source, capture mode,
@@ -71,8 +71,9 @@ The v0 rescue suite claims:
 - one concrete positive-coordinate witness theorem for the log-domain lane
 - one concrete output-safety witness theorem for the guard-clamp lane
 - one concrete clamp-invariant witness theorem for the saturation-deshelf lane
-- a semantic-strength registry that marks `precision_escape` as
-  `packet_bridge_only`
+- one concrete precision-escape witness theorem for the precision lane
+- a semantic-strength registry that marks all four v0 lanes as
+  `concrete_sample_invariant`
 - reviewer approval for the existing generated public/dev surfaces
 
 The v0 rescue suite does not claim:
@@ -80,6 +81,5 @@ The v0 rescue suite does not claim:
 - production optimizer rewrites
 - hardware observation
 - completed full semantic correctness for all rescue operators
-- a concrete sample-invariant proof for the precision-escape lane
 - authorization for hardware action
 - peer-reviewed mathematical finality

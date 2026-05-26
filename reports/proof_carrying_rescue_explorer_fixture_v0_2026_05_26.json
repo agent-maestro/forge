@@ -40,15 +40,13 @@
       "strength_by_operator": {
         "log_domain_lift": "concrete_sample_invariant",
         "guard_clamp": "concrete_sample_invariant",
-        "precision_escape": "packet_bridge_only",
+        "precision_escape": "concrete_sample_invariant",
         "saturation_deshelf": "concrete_sample_invariant"
       },
-      "concrete_sample_invariant_count": 3,
-      "packet_bridge_only": [
-        "precision_escape"
-      ],
+      "concrete_sample_invariant_count": 4,
+      "packet_bridge_only": [],
       "semantic_rewrite_claim": false,
-      "reviewer_note": "Three lanes restore concrete local invariants; precision_escape remains packet-bridge-only until a concrete MachLib sample invariant is discharged."
+      "reviewer_note": "All four v0 rescue lanes restore concrete local invariants; full semantic rewrite correctness remains outside the v0 claim boundary."
     },
     "electronics_boundary": {
       "hardware_action_allowed": false,
@@ -68,7 +66,7 @@
       "replay_valid": true,
       "registry_complete": true,
       "conservative_flags_preserved": true,
-      "has_concrete_machlib_witness": true
+      "has_complete_concrete_machlib_witness_coverage": true
     },
     "issues": []
   },
@@ -398,13 +396,13 @@
       "transition": "phantom_attractor->interior_sample",
       "obligation": "PrecisionSensitivityObligation",
       "semanticContract": {
-        "semantic_strength": "packet_bridge_only",
+        "semantic_strength": "concrete_sample_invariant",
         "accepts": "phantom_attractor samples where a low-precision trace stalls near a basin",
-        "restores": "inspectable higher-precision escape witness",
+        "restores": "higher-precision nonzero escape signal from a low-precision stall",
         "allowed_change": "numeric precision and probe coordinate may change to expose a descent direction",
-        "must_not_claim": "concrete MachLib sample invariant or general precision-correctness theorem",
-        "preservation_scope": "inspectability only; deliberately weaker than the other v0 lanes",
-        "public_copy_safe": false
+        "must_not_claim": "general convergence theorem or optimizer-wide precision-correctness theorem",
+        "preservation_scope": "local precision-sensitivity restoration",
+        "public_copy_safe": true
       },
       "source": "examples/precision_escape_rescue.eml",
       "fixture": "fn quantized_basin(x: Real) -> Real { let dx = x - 0.375; dx * dx }",

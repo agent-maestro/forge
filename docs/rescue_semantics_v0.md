@@ -19,20 +19,20 @@ current proof boundary sits.
 |---|---|---|---|---|
 | `log_domain_lift` | `domain_wall` samples with non-positive raw log coordinates | positive internal coordinates through `exp(theta)` | raw coordinate representation may become a lifted internal coordinate | `concrete_sample_invariant` |
 | `guard_clamp` | `overflow_wall` samples outside a finite evaluation envelope | bounded guarded coordinate/output witness | coordinate may be clamped to the configured guard limit | `concrete_sample_invariant` |
-| `precision_escape` | `phantom_attractor` samples where low precision stalls near a basin | inspectable higher-precision escape witness | precision and probe coordinate may change to expose a descent direction | `packet_bridge_only` |
+| `precision_escape` | `phantom_attractor` samples where low precision stalls near a basin | higher-precision nonzero escape signal from a low-precision stall | precision and probe coordinate may change to expose a descent direction | `concrete_sample_invariant` |
 | `saturation_deshelf` | `saturation_shelf` samples collapsed by clamped output | pre-clamp pressure inside the declared clamp interval | trace may expose pre-clamp pressure instead of only clamped output | `concrete_sample_invariant` |
 
 ## Reviewer Decision
 
-`precision_escape` is deliberately weaker than the other three lanes. It remains
-in the suite because it has replay evidence and a MachLib packet bridge, but it
-must not be described as having a concrete sample-invariant proof until a
-MachLib theorem discharges that obligation directly.
+`precision_escape` now has a concrete sample-invariant witness. The witness is
+local: low precision reports a stalled gradient, while the higher-precision
+replay exposes a nonzero escape signal and moves the sample from
+`phantom_attractor` to `interior_sample`.
 
-The v0 approval gate may surface the existing Explorer because the page carries
-conservative wording, exposes the weaker precision lane explicitly, and keeps
-`semantic_rewrite_claim` false. Any future product copy that treats all four
-lanes as equally proven should be blocked by review.
+The v0 approval gate may surface the existing Explorer because all four lanes
+now have concrete sample-invariant witnesses and the page keeps
+`semantic_rewrite_claim` false. Any future product copy that treats the local
+witnesses as full rewrite semantics should be blocked by review.
 
 ## Non-Claims
 

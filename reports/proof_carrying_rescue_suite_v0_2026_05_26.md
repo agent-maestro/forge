@@ -17,7 +17,7 @@ Complete v0: `True`
 |---|---:|---:|---:|---|---:|
 | `log_domain_lift` | true | true | true | `concrete_sample_invariant` | true |
 | `guard_clamp` | true | true | true | `concrete_sample_invariant` | true |
-| `precision_escape` | true | true | false | `packet_bridge_only` | false |
+| `precision_escape` | true | true | true | `concrete_sample_invariant` | true |
 | `saturation_deshelf` | true | true | true | `concrete_sample_invariant` | false |
 
 ## Reviewer Approval Gate

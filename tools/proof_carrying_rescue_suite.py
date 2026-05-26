@@ -48,13 +48,13 @@ SEMANTIC_CONTRACTS = {
         "public_copy_safe": True,
     },
     "precision_escape": {
-        "semantic_strength": "packet_bridge_only",
+        "semantic_strength": "concrete_sample_invariant",
         "accepts": "phantom_attractor samples where a low-precision trace stalls near a basin",
-        "restores": "inspectable higher-precision escape witness",
+        "restores": "higher-precision nonzero escape signal from a low-precision stall",
         "allowed_change": "numeric precision and probe coordinate may change to expose a descent direction",
-        "must_not_claim": "concrete MachLib sample invariant or general precision-correctness theorem",
-        "preservation_scope": "inspectability only; deliberately weaker than the other v0 lanes",
-        "public_copy_safe": False,
+        "must_not_claim": "general convergence theorem or optimizer-wide precision-correctness theorem",
+        "preservation_scope": "local precision-sensitivity restoration",
+        "public_copy_safe": True,
     },
     "saturation_deshelf": {
         "semantic_strength": "concrete_sample_invariant",
@@ -76,6 +76,10 @@ CONCRETE_WITNESSES = {
     "guard_clamp": {
         "theorem": "guard_clamp_output_safety_witness_discharges_concrete_obligation",
         "concrete_obligation": "ConcreteOutputSafetyObligation",
+    },
+    "precision_escape": {
+        "theorem": "precision_escape_witness_discharges_concrete_obligation",
+        "concrete_obligation": "ConcretePrecisionEscapeObligation",
     },
     "saturation_deshelf": {
         "theorem": "saturation_deshelf_clamp_witness_discharges_concrete_obligation",
@@ -203,8 +207,9 @@ def build_approval_gate(manifest: dict, replay: dict, registry: dict) -> dict:
         if flag.endswith("_claim") or flag == "hardware_observed":
             if value is not False:
                 issues.append(f"conservative_flag_flipped:{flag}")
-    if not any(entry["status"]["proven"] for entry in registry["entries"]):
-        issues.append("no_concrete_machlib_witness")
+    concrete_count = sum(1 for entry in registry["entries"] if entry["status"]["proven"])
+    if concrete_count != registry["entry_count"]:
+        issues.append("incomplete_concrete_machlib_witness_coverage")
     semantic_strengths = {
         entry["rescue_operator"]: entry["semantic_contract"]["semantic_strength"]
         for entry in registry["entries"]
@@ -227,8 +232,8 @@ def build_approval_gate(manifest: dict, replay: dict, registry: dict) -> dict:
             ],
             "semantic_rewrite_claim": False,
             "reviewer_note": (
-                "Three lanes restore concrete local invariants; precision_escape remains packet-bridge-only "
-                "until a concrete MachLib sample invariant is discharged."
+                "All four v0 rescue lanes restore concrete local invariants; full semantic rewrite correctness "
+                "remains outside the v0 claim boundary."
             ),
         },
         "electronics_boundary": {
@@ -253,7 +258,7 @@ def build_approval_gate(manifest: dict, replay: dict, registry: dict) -> dict:
                 for flag, value in manifest["boundaries"].items()
                 if flag.endswith("_claim") or flag == "hardware_observed"
             ),
-            "has_concrete_machlib_witness": any(entry["status"]["proven"] for entry in registry["entries"]),
+            "has_complete_concrete_machlib_witness_coverage": concrete_count == registry["entry_count"],
         },
         "issues": issues,
     }
