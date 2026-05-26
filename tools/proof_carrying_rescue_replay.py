@@ -21,6 +21,14 @@ CONSERVATIVE_BOUNDARY_FLAGS = {
     "hardware_observed",
     "completed_formal_proof_claim",
 }
+REQUIRED_REGISTRY_FLAGS = {
+    "routed",
+    "witnessed",
+    "proven",
+    "ci_guarded",
+    "public_copy_safe",
+    "blocked",
+}
 
 
 def load_manifest(path: Path) -> dict:
@@ -74,6 +82,27 @@ def replay_manifest(packet: dict) -> dict:
     for flag in CONSERVATIVE_BOUNDARY_FLAGS:
         if packet.get("boundaries", {}).get(flag) is not False:
             issues.append(f"suite boundary flag must be false: {flag}")
+
+    registry = packet.get("obligation_registry")
+    if not registry:
+        issues.append("missing obligation registry")
+    else:
+        entries = {entry.get("rescue_operator"): entry for entry in registry.get("entries", [])}
+        if set(entries) != set(EXPECTED_LANES):
+            issues.append(f"registry operator mismatch: {sorted(entries)}")
+        for operator, entry in entries.items():
+            status = entry.get("status", {})
+            if set(status) != REQUIRED_REGISTRY_FLAGS:
+                issues.append(f"{operator} registry status fields mismatch: {sorted(status)}")
+                continue
+            if status["routed"] is not True:
+                issues.append(f"{operator} registry must be routed")
+            if status["witnessed"] is not True:
+                issues.append(f"{operator} registry must be witnessed")
+            if status["ci_guarded"] is not True:
+                issues.append(f"{operator} registry must be CI guarded")
+            if status["blocked"] is not False:
+                issues.append(f"{operator} registry must not be blocked")
 
     return {
         "schema_version": "forge.optimizer.proof_carrying_rescue_replay.v0",

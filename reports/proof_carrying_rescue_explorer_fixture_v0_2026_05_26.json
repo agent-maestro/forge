@@ -29,6 +29,35 @@
     "hardware_observed": false,
     "completed_formal_proof_claim": false
   },
+  "approval": {
+    "schema_version": "forge.optimizer.rescue_artifact_approval.v0",
+    "suite": "proof-carrying-rescue-v0",
+    "reviewer": "codex-reviewer",
+    "decision": "approved_for_existing_public_surfaces",
+    "surface_allowed": true,
+    "deploy_allowed": true,
+    "electronics_boundary": {
+      "hardware_action_allowed": false,
+      "future_physical_packets_must_use_evidence_grammar": true,
+      "required_packet_fields": [
+        "packet_id",
+        "source",
+        "capture_mode",
+        "trace_path",
+        "validator_result",
+        "replay_result",
+        "claim_flags",
+        "review_status"
+      ]
+    },
+    "checks": {
+      "replay_valid": true,
+      "registry_complete": true,
+      "conservative_flags_preserved": true,
+      "has_concrete_machlib_witness": true
+    },
+    "issues": []
+  },
   "lanes": [
     {
       "operator": "log_domain_lift",

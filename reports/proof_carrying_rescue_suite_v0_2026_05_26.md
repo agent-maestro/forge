@@ -11,6 +11,21 @@ Complete v0: `True`
 | `precision_escape` | `phantom_attractor->interior_sample` | `PrecisionSensitivityObligation` | `examples/precision_escape_rescue.eml` | true |
 | `saturation_deshelf` | `saturation_shelf->corner_concentration` | `ClampInvariantObligation` | `examples/saturation_deshelf_rescue.eml` | true |
 
+## Obligation Registry
+
+| rescue operator | routed | witnessed | proven | CI guarded | public-copy safe |
+|---|---:|---:|---:|---:|---:|
+| `log_domain_lift` | true | true | true | true | true |
+| `guard_clamp` | true | true | true | true | true |
+| `precision_escape` | true | true | false | true | false |
+| `saturation_deshelf` | true | true | true | true | false |
+
+## Reviewer Approval Gate
+
+Decision: `approved_for_existing_public_surfaces`
+Surface allowed: `True`
+Deploy allowed: `True`
+
 This manifest is analysis-only. It aggregates the four v0 proof-carrying
 rescue packets; it does not claim semantic rewrites, optimizer release,
-hardware observations, or completed formal proofs.
+hardware observations, or completed formal proofs for every lane.

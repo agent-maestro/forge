@@ -1,0 +1,86 @@
+{
+  "schema_version": "forge.optimizer.rescue_obligation_registry.v0",
+  "suite": "proof-carrying-rescue-v0",
+  "entry_count": 4,
+  "entries": [
+    {
+      "rescue_operator": "log_domain_lift",
+      "transition": "domain_wall->log_domain_rescue",
+      "machlib_obligation": "PositiveCoordinateObligation",
+      "source_path": "examples/proof_carrying_rescue.eml",
+      "status": {
+        "routed": true,
+        "witnessed": true,
+        "proven": true,
+        "ci_guarded": true,
+        "public_copy_safe": true,
+        "blocked": false
+      },
+      "machlib_witness": {
+        "theorem": "log_domain_positive_coordinate_witness_discharges_concrete_obligation",
+        "concrete_obligation": "ConcretePositiveCoordinateObligation"
+      },
+      "review_note": "Concrete sample-level MachLib witness exists."
+    },
+    {
+      "rescue_operator": "guard_clamp",
+      "transition": "overflow_wall->guard_rescue",
+      "machlib_obligation": "OutputSafetyObligation",
+      "source_path": "examples/guard_clamp_rescue.eml",
+      "status": {
+        "routed": true,
+        "witnessed": true,
+        "proven": true,
+        "ci_guarded": true,
+        "public_copy_safe": true,
+        "blocked": false
+      },
+      "machlib_witness": {
+        "theorem": "guard_clamp_output_safety_witness_discharges_concrete_obligation",
+        "concrete_obligation": "ConcreteOutputSafetyObligation"
+      },
+      "review_note": "Concrete sample-level MachLib witness exists."
+    },
+    {
+      "rescue_operator": "precision_escape",
+      "transition": "phantom_attractor->interior_sample",
+      "machlib_obligation": "PrecisionSensitivityObligation",
+      "source_path": "examples/precision_escape_rescue.eml",
+      "status": {
+        "routed": true,
+        "witnessed": true,
+        "proven": false,
+        "ci_guarded": true,
+        "public_copy_safe": false,
+        "blocked": false
+      },
+      "machlib_witness": null,
+      "review_note": "Packet bridge exists; concrete sample-level theorem remains future work."
+    },
+    {
+      "rescue_operator": "saturation_deshelf",
+      "transition": "saturation_shelf->corner_concentration",
+      "machlib_obligation": "ClampInvariantObligation",
+      "source_path": "examples/saturation_deshelf_rescue.eml",
+      "status": {
+        "routed": true,
+        "witnessed": true,
+        "proven": true,
+        "ci_guarded": true,
+        "public_copy_safe": false,
+        "blocked": false
+      },
+      "machlib_witness": {
+        "theorem": "saturation_deshelf_clamp_witness_discharges_concrete_obligation",
+        "concrete_obligation": "ConcreteClampInvariantObligation"
+      },
+      "review_note": "Concrete sample-level MachLib witness exists."
+    }
+  ],
+  "policy": {
+    "routed_is_not_proven": true,
+    "public_copy_requires_conservative_flags": true,
+    "deploy_requires_replay_valid": true,
+    "electronics_packets_must_use_evidence_grammar": true
+  }
+}

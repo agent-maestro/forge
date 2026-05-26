@@ -9,19 +9,29 @@ from pathlib import Path
 def _rescue_suite(args: argparse.Namespace) -> int:
     from tools.proof_carrying_rescue_replay import replay_manifest
     from tools.proof_carrying_rescue_suite import (
+        build_approval_gate,
+        build_obligation_registry,
         run_suite,
         validate_strict,
+        write_approval_gate,
         write_explorer_fixture,
+        write_obligation_registry,
         write_outputs,
     )
 
     manifest = run_suite()
+    registry = build_obligation_registry(manifest)
+    manifest["obligation_registry"] = registry
     replay = replay_manifest(manifest)
+    approval = build_approval_gate(manifest, replay, registry)
+    manifest["approval_gate"] = approval
 
     write_outputs(manifest, args.manifest_json, args.markdown)
     args.replay_json.parent.mkdir(parents=True, exist_ok=True)
     args.replay_json.write_text(args.json_dumps(replay), encoding="utf-8")
     write_explorer_fixture(manifest, replay, args.explorer_json)
+    write_obligation_registry(registry, args.registry_json)
+    write_approval_gate(approval, args.approval_json)
 
     if args.strict:
         validate_strict(manifest)
@@ -32,6 +42,8 @@ def _rescue_suite(args: argparse.Namespace) -> int:
     print(f"Wrote {args.replay_json}")
     print(f"Wrote {args.markdown}")
     print(f"Wrote {args.explorer_json}")
+    print(f"Wrote {args.registry_json}")
+    print(f"Wrote {args.approval_json}")
     print("FORGE_RESCUE_SUITE_OK")
     return 0
 
@@ -82,6 +94,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--explorer-json",
         type=Path,
         default=Path("reports/proof_carrying_rescue_explorer_fixture_v0_2026_05_26.json"),
+    )
+    rescue.add_argument(
+        "--registry-json",
+        type=Path,
+        default=Path("reports/rescue_obligation_registry_v0_2026_05_26.json"),
+    )
+    rescue.add_argument(
+        "--approval-json",
+        type=Path,
+        default=Path("reports/rescue_artifact_approval_v0_2026_05_26.json"),
     )
     rescue.set_defaults(handler=_rescue_suite, json_dumps=_json_dumps)
 

@@ -28,7 +28,9 @@ jobs:
             reports/proof_carrying_rescue_suite_v0_2026_05_26.json \
             reports/proof_carrying_rescue_replay_v0_2026_05_26.json \
             reports/proof_carrying_rescue_suite_v0_2026_05_26.md \
-            reports/proof_carrying_rescue_explorer_fixture_v0_2026_05_26.json
+            reports/proof_carrying_rescue_explorer_fixture_v0_2026_05_26.json \
+            reports/rescue_obligation_registry_v0_2026_05_26.json \
+            reports/rescue_artifact_approval_v0_2026_05_26.json
 
       - name: Replay manifest
         run: |
@@ -46,6 +48,8 @@ jobs:
           manifest = json.loads(Path("reports/proof_carrying_rescue_suite_v0_2026_05_26.json").read_text())
           fixture = json.loads(Path("reports/proof_carrying_rescue_explorer_fixture_v0_2026_05_26.json").read_text())
           replay = json.loads(Path("reports/proof_carrying_rescue_replay_v0_2026_05_26.json").read_text())
+          registry = json.loads(Path("reports/rescue_obligation_registry_v0_2026_05_26.json").read_text())
+          approval = json.loads(Path("reports/rescue_artifact_approval_v0_2026_05_26.json").read_text())
 
           assert manifest["boundaries"]["semantic_rewrite_claim"] is False
           assert manifest["boundaries"]["optimizer_release_claim"] is False
@@ -55,6 +59,12 @@ jobs:
           assert fixture["replayStatus"]["valid"] is True
           assert replay["valid"] is True
           assert len(fixture["lanes"]) == 4
+          assert registry["entry_count"] == 4
+          proven = {entry["rescue_operator"] for entry in registry["entries"] if entry["status"]["proven"]}
+          assert {"log_domain_lift", "guard_clamp", "saturation_deshelf"} <= proven
+          assert approval["surface_allowed"] is True
+          assert approval["deploy_allowed"] is True
+          assert approval["electronics_boundary"]["future_physical_packets_must_use_evidence_grammar"] is True
           PY
 
       - name: Rescue tests
