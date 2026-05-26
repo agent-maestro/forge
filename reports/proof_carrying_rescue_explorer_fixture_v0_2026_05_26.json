@@ -1,0 +1,564 @@
+{
+  "schemaVersion": "monogate.dev.rescue_suite_explorer_fixture.v0",
+  "generatedFrom": {
+    "manifestSchema": "forge.optimizer.proof_carrying_rescue_suite.v0",
+    "replaySchema": "forge.optimizer.proof_carrying_rescue_replay.v0",
+    "suite": "proof-carrying-rescue-v0"
+  },
+  "replayStatus": {
+    "schema": "forge.optimizer.proof_carrying_rescue_replay.v0",
+    "sourceSchema": "forge.optimizer.proof_carrying_rescue_suite.v0",
+    "valid": true,
+    "issueCount": 0,
+    "issues": [],
+    "laneCount": 4,
+    "operators": [
+      "guard_clamp",
+      "log_domain_lift",
+      "precision_escape",
+      "saturation_deshelf"
+    ],
+    "manifest": "reports/proof_carrying_rescue_suite_v0_2026_05_26.json",
+    "replay": "reports/proof_carrying_rescue_replay_v0_2026_05_26.json"
+  },
+  "boundaryFlags": {
+    "analysis_only": true,
+    "simulated_trace": true,
+    "semantic_rewrite_claim": false,
+    "optimizer_release_claim": false,
+    "hardware_observed": false,
+    "completed_formal_proof_claim": false
+  },
+  "lanes": [
+    {
+      "operator": "log_domain_lift",
+      "fromEvent": "domain_wall",
+      "toEvent": "log_domain_rescue",
+      "transition": "domain_wall->log_domain_rescue",
+      "obligation": "PositiveCoordinateObligation",
+      "source": "examples/proof_carrying_rescue.eml",
+      "fixture": "fn positive_log_energy(x: Real) -> Real requires (x > 0.0) { ln(x) + sqrt(x) + 1.0 / x }",
+      "packetSchema": "forge.optimizer.proof_carrying_rescue.v1",
+      "claim": "Raw non-positive coordinates are lifted through exp(theta), preserving a positive internal coordinate path.",
+      "summary": {
+        "sampleCount": 6,
+        "rescuedEventCount": 3,
+        "hasTransitionWitness": true
+      },
+      "frames": [
+        {
+          "sample": 0,
+          "input": "x=-2.0 -> 0.13533528",
+          "rawEvent": "domain_wall",
+          "rescueEvent": "log_domain_rescue",
+          "transition": "domain_wall->log_domain_rescue",
+          "metric": "finite: false -> true",
+          "raw": {
+            "finite": false,
+            "domain_preserved": false,
+            "value": null,
+            "event_class": "domain_wall"
+          },
+          "rescued": {
+            "finite": true,
+            "domain_preserved": true,
+            "value": 5.75693554,
+            "event_class": "log_domain_rescue",
+            "positive_coordinate": true
+          },
+          "isWitness": true
+        },
+        {
+          "sample": 1,
+          "input": "x=-0.5 -> 0.60653066",
+          "rawEvent": "domain_wall",
+          "rescueEvent": "log_domain_rescue",
+          "transition": "domain_wall->log_domain_rescue",
+          "metric": "finite: false -> true",
+          "raw": {
+            "finite": false,
+            "domain_preserved": false,
+            "value": null,
+            "event_class": "domain_wall"
+          },
+          "rescued": {
+            "finite": true,
+            "domain_preserved": true,
+            "value": 1.92752205,
+            "event_class": "log_domain_rescue",
+            "positive_coordinate": true
+          },
+          "isWitness": true
+        },
+        {
+          "sample": 2,
+          "input": "x=0.0 -> 1.0",
+          "rawEvent": "domain_wall",
+          "rescueEvent": "log_domain_rescue",
+          "transition": "domain_wall->log_domain_rescue",
+          "metric": "finite: false -> true",
+          "raw": {
+            "finite": false,
+            "domain_preserved": false,
+            "value": null,
+            "event_class": "domain_wall"
+          },
+          "rescued": {
+            "finite": true,
+            "domain_preserved": true,
+            "value": 2.0,
+            "event_class": "log_domain_rescue",
+            "positive_coordinate": true
+          },
+          "isWitness": true
+        },
+        {
+          "sample": 3,
+          "input": "x=0.25 -> 1.28402542",
+          "rawEvent": "interior_sample",
+          "rescueEvent": "interior_sample",
+          "transition": "interior_sample->interior_sample",
+          "metric": "finite: true -> true",
+          "raw": {
+            "finite": true,
+            "domain_preserved": true,
+            "value": 3.11370564,
+            "event_class": "interior_sample"
+          },
+          "rescued": {
+            "finite": true,
+            "domain_preserved": true,
+            "value": 2.16194924,
+            "event_class": "interior_sample",
+            "positive_coordinate": true
+          },
+          "isWitness": false
+        },
+        {
+          "sample": 4,
+          "input": "x=1.25 -> 3.49034296",
+          "rawEvent": "interior_sample",
+          "rescueEvent": "interior_sample",
+          "transition": "interior_sample->interior_sample",
+          "metric": "finite: true -> true",
+          "raw": {
+            "finite": true,
+            "domain_preserved": true,
+            "value": 2.14117754,
+            "event_class": "interior_sample"
+          },
+          "rescued": {
+            "finite": true,
+            "domain_preserved": true,
+            "value": 3.40475075,
+            "event_class": "interior_sample",
+            "positive_coordinate": true
+          },
+          "isWitness": false
+        },
+        {
+          "sample": 5,
+          "input": "x=2.0 -> 7.3890561",
+          "rawEvent": "interior_sample",
+          "rescueEvent": "interior_sample",
+          "transition": "interior_sample->interior_sample",
+          "metric": "finite: true -> true",
+          "raw": {
+            "finite": true,
+            "domain_preserved": true,
+            "value": 2.60736074,
+            "event_class": "interior_sample"
+          },
+          "rescued": {
+            "finite": true,
+            "domain_preserved": true,
+            "value": 4.85361711,
+            "event_class": "interior_sample",
+            "positive_coordinate": true
+          },
+          "isWitness": false
+        }
+      ]
+    },
+    {
+      "operator": "guard_clamp",
+      "fromEvent": "overflow_wall",
+      "toEvent": "guard_rescue",
+      "transition": "overflow_wall->guard_rescue",
+      "obligation": "OutputSafetyObligation",
+      "source": "examples/guard_clamp_rescue.eml",
+      "fixture": "fn exp_pressure(x: Real) -> Real { exp(x) + exp(x * x) }",
+      "packetSchema": "forge.optimizer.guard_clamp_rescue.v1",
+      "claim": "Raw overflow pressure is replayed through a bounded guard coordinate, preserving finite output.",
+      "summary": {
+        "sampleCount": 6,
+        "rescuedEventCount": 3,
+        "hasTransitionWitness": true
+      },
+      "frames": [
+        {
+          "sample": 0,
+          "input": "x=1.0 -> guard=1.0",
+          "rawEvent": "interior_sample",
+          "rescueEvent": "interior_sample",
+          "transition": "interior_sample->interior_sample",
+          "metric": "finite: true -> true",
+          "raw": {
+            "finite": true,
+            "bounded_output": true,
+            "value": 5.43656366,
+            "event_class": "interior_sample"
+          },
+          "rescued": {
+            "finite": true,
+            "bounded_output": true,
+            "value": 5.43656366,
+            "event_class": "interior_sample",
+            "within_guard_bounds": true
+          },
+          "isWitness": false
+        },
+        {
+          "sample": 1,
+          "input": "x=4.0 -> guard=4.0",
+          "rawEvent": "interior_sample",
+          "rescueEvent": "interior_sample",
+          "transition": "interior_sample->interior_sample",
+          "metric": "finite: true -> true",
+          "raw": {
+            "finite": true,
+            "bounded_output": true,
+            "value": 8886165.11865791,
+            "event_class": "interior_sample"
+          },
+          "rescued": {
+            "finite": true,
+            "bounded_output": true,
+            "value": 8886165.11865791,
+            "event_class": "interior_sample",
+            "within_guard_bounds": true
+          },
+          "isWitness": false
+        },
+        {
+          "sample": 2,
+          "input": "x=10.0 -> guard=8.0",
+          "rawEvent": "interior_sample",
+          "rescueEvent": "interior_sample",
+          "transition": "interior_sample->interior_sample",
+          "metric": "finite: true -> true",
+          "raw": {
+            "finite": true,
+            "bounded_output": true,
+            "value": 2.6881171418161356e+43,
+            "event_class": "interior_sample"
+          },
+          "rescued": {
+            "finite": true,
+            "bounded_output": true,
+            "value": 6.235149080811617e+27,
+            "event_class": "interior_sample",
+            "within_guard_bounds": true
+          },
+          "isWitness": false
+        },
+        {
+          "sample": 3,
+          "input": "x=30.0 -> guard=8.0",
+          "rawEvent": "overflow_wall",
+          "rescueEvent": "guard_rescue",
+          "transition": "overflow_wall->guard_rescue",
+          "metric": "finite: false -> true",
+          "raw": {
+            "finite": false,
+            "bounded_output": false,
+            "value": null,
+            "event_class": "overflow_wall"
+          },
+          "rescued": {
+            "finite": true,
+            "bounded_output": true,
+            "value": 6.235149080811617e+27,
+            "event_class": "guard_rescue",
+            "within_guard_bounds": true
+          },
+          "isWitness": true
+        },
+        {
+          "sample": 4,
+          "input": "x=710.0 -> guard=8.0",
+          "rawEvent": "overflow_wall",
+          "rescueEvent": "guard_rescue",
+          "transition": "overflow_wall->guard_rescue",
+          "metric": "finite: false -> true",
+          "raw": {
+            "finite": false,
+            "bounded_output": false,
+            "value": null,
+            "event_class": "overflow_wall"
+          },
+          "rescued": {
+            "finite": true,
+            "bounded_output": true,
+            "value": 6.235149080811617e+27,
+            "event_class": "guard_rescue",
+            "within_guard_bounds": true
+          },
+          "isWitness": true
+        },
+        {
+          "sample": 5,
+          "input": "x=800.0 -> guard=8.0",
+          "rawEvent": "overflow_wall",
+          "rescueEvent": "guard_rescue",
+          "transition": "overflow_wall->guard_rescue",
+          "metric": "finite: false -> true",
+          "raw": {
+            "finite": false,
+            "bounded_output": false,
+            "value": null,
+            "event_class": "overflow_wall"
+          },
+          "rescued": {
+            "finite": true,
+            "bounded_output": true,
+            "value": 6.235149080811617e+27,
+            "event_class": "guard_rescue",
+            "within_guard_bounds": true
+          },
+          "isWitness": true
+        }
+      ]
+    },
+    {
+      "operator": "precision_escape",
+      "fromEvent": "phantom_attractor",
+      "toEvent": "interior_sample",
+      "transition": "phantom_attractor->interior_sample",
+      "obligation": "PrecisionSensitivityObligation",
+      "source": "examples/precision_escape_rescue.eml",
+      "fixture": "fn quantized_basin(x: Real) -> Real { let dx = x - 0.375; dx * dx }",
+      "packetSchema": "forge.optimizer.precision_escape_rescue.v1",
+      "claim": "A finite low-precision stall is replayed at higher precision, exposing a descent direction and escape witness.",
+      "summary": {
+        "sampleCount": 3,
+        "rescuedEventCount": 3,
+        "hasTransitionWitness": true
+      },
+      "frames": [
+        {
+          "sample": 0,
+          "input": "x=0.25 -> escape=0.375",
+          "rawEvent": "phantom_attractor",
+          "rescueEvent": "interior_sample",
+          "transition": "phantom_attractor->interior_sample",
+          "metric": "low grad 0.0, high grad -0.25",
+          "raw": {
+            "finite": true,
+            "raw_value": 0.015625,
+            "low_precision_gradient": 0.0,
+            "high_precision_gradient": -0.25,
+            "escape_coordinate": 0.375,
+            "escape_value": 0.0,
+            "sensitivity_score": 0.25,
+            "low_precision_stalled": true,
+            "higher_precision_sensitive": true,
+            "escape_improved": true,
+            "event_class": "phantom_attractor"
+          },
+          "rescued": {
+            "coordinate": 0.375,
+            "value": 0.0,
+            "event_class": "interior_sample",
+            "finite": true
+          },
+          "isWitness": true
+        },
+        {
+          "sample": 1,
+          "input": "x=0.5 -> escape=0.375",
+          "rawEvent": "phantom_attractor",
+          "rescueEvent": "interior_sample",
+          "transition": "phantom_attractor->interior_sample",
+          "metric": "low grad 0.0, high grad 0.25",
+          "raw": {
+            "finite": true,
+            "raw_value": 0.015625,
+            "low_precision_gradient": 0.0,
+            "high_precision_gradient": 0.25,
+            "escape_coordinate": 0.375,
+            "escape_value": 0.0,
+            "sensitivity_score": 0.25,
+            "low_precision_stalled": true,
+            "higher_precision_sensitive": true,
+            "escape_improved": true,
+            "event_class": "phantom_attractor"
+          },
+          "rescued": {
+            "coordinate": 0.375,
+            "value": 0.0,
+            "event_class": "interior_sample",
+            "finite": true
+          },
+          "isWitness": true
+        },
+        {
+          "sample": 2,
+          "input": "x=0.75 -> escape=0.375",
+          "rawEvent": "phantom_attractor",
+          "rescueEvent": "interior_sample",
+          "transition": "phantom_attractor->interior_sample",
+          "metric": "low grad 0.0, high grad 0.75",
+          "raw": {
+            "finite": true,
+            "raw_value": 0.140625,
+            "low_precision_gradient": 0.0,
+            "high_precision_gradient": 0.75,
+            "escape_coordinate": 0.375,
+            "escape_value": 0.0,
+            "sensitivity_score": 0.75,
+            "low_precision_stalled": true,
+            "higher_precision_sensitive": true,
+            "escape_improved": true,
+            "event_class": "phantom_attractor"
+          },
+          "rescued": {
+            "coordinate": 0.375,
+            "value": 0.0,
+            "event_class": "interior_sample",
+            "finite": true
+          },
+          "isWitness": true
+        }
+      ]
+    },
+    {
+      "operator": "saturation_deshelf",
+      "fromEvent": "saturation_shelf",
+      "toEvent": "corner_concentration",
+      "transition": "saturation_shelf->corner_concentration",
+      "obligation": "ClampInvariantObligation",
+      "source": "examples/saturation_deshelf_rescue.eml",
+      "fixture": "fn saturated_response(x: Real) -> Real { clamp(exp(x), 0.0, 1.0) }",
+      "packetSchema": "forge.optimizer.saturation_deshelf_rescue.v1",
+      "claim": "Finite clamp-shelf collapse is replayed through pre-clamp pressure, restoring measurable boundary structure.",
+      "summary": {
+        "sampleCount": 5,
+        "rescuedEventCount": 2,
+        "hasTransitionWitness": true
+      },
+      "frames": [
+        {
+          "sample": 0,
+          "input": "x=-2.0",
+          "rawEvent": "interior_sample",
+          "rescueEvent": "interior_sample",
+          "transition": "interior_sample->interior_sample",
+          "metric": "pressure 0.126928011",
+          "raw": {
+            "finite": true,
+            "value": 0.1353352832,
+            "pre_clamp_pressure": 0.126928011,
+            "shelf_distance": -0.8646647168,
+            "event_class": "interior_sample"
+          },
+          "rescued": {
+            "event_class": "interior_sample",
+            "pre_clamp_pressure": 0.126928011,
+            "measurable_boundary_structure": false,
+            "finite": true
+          },
+          "isWitness": false
+        },
+        {
+          "sample": 1,
+          "input": "x=0.0",
+          "rawEvent": "interior_sample",
+          "rescueEvent": "interior_sample",
+          "transition": "interior_sample->interior_sample",
+          "metric": "pressure 0.6931471806",
+          "raw": {
+            "finite": true,
+            "value": 1.0,
+            "pre_clamp_pressure": 0.6931471806,
+            "shelf_distance": 0.0,
+            "event_class": "interior_sample"
+          },
+          "rescued": {
+            "event_class": "interior_sample",
+            "pre_clamp_pressure": 0.6931471806,
+            "measurable_boundary_structure": false,
+            "finite": true
+          },
+          "isWitness": false
+        },
+        {
+          "sample": 2,
+          "input": "x=2.0",
+          "rawEvent": "saturation_shelf",
+          "rescueEvent": "saturation_shelf",
+          "transition": "saturation_shelf->saturation_shelf",
+          "metric": "pressure 2.126928011",
+          "raw": {
+            "finite": true,
+            "value": 1.0,
+            "pre_clamp_pressure": 2.126928011,
+            "shelf_distance": 6.3890560989,
+            "event_class": "saturation_shelf"
+          },
+          "rescued": {
+            "event_class": "saturation_shelf",
+            "pre_clamp_pressure": 2.126928011,
+            "measurable_boundary_structure": false,
+            "finite": true
+          },
+          "isWitness": false
+        },
+        {
+          "sample": 3,
+          "input": "x=4.0",
+          "rawEvent": "saturation_shelf",
+          "rescueEvent": "corner_concentration",
+          "transition": "saturation_shelf->corner_concentration",
+          "metric": "pressure 4.0181499279",
+          "raw": {
+            "finite": true,
+            "value": 1.0,
+            "pre_clamp_pressure": 4.0181499279,
+            "shelf_distance": 53.5981500331,
+            "event_class": "saturation_shelf"
+          },
+          "rescued": {
+            "event_class": "corner_concentration",
+            "pre_clamp_pressure": 4.0181499279,
+            "measurable_boundary_structure": true,
+            "finite": true
+          },
+          "isWitness": true
+        },
+        {
+          "sample": 4,
+          "input": "x=8.0",
+          "rawEvent": "saturation_shelf",
+          "rescueEvent": "corner_concentration",
+          "transition": "saturation_shelf->corner_concentration",
+          "metric": "pressure 8.0003354064",
+          "raw": {
+            "finite": true,
+            "value": 1.0,
+            "pre_clamp_pressure": 8.0003354064,
+            "shelf_distance": 2979.9579870417,
+            "event_class": "saturation_shelf"
+          },
+          "rescued": {
+            "event_class": "corner_concentration",
+            "pre_clamp_pressure": 8.0003354064,
+            "measurable_boundary_structure": true,
+            "finite": true
+          },
+          "isWitness": true
+        }
+      ]
+    }
+  ]
+}
