@@ -1,0 +1,16 @@
+// precision_escape_rescue.eml -- fixture for the phantom-attractor
+// proof-carrying rescue packet.
+//
+// The source function is ordinary and finite. The phantom appears in the
+// low-precision optimizer trace: coarse finite differences report no gradient,
+// while higher-precision replay exposes a descent direction.
+
+module precision_escape_rescue;
+
+fn quantized_basin(x: Real) -> Real
+    where chain_order <= 0
+{
+    let target = 0.375;
+    let dx = x - target;
+    dx * dx
+}

@@ -1,0 +1,135 @@
+{
+  "schema_version": "forge.optimizer.precision_escape_rescue.v1",
+  "function_family": "quantized_basin",
+  "source_path": "examples/precision_escape_rescue.eml",
+  "eml_shape": "fn quantized_basin(x: Real) -> Real { let dx = x - 0.375; dx * dx }",
+  "profile": {
+    "status": "ok",
+    "chain_order": 0,
+    "max_path_r": 0,
+    "eml_depth": 2,
+    "structural_overhead": 2,
+    "cost_class": "p0-d2-w0-c0",
+    "is_pfaffian_not_eml": false,
+    "predicted_depth": 2,
+    "dynamics": {
+      "oscillations": 0,
+      "decays": 0,
+      "predicted_r": 0
+    },
+    "node_count": 2,
+    "stability_warnings": [],
+    "fp16_drift_risk": "LOW",
+    "fpga_estimate": {
+      "exp_units": 0,
+      "ln_units": 0,
+      "trig_units": 0,
+      "mac_units": 2,
+      "estimated_latency_cycles": 4,
+      "precision_bits_needed": 32
+    }
+  },
+  "rescue_operator": "precision_escape",
+  "expected_transition": "phantom_attractor->interior_sample",
+  "composed_transition_demo": "phantom_attractor->interior_sample",
+  "machlib_obligation": "PrecisionSensitivityObligation",
+  "intervention_obligation": "PrecisionEscapeInterventionObligation",
+  "precision": {
+    "low_precision_step": 0.25,
+    "high_precision_eps": 0.01,
+    "learning_rate": 0.5,
+    "target": 0.375,
+    "finite_trace_preserved": true,
+    "precision_sensitivity_witnessed": true,
+    "function_boundary_preserved": true
+  },
+  "sample_count": 3,
+  "phantom_event_count": 3,
+  "rescued_event_count": 3,
+  "has_transition_witness": true,
+  "frames": [
+    {
+      "sample_index": 0,
+      "probe_coordinate": 0.25,
+      "raw": {
+        "finite": true,
+        "raw_value": 0.015625,
+        "low_precision_gradient": 0.0,
+        "high_precision_gradient": -0.25,
+        "escape_coordinate": 0.375,
+        "escape_value": 0.0,
+        "sensitivity_score": 0.25,
+        "low_precision_stalled": true,
+        "higher_precision_sensitive": true,
+        "escape_improved": true,
+        "event_class": "phantom_attractor"
+      },
+      "escaped": {
+        "coordinate": 0.375,
+        "value": 0.0,
+        "event_class": "interior_sample",
+        "finite": true
+      },
+      "transition": "phantom_attractor->interior_sample",
+      "rescue_transition": true
+    },
+    {
+      "sample_index": 1,
+      "probe_coordinate": 0.5,
+      "raw": {
+        "finite": true,
+        "raw_value": 0.015625,
+        "low_precision_gradient": 0.0,
+        "high_precision_gradient": 0.25,
+        "escape_coordinate": 0.375,
+        "escape_value": 0.0,
+        "sensitivity_score": 0.25,
+        "low_precision_stalled": true,
+        "higher_precision_sensitive": true,
+        "escape_improved": true,
+        "event_class": "phantom_attractor"
+      },
+      "escaped": {
+        "coordinate": 0.375,
+        "value": 0.0,
+        "event_class": "interior_sample",
+        "finite": true
+      },
+      "transition": "phantom_attractor->interior_sample",
+      "rescue_transition": true
+    },
+    {
+      "sample_index": 2,
+      "probe_coordinate": 0.75,
+      "raw": {
+        "finite": true,
+        "raw_value": 0.140625,
+        "low_precision_gradient": 0.0,
+        "high_precision_gradient": 0.75,
+        "escape_coordinate": 0.375,
+        "escape_value": 0.0,
+        "sensitivity_score": 0.75,
+        "low_precision_stalled": true,
+        "higher_precision_sensitive": true,
+        "escape_improved": true,
+        "event_class": "phantom_attractor"
+      },
+      "escaped": {
+        "coordinate": 0.375,
+        "value": 0.0,
+        "event_class": "interior_sample",
+        "finite": true
+      },
+      "transition": "phantom_attractor->interior_sample",
+      "rescue_transition": true
+    }
+  ],
+  "boundaries": {
+    "analysis_only": true,
+    "simulated_trace": true,
+    "semantic_rewrite_claim": false,
+    "optimizer_release_claim": false,
+    "hardware_observed": false,
+    "true_local_optimum_claim": false
+  }
+}
