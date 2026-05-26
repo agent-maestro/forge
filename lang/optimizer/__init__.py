@@ -30,6 +30,8 @@ from lang.optimizer.cse import apply_cse, apply_cse_module
 from lang.optimizer.inliner import inline_calls
 from lang.optimizer.log_domain import (
     apply_log_domain_optimizer_module,
+    build_log_domain_coordinate_plan,
+    coordinate_plan_packet,
     write_log_domain_trace,
 )
 from lang.optimizer.ml_routing import route_ml_activations_module
@@ -122,6 +124,8 @@ __all__ = [
     "apply_cse_module",
     "inline_calls",
     "apply_log_domain_optimizer_module",
+    "build_log_domain_coordinate_plan",
+    "coordinate_plan_packet",
     "write_log_domain_trace",
     "route_superbest",
     "superbest_function",

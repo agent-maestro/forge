@@ -1,0 +1,840 @@
+{
+  "schema_version": "forge.optimizer.log_domain_candidate_benchmark.v1",
+  "source_trace_schema": "forge.optimizer.log_domain_trace.v1",
+  "file_count": 17,
+  "function_count": 82,
+  "candidate_count": 9,
+  "reason_counts": {
+    "high_drift": 7,
+    "multi_transcendental": 1,
+    "nested_exp_log": 1
+  },
+  "rows": [
+    {
+      "path": "lang/spec/grammar/examples/arrhenius.eml",
+      "function": "rate",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 3,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/grammar/examples/bessel_fm.eml",
+      "function": "fm_voice",
+      "candidate": true,
+      "reason": "high_drift",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 5,
+      "drift_risk": "HIGH"
+    },
+    {
+      "path": "lang/spec/grammar/examples/hello.eml",
+      "function": "answer",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 0,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/grammar/examples/kalman.eml",
+      "function": "kalman_update",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 5,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/grammar/examples/motor_control.eml",
+      "function": "pid_output",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 3,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/grammar/examples/motor_control.eml",
+      "function": "damped_response",
+      "candidate": true,
+      "reason": "high_drift",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 2,
+      "drift_risk": "HIGH"
+    },
+    {
+      "path": "lang/spec/grammar/examples/motor_control.eml",
+      "function": "motor_torque",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 2,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/grammar/examples/motor_control.eml",
+      "function": "unstable_gain",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 1,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/grammar/examples/motor_control.eml",
+      "function": "realtime_control",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 1,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/grammar/examples/motor_control.eml",
+      "function": "safe_pid",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 3,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/grammar/examples/motor_foc.eml",
+      "function": "park",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 4,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/grammar/examples/orbit.eml",
+      "function": "kepler_solve",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 3,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/grammar/examples/pid_basic.eml",
+      "function": "pid",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 3,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/grammar/examples/pid_nonlinear.eml",
+      "function": "nonlinear_gain",
+      "candidate": true,
+      "reason": "high_drift",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 1,
+      "drift_risk": "HIGH"
+    },
+    {
+      "path": "lang/spec/grammar/examples/pid_nonlinear.eml",
+      "function": "pid_scheduled",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 3,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/grammar/examples/sigmoid.eml",
+      "function": "sigmoid",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 1,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/grammar/examples/sigmoid.eml",
+      "function": "silu",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 1,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/grammar/examples/trajectory.eml",
+      "function": "quintic",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 4,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/control.eml",
+      "function": "pid",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 6,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/control.eml",
+      "function": "pid_anti_windup",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 8,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/control.eml",
+      "function": "pid_integrate",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 4,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/control.eml",
+      "function": "lpf1",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 3,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/control.eml",
+      "function": "hpf1",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 4,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/control.eml",
+      "function": "complementary",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 4,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/control.eml",
+      "function": "saturate",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 2,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/control.eml",
+      "function": "dead_zone",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 2,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/control.eml",
+      "function": "rate_limit",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 3,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/control.eml",
+      "function": "slew",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 4,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/control.eml",
+      "function": "kalman1d_update",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 4,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/control.eml",
+      "function": "kalman1d_predict",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 3,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/linalg.eml",
+      "function": "vec3_dot",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 6,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/linalg.eml",
+      "function": "vec3_norm_sq",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 3,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/linalg.eml",
+      "function": "vec3_norm",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 3,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/linalg.eml",
+      "function": "vec3_cross",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 6,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/linalg.eml",
+      "function": "vec3_scale",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 4,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/linalg.eml",
+      "function": "vec3_normalize",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 3,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/linalg.eml",
+      "function": "quat_mul",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 8,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/linalg.eml",
+      "function": "quat_conj",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 4,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/linalg.eml",
+      "function": "quat_norm_sq",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 4,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/linalg.eml",
+      "function": "quat_normalize",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 4,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/linalg.eml",
+      "function": "mat3_det",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 9,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/linalg.eml",
+      "function": "mat3_trace",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 3,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/linalg.eml",
+      "function": "mat3_vec3",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 12,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/math.eml",
+      "function": "lerp",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 3,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/math.eml",
+      "function": "smoothstep",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 1,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/math.eml",
+      "function": "sq",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 1,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/math.eml",
+      "function": "cube",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 1,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/math.eml",
+      "function": "sign01",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 1,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/math.eml",
+      "function": "log_b",
+      "candidate": true,
+      "reason": "multi_transcendental",
+      "transcendental_count": 2,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 2,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/math.eml",
+      "function": "log2",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 1,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/math.eml",
+      "function": "log10",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 1,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/math.eml",
+      "function": "exp2",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 1,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/math.eml",
+      "function": "exp10",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 1,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/math.eml",
+      "function": "hypot2",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 2,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/math.eml",
+      "function": "hypot3",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 3,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/math.eml",
+      "function": "atan2_pos_x",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 2,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/math.eml",
+      "function": "radians",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 1,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/math.eml",
+      "function": "degrees",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 1,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/ml.eml",
+      "function": "sigmoid",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 1,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/ml.eml",
+      "function": "sigmoid_alt",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 1,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/ml.eml",
+      "function": "softplus",
+      "candidate": true,
+      "reason": "nested_exp_log",
+      "transcendental_count": 2,
+      "max_exp_ln_depth": 2,
+      "parameter_count": 1,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/ml.eml",
+      "function": "swish",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 1,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/ml.eml",
+      "function": "gelu",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 1,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/ml.eml",
+      "function": "relu",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 1,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/ml.eml",
+      "function": "leaky_relu",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 2,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/ml.eml",
+      "function": "elu",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 2,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/ml.eml",
+      "function": "selu",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 1,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/ml.eml",
+      "function": "mish",
+      "candidate": true,
+      "reason": "high_drift",
+      "transcendental_count": 3,
+      "max_exp_ln_depth": 2,
+      "parameter_count": 1,
+      "drift_risk": "HIGH"
+    },
+    {
+      "path": "lang/spec/stdlib/ml.eml",
+      "function": "hard_sigmoid",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 1,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/ml.eml",
+      "function": "hard_tanh",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 1,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/ml.eml",
+      "function": "hard_swish",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 1,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/signal.eml",
+      "function": "wave_sine",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 4,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/signal.eml",
+      "function": "wave_cosine",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 4,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/signal.eml",
+      "function": "wave_triangle",
+      "candidate": true,
+      "reason": "high_drift",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 3,
+      "drift_risk": "HIGH"
+    },
+    {
+      "path": "lang/spec/stdlib/signal.eml",
+      "function": "biquad_step",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 10,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/signal.eml",
+      "function": "biquad_state_update",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 4,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/signal.eml",
+      "function": "fir3",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 6,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/signal.eml",
+      "function": "fir5",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 0,
+      "max_exp_ln_depth": 0,
+      "parameter_count": 10,
+      "drift_risk": "LOW"
+    },
+    {
+      "path": "lang/spec/stdlib/signal.eml",
+      "function": "box_muller",
+      "candidate": true,
+      "reason": "high_drift",
+      "transcendental_count": 2,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 2,
+      "drift_risk": "HIGH"
+    },
+    {
+      "path": "lang/spec/stdlib/signal.eml",
+      "function": "box_muller_pair",
+      "candidate": true,
+      "reason": "high_drift",
+      "transcendental_count": 2,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 2,
+      "drift_risk": "HIGH"
+    },
+    {
+      "path": "lang/spec/stdlib/signal.eml",
+      "function": "linear_to_db",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 1,
+      "drift_risk": "MEDIUM"
+    },
+    {
+      "path": "lang/spec/stdlib/signal.eml",
+      "function": "db_to_linear",
+      "candidate": false,
+      "reason": "below_threshold",
+      "transcendental_count": 1,
+      "max_exp_ln_depth": 1,
+      "parameter_count": 1,
+      "drift_risk": "MEDIUM"
+    }
+  ],
+  "parse_failures": [],
+  "boundaries": {
+    "analysis_only": true,
+    "semantic_rewrite_claim": false,
+    "optimizer_release_claim": false
+  }
+}

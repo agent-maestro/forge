@@ -6,9 +6,11 @@ import json
 
 from lang.optimizer import optimize_module
 from lang.optimizer.log_domain import (
+    LOG_DOMAIN_COORDINATE_SCHEMA,
     LOG_DOMAIN_SCHEMA,
     analyze_log_domain_candidates,
     apply_log_domain_optimizer_module,
+    coordinate_plan_packet,
 )
 from lang.parser import parse_source
 from lang.profiler import Profiler
@@ -69,3 +71,13 @@ def test_optimize_module_default_leaves_log_domain_off(tmp_path):
 
     assert not trace_path.exists()
     assert "log_domain_candidate" not in (out.functions[0].profile or {})
+
+
+def test_coordinate_plan_materializes_positive_leaves_and_preserves_boundary():
+    packet = coordinate_plan_packet([-100.0, 0.0, 100.0], clamp=2.0)
+
+    assert packet["schema_version"] == LOG_DOMAIN_COORDINATE_SCHEMA
+    assert packet["params"] == [-2.0, 0.0, 2.0]
+    assert packet["positive_domain_preserved"] is True
+    assert packet["function_boundary_preserved"] is True
+    assert all(value > 0 for value in packet["leaves"])

@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from dataclasses import asdict, dataclass
+import math
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +20,28 @@ from lang.parser.ast_nodes import ASTNode, EMLFunction, EMLModule, NodeKind
 
 
 LOG_DOMAIN_SCHEMA = "forge.optimizer.log_domain_trace.v1"
+LOG_DOMAIN_COORDINATE_SCHEMA = "forge.optimizer.log_domain_coordinate_plan.v1"
+
+
+@dataclass(frozen=True)
+class LogDomainCoordinatePlan:
+    """Internal optimizer coordinate transform plan.
+
+    `params` are unconstrained optimizer coordinates. `leaves` are positive
+    EML terminal coordinates materialized by an exp map. This is an internal
+    search-coordinate transform; it does not alter the user-facing function
+    boundary.
+    """
+
+    schema_version: str
+    parameter_count: int
+    clamp: float
+    params: list[float]
+    leaves: list[float]
+    min_leaf: float
+    max_leaf: float
+    positive_domain_preserved: bool
+    function_boundary_preserved: bool
 
 _TRANSCENDENTAL_KINDS = {
     NodeKind.EML,
@@ -74,6 +98,28 @@ def apply_log_domain_optimizer(fn: EMLFunction) -> tuple[EMLFunction, dict[str, 
     return out, record
 
 
+def build_log_domain_coordinate_plan(params: list[float], *, clamp: float = 4.0) -> LogDomainCoordinatePlan:
+    """Build a deterministic positive-coordinate plan for Forge search."""
+    bounded = [max(min(float(x), clamp), -clamp) for x in params]
+    leaves = [math.exp(x) for x in bounded]
+    return LogDomainCoordinatePlan(
+        schema_version=LOG_DOMAIN_COORDINATE_SCHEMA,
+        parameter_count=len(params),
+        clamp=clamp,
+        params=bounded,
+        leaves=leaves,
+        min_leaf=min(leaves) if leaves else math.nan,
+        max_leaf=max(leaves) if leaves else math.nan,
+        positive_domain_preserved=all(x > 0 for x in leaves),
+        function_boundary_preserved=True,
+    )
+
+
+def coordinate_plan_packet(params: list[float], *, clamp: float = 4.0) -> dict[str, Any]:
+    """Return a JSON-serializable coordinate plan packet."""
+    return asdict(build_log_domain_coordinate_plan(params, clamp=clamp))
+
+
 def apply_log_domain_optimizer_module(mod: EMLModule) -> tuple[EMLModule, dict[str, Any]]:
     """Apply log-domain analysis to every function and return a trace."""
     out = deepcopy(mod)
@@ -93,6 +139,7 @@ def apply_log_domain_optimizer_module(mod: EMLModule) -> tuple[EMLModule, dict[s
         "boundaries": {
             "semantic_rewrite_claim": False,
             "optimizer_release_claim": False,
+            "function_boundary_preserved": True,
             "trace_export": True,
         },
     }
