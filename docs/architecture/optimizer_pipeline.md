@@ -124,6 +124,31 @@ emits a stable JSON shape per function:
    a fresh `EMLModule` (immutable; do not mutate the input).
 2. Wire it into `optimize_module` in `lang/optimizer/__init__.py`.
 3. Add a regression test under `lang/optimizer/tests/`
+
+## Log-Domain Branch
+
+Where: `lang/optimizer/log_domain.py`
+
+The log-domain branch is opt-in:
+
+```python
+optimize_module(mod, log_domain=True, optimizer_trace_path="trace.json")
+```
+
+It promotes the high-dimensional EML tree-space research into the real Forge
+optimizer pipeline as an analysis pass. Candidate functions are annotated in
+their profile with:
+
+- `log_domain_candidate`
+- `log_domain_reason`
+- `log_domain_transform = "analysis_only"`
+
+When `optimizer_trace_path` is provided, Forge writes a deterministic JSON
+packet with schema `forge.optimizer.log_domain_trace.v1`.
+
+This branch does not rewrite function semantics yet. Log-domain
+parameterization changes optimizer search coordinates, not the user's function
+signature, so the first production step is traceable candidate selection.
    covering both the firing and non-firing path.
 4. Add an `--explain` field describing what your pass did.
 5. Update the order documentation here.

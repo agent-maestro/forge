@@ -28,6 +28,10 @@ from copy import deepcopy
 from lang.optimizer.constant_folding import fold_constants, fold_in_place
 from lang.optimizer.cse import apply_cse, apply_cse_module
 from lang.optimizer.inliner import inline_calls
+from lang.optimizer.log_domain import (
+    apply_log_domain_optimizer_module,
+    write_log_domain_trace,
+)
 from lang.optimizer.ml_routing import route_ml_activations_module
 from lang.optimizer.superbest import (
     route_superbest,
@@ -63,7 +67,9 @@ def optimize_function(fn: EMLFunction) -> EMLFunction:
 
 
 def optimize_module(mod: EMLModule, *,
-                    ml_routing: bool = False) -> EMLModule:
+                    ml_routing: bool = False,
+                    log_domain: bool = False,
+                    optimizer_trace_path: str | None = None) -> EMLModule:
     """Run the default pass sequence on every function in `mod`.
     Returns a new module; the input is not mutated.
 
@@ -77,6 +83,9 @@ def optimize_module(mod: EMLModule, *,
       3.5 ml_routing        -- (opt-in) pattern-rewrite sigmoid /
                                softplus to libmonogate runtime calls
                                for HIGH-drift functions
+      3.6 log_domain        -- (opt-in) annotate functions that should
+                               be searched in log-domain coordinates and
+                               optionally export a trace packet
       4. shake_imports      -- drop unused imports
 
     `ml_routing` defaults to False because the pass emits CALL
@@ -94,6 +103,10 @@ def optimize_module(mod: EMLModule, *,
     # Pass 3.5: opt-in ML pattern rewriter (libmonogate runtime).
     if ml_routing:
         out = route_ml_activations_module(out)
+    if log_domain:
+        out, trace_packet = apply_log_domain_optimizer_module(out)
+        if optimizer_trace_path:
+            write_log_domain_trace(trace_packet, optimizer_trace_path)
     # Pass 4: drop unused imports (after inlining so reachable set
     # reflects the post-inline call graph).
     out = shake_imports(out)
@@ -108,6 +121,8 @@ __all__ = [
     "apply_cse",
     "apply_cse_module",
     "inline_calls",
+    "apply_log_domain_optimizer_module",
+    "write_log_domain_trace",
     "route_superbest",
     "superbest_function",
     "superbest_module",
