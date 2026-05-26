@@ -38,15 +38,18 @@
     "deploy_allowed": true,
     "semantic_summary": {
       "strength_by_operator": {
-        "log_domain_lift": "concrete_sample_invariant",
+        "log_domain_lift": "restricted_semantic_rewrite",
         "guard_clamp": "concrete_sample_invariant",
         "precision_escape": "concrete_sample_invariant",
         "saturation_deshelf": "concrete_sample_invariant"
       },
-      "concrete_sample_invariant_count": 4,
+      "concrete_sample_invariant_count": 3,
+      "restricted_semantic_rewrite": [
+        "log_domain_lift"
+      ],
       "packet_bridge_only": [],
       "semantic_rewrite_claim": false,
-      "reviewer_note": "All four v0 rescue lanes restore concrete local invariants; full semantic rewrite correctness remains outside the v0 claim boundary."
+      "reviewer_note": "Log-domain lift has a restricted semantic rewrite theorem; the other v0 lanes restore concrete local invariants. Full semantic rewrite correctness remains outside the v0 claim boundary."
     },
     "electronics_boundary": {
       "hardware_action_allowed": false,
@@ -78,12 +81,12 @@
       "transition": "domain_wall->log_domain_rescue",
       "obligation": "PositiveCoordinateObligation",
       "semanticContract": {
-        "semantic_strength": "concrete_sample_invariant",
+        "semantic_strength": "restricted_semantic_rewrite",
         "accepts": "raw domain_wall samples with non-positive log coordinates",
         "restores": "positive internal coordinates via exp(theta)",
         "allowed_change": "coordinate representation may change from raw x to lifted internal coordinate",
         "must_not_claim": "global semantic rewrite equivalence for arbitrary programs",
-        "preservation_scope": "local invariant restoration",
+        "preservation_scope": "restricted log-domain program semantics",
         "public_copy_safe": true
       },
       "source": "examples/proof_carrying_rescue.eml",

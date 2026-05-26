@@ -30,12 +30,12 @@ APPROVAL_SCHEMA_VERSION = "forge.optimizer.rescue_artifact_approval.v0"
 
 SEMANTIC_CONTRACTS = {
     "log_domain_lift": {
-        "semantic_strength": "concrete_sample_invariant",
+        "semantic_strength": "restricted_semantic_rewrite",
         "accepts": "raw domain_wall samples with non-positive log coordinates",
         "restores": "positive internal coordinates via exp(theta)",
         "allowed_change": "coordinate representation may change from raw x to lifted internal coordinate",
         "must_not_claim": "global semantic rewrite equivalence for arbitrary programs",
-        "preservation_scope": "local invariant restoration",
+        "preservation_scope": "restricted log-domain program semantics",
         "public_copy_safe": True,
     },
     "guard_clamp": {
@@ -72,6 +72,8 @@ CONCRETE_WITNESSES = {
     "log_domain_lift": {
         "theorem": "log_domain_positive_coordinate_witness_discharges_concrete_obligation",
         "concrete_obligation": "ConcretePositiveCoordinateObligation",
+        "restricted_semantic_theorem": "log_domain_lift_restricted_semantic_rewrite",
+        "restricted_semantic_contract": "RestrictedLogDomainLiftSemantics",
     },
     "guard_clamp": {
         "theorem": "guard_clamp_output_safety_witness_discharges_concrete_obligation",
@@ -227,13 +229,16 @@ def build_approval_gate(manifest: dict, replay: dict, registry: dict) -> dict:
             "concrete_sample_invariant_count": sum(
                 1 for strength in semantic_strengths.values() if strength == "concrete_sample_invariant"
             ),
+            "restricted_semantic_rewrite": [
+                operator for operator, strength in semantic_strengths.items() if strength == "restricted_semantic_rewrite"
+            ],
             "packet_bridge_only": [
                 operator for operator, strength in semantic_strengths.items() if strength == "packet_bridge_only"
             ],
             "semantic_rewrite_claim": False,
             "reviewer_note": (
-                "All four v0 rescue lanes restore concrete local invariants; full semantic rewrite correctness "
-                "remains outside the v0 claim boundary."
+                "Log-domain lift has a restricted semantic rewrite theorem; the other v0 lanes restore "
+                "concrete local invariants. Full semantic rewrite correctness remains outside the v0 claim boundary."
             ),
         },
         "electronics_boundary": {

@@ -15,7 +15,7 @@ Complete v0: `True`
 
 | rescue operator | routed | witnessed | proven | semantic strength | public-copy safe |
 |---|---:|---:|---:|---|---:|
-| `log_domain_lift` | true | true | true | `concrete_sample_invariant` | true |
+| `log_domain_lift` | true | true | true | `restricted_semantic_rewrite` | true |
 | `guard_clamp` | true | true | true | `concrete_sample_invariant` | true |
 | `precision_escape` | true | true | true | `concrete_sample_invariant` | true |
 | `saturation_deshelf` | true | true | true | `concrete_sample_invariant` | false |

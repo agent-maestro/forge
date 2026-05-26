@@ -69,10 +69,12 @@ The v0 rescue suite claims:
 - replay validation
 - named MachLib obligation routing
 - one concrete positive-coordinate witness theorem for the log-domain lane
+- one restricted semantic rewrite theorem for the log-domain lane
 - one concrete output-safety witness theorem for the guard-clamp lane
 - one concrete clamp-invariant witness theorem for the saturation-deshelf lane
 - one concrete precision-escape witness theorem for the precision lane
-- a semantic-strength registry that marks all four v0 lanes as
+- a semantic-strength registry that marks `log_domain_lift` as
+  `restricted_semantic_rewrite` and the other three v0 lanes as
   `concrete_sample_invariant`
 - reviewer approval for the existing generated public/dev surfaces
 

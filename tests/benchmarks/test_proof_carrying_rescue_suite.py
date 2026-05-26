@@ -30,6 +30,10 @@ def test_rescue_obligation_registry_marks_complete_concrete_witness_coverage():
     by_operator = {entry["rescue_operator"]: entry for entry in registry["entries"]}
 
     assert by_operator["log_domain_lift"]["status"]["proven"] is True
+    assert by_operator["log_domain_lift"]["semantic_contract"]["semantic_strength"] == "restricted_semantic_rewrite"
+    assert by_operator["log_domain_lift"]["machlib_witness"]["restricted_semantic_theorem"] == (
+        "log_domain_lift_restricted_semantic_rewrite"
+    )
     assert by_operator["guard_clamp"]["status"]["proven"] is True
     assert by_operator["guard_clamp"]["machlib_witness"]["theorem"] == (
         "guard_clamp_output_safety_witness_discharges_concrete_obligation"
@@ -44,7 +48,6 @@ def test_rescue_obligation_registry_marks_complete_concrete_witness_coverage():
     )
     assert by_operator["precision_escape"]["semantic_contract"]["semantic_strength"] == "concrete_sample_invariant"
     assert by_operator["precision_escape"]["status"]["public_copy_safe"] is True
-    assert by_operator["log_domain_lift"]["semantic_contract"]["semantic_strength"] == "concrete_sample_invariant"
     assert by_operator["guard_clamp"]["semantic_contract"]["semantic_strength"] == "concrete_sample_invariant"
     assert by_operator["saturation_deshelf"]["semantic_contract"]["semantic_strength"] == "concrete_sample_invariant"
 
@@ -59,7 +62,8 @@ def test_rescue_approval_gate_requires_electronics_evidence_grammar():
     assert approval["decision"] == "approved_for_existing_public_surfaces"
     assert approval["surface_allowed"] is True
     assert approval["deploy_allowed"] is True
-    assert approval["semantic_summary"]["concrete_sample_invariant_count"] == 4
+    assert approval["semantic_summary"]["concrete_sample_invariant_count"] == 3
+    assert approval["semantic_summary"]["restricted_semantic_rewrite"] == ["log_domain_lift"]
     assert approval["semantic_summary"]["packet_bridge_only"] == []
     assert approval["semantic_summary"]["semantic_rewrite_claim"] is False
     assert approval["checks"]["has_complete_concrete_machlib_witness_coverage"] is True
