@@ -239,7 +239,10 @@ class PythonBackend:
         """Use eml_cost.transpile.eml_tree_to_python on the SymPy form."""
         from eml_cost.transpile import eml_tree_to_python
 
-        cr = convert_function_body(fn, constants=consts)
+        try:
+            cr = convert_function_body(fn, constants=consts)
+        except Exception:
+            return None
         if cr.status not in ("ok", "tuple"):
             return None
 

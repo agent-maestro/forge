@@ -213,6 +213,29 @@ def test_skips_function_with_let_mut() -> None:
     assert _shape_fn(out) == _shape_fn(fn)
 
 
+def test_skips_rebound_let_shadow_chain() -> None:
+    """Repeated immutable let names are legal shadowing, not repeated
+    pure expressions. CSE must not hoist across those rebinding
+    boundaries because each occurrence sees a different value."""
+    body = ASTNode(kind=NodeKind.BLOCK, children=[
+        ASTNode(kind=NodeKind.LET, value="acc", children=[lit(0.0)]),
+        ASTNode(
+            kind=NodeKind.LET,
+            value="acc",
+            children=[bop("+", bop("*", var("acc"), var("x")), var("c0"))],
+        ),
+        ASTNode(
+            kind=NodeKind.LET,
+            value="acc",
+            children=[bop("+", bop("*", var("acc"), var("x")), var("c0"))],
+        ),
+        var("acc"),
+    ])
+    fn = make_function(body, ["x", "c0"])
+    out = apply_cse(fn)
+    assert _shape_fn(out) == _shape_fn(fn)
+
+
 # ── 5. Module-level + parsed source ──────────────────────────
 
 

@@ -40,6 +40,12 @@ _NON_HOISTABLE_KINDS = frozenset({
     NodeKind.LITERAL,
     NodeKind.VAR,
     NodeKind.CALL,
+    NodeKind.BLOCK,
+    NodeKind.LET,
+    NodeKind.LET_MUT,
+    NodeKind.ASSIGN,
+    NodeKind.WHILE,
+    NodeKind.EXPR_STMT,
 })
 
 
@@ -168,9 +174,14 @@ def apply_cse_module(mod: EMLModule, **kwargs) -> EMLModule:
 
 def _has_complex_control(block: ASTNode) -> bool:
     bad = {NodeKind.LET_MUT, NodeKind.WHILE, NodeKind.ASSIGN}
+    seen_let_names: set[str] = set()
     for stmt in block.children:
         if stmt.kind in bad:
             return True
+        if stmt.kind == NodeKind.LET:
+            if stmt.value in seen_let_names:
+                return True
+            seen_let_names.add(str(stmt.value))
     return False
 
 

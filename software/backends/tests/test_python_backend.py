@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from lang.parser.parser import parse_file
+from lang.parser.parser import parse_file, parse_source
 from lang.profiler.profiler import Profiler
 from software.backends.python_backend import PythonBackend
 
@@ -69,3 +69,26 @@ def test_no_optimize_flag():
         1.0 / (1.0 + math.exp(-1.0)),
         rel_tol=1e-12,
     )
+
+
+def test_rebound_let_shadow_chain_compiles_with_optimizer_enabled():
+    """Loop-unrolled EML may shadow an immutable let name repeatedly.
+    The optimizer must preserve those sequencing boundaries."""
+    mod = parse_source("""\
+fn poly4(x: Real, c0: Real) -> Real
+    where chain_order <= 0
+{
+    let acc = 0.0;
+    let acc = acc * x + c0;
+    let acc = acc * x + c0;
+    let acc = acc * x + c0;
+    let acc = acc * x + c0;
+    let acc = acc * x + c0;
+    acc
+}
+""")
+    Profiler().profile_module(mod)
+    src = PythonBackend().compile(mod)
+    ns: dict = {}
+    exec(compile(src, "poly4_shadow", "exec"), ns)
+    assert math.isclose(ns["poly4"](2.0, 3.0), 93.0, rel_tol=1e-12)

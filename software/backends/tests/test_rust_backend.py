@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from lang.parser import parse_file
+from lang.parser import parse_file, parse_source
 from lang.profiler import Profiler
 from software.backends.rust_backend import RustBackend
 
@@ -123,6 +123,30 @@ def test_user_function_call_passes_through(profiler: Profiler,
     out = _profile_and_compile("motor_control.eml", profiler, backend)
     # safe_pid calls pid_output
     assert "pid_output(error" in out
+
+
+def test_rebound_let_shadow_chain_compiles_with_optimizer_enabled(
+    profiler: Profiler,
+    backend: RustBackend,
+):
+    mod = parse_source("""\
+fn poly4(x: Real, c0: Real) -> Real
+    where chain_order <= 0
+{
+    let acc = 0.0;
+    let acc = acc * x + c0;
+    let acc = acc * x + c0;
+    let acc = acc * x + c0;
+    let acc = acc * x + c0;
+    let acc = acc * x + c0;
+    acc
+}
+""")
+    profiler.profile_module(mod)
+    out = backend.compile(mod)
+    assert "let acc: f64 = 0.0;" in out
+    assert out.count("let acc: f64 = ((acc * x) + c0);") == 5
+    assert "_cse_" not in out
 
 
 def test_unsupported_node_kind_raises():
