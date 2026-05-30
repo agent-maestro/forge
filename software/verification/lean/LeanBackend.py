@@ -124,13 +124,22 @@ _LEAN_RESERVED: frozenset[str] = frozenset({
 })
 
 
+_LEAN_IMPORTED_COLLISIONS: frozenset[str] = frozenset({
+    # Imported by MachLib/opened Lean namespaces; a generated def with
+    # this bare name makes theorem calls ambiguous after `open MachLib.Real`.
+    "add_nonneg",
+})
+
+
 def _lean_type(eml_type: str) -> str:
     return _TYPE_TO_LEAN.get(eml_type, "Real")
 
 
 def _safe_id(name: str) -> str:
-    """Append ``_`` to any name that collides with a Lean keyword."""
-    return f"{name}_" if name in _LEAN_RESERVED else name
+    """Append ``_`` to names that collide with Lean syntax/imports."""
+    if name in _LEAN_RESERVED or name in _LEAN_IMPORTED_COLLISIONS:
+        return f"{name}_"
+    return name
 
 
 def _to_prop(expr: str) -> str:

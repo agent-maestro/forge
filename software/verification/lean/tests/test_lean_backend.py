@@ -74,6 +74,28 @@ fn f(x: Real) -> Real
     assert "sorry" in out
 
 
+def test_imported_lean_name_collision_is_sanitized(profiler, backend):
+    """Generated defs must not shadow opened MachLib theorem names."""
+    src = '''module t;
+@verify(lean, theorem = "add_nonneg_is_nonneg")
+fn add_nonneg(a: Real, b: Real) -> Real
+    requires (a >= 0.0)
+    requires (b >= 0.0)
+    ensures (result >= 0.0)
+{
+    a + b
+}'''
+    mod = parse_source(src, "<test>")
+    profiler.profile_module(mod)
+    out = backend.compile_module(mod)
+
+    assert "noncomputable def add_nonneg_" in out
+    assert "theorem add_nonneg_is_nonneg" in out
+    assert "(add_nonneg_ a b)" in out
+    assert "unfold add_nonneg_" in out
+    assert "noncomputable def add_nonneg " not in out
+
+
 # ── Comprehensive demo ──────────────────────────────────────────────
 
 
