@@ -31,8 +31,10 @@ Mapping
                           Lodash and most game engines use)
   POW(x, y)           ->  Math.pow(x, y)
   EML(x, y)           ->  (Math.exp(x) - Math.log(y))
-  LET name = expr     ->  "const name = <expr>;"
-  LET_MUT name = expr ->  "let name = <expr>;"
+  LET name = expr     ->  "const name = <expr>;" for one-shot bindings,
+                          or "let name = <expr>;" followed by assignments
+                          when a decompiled block rebinds the same name.
+  LET_MUT name = expr ->  "let name = <expr>;" then assignments on rebind.
   ASSIGN name = expr  ->  "name = <expr>;"
   WHILE cond block    ->  while (cond) { ... }
   BLOCK               ->  brace block; final expression -> return
@@ -370,14 +372,27 @@ class JavaScriptBackend:
         if block is None or block.kind != NodeKind.BLOCK:
             return ["// empty body"]
         out: list[str] = []
+        let_counts = self._block_let_counts(block)
+        declared: set[str] = set()
         for i, stmt in enumerate(block.children):
             is_last = (i == len(block.children) - 1)
             if stmt.kind == NodeKind.LET:
                 rhs = self._emit_expr(stmt.children[0])
-                out.append(f"const {_safe_ident(str(stmt.value))} = {rhs};")
+                name = _safe_ident(str(stmt.value))
+                if name in declared:
+                    out.append(f"{name} = {rhs};")
+                else:
+                    keyword = "let" if let_counts.get(name, 0) > 1 else "const"
+                    out.append(f"{keyword} {name} = {rhs};")
+                    declared.add(name)
             elif stmt.kind == NodeKind.LET_MUT:
                 rhs = self._emit_expr(stmt.children[0])
-                out.append(f"let {_safe_ident(str(stmt.value))} = {rhs};")
+                name = _safe_ident(str(stmt.value))
+                if name in declared:
+                    out.append(f"{name} = {rhs};")
+                else:
+                    out.append(f"let {name} = {rhs};")
+                    declared.add(name)
             elif stmt.kind == NodeKind.ASSIGN:
                 rhs = self._emit_expr(stmt.children[0])
                 out.append(f"{_safe_ident(str(stmt.value))} = {rhs};")
@@ -403,6 +418,14 @@ class JavaScriptBackend:
             else:
                 out.append(f"{self._emit_expr(stmt)};")
         return out
+
+    def _block_let_counts(self, block: ASTNode) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for stmt in block.children:
+            if stmt.kind in (NodeKind.LET, NodeKind.LET_MUT):
+                name = _safe_ident(str(stmt.value))
+                counts[name] = counts.get(name, 0) + 1
+        return counts
 
     # ── Expressions ───────────────────────────────────────────
 

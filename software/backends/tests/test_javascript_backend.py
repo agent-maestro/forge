@@ -74,6 +74,64 @@ class TestJSStructure:
         assert "@param {number}" in out
         assert "@returns {number}" in out
 
+    def test_repeated_let_name_rebinds_after_first_declaration(self):
+        src = """
+        module repeated_let;
+        fn quad(a: Real, b: Real, c: Real, x: Real) -> Real
+            where chain_order <= 0
+        {
+            let y = a;
+            let y = y * x;
+            let y = y + b;
+            let y = y * x;
+            let y = y + c;
+            y
+        }
+        """
+        out = JavaScriptBackend().compile(_profile_source(src))
+        assert "let y = a;" in out
+        assert out.count("const y =") == 0
+        assert out.count("let y =") == 1
+        assert "y = (y * x);" in out
+        assert "y = (y + b);" in out
+        assert "y = (y + c);" in out
+
+    @pytest.mark.skipif(NODE is None, reason="node not installed")
+    def test_repeated_let_name_passes_node_runtime(self):
+        src = """
+        module repeated_let;
+        fn quad(a: Real, b: Real, c: Real, x: Real) -> Real
+            where chain_order <= 0
+        {
+            let y = a;
+            let y = y * x;
+            let y = y + b;
+            let y = y * x;
+            let y = y + c;
+            y
+        }
+        """
+        out = JavaScriptBackend().compile(_profile_source(src))
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".mjs", delete=False, encoding="utf-8",
+        ) as f:
+            f.write(out)
+            path = f.name
+        try:
+            runner = (
+                "const mod = await import(process.argv[1]);"
+                "console.log(mod.quad(2, 3, 5, 7));"
+            )
+            result = subprocess.run(
+                ["node", "--input-type=module", "-e", runner, Path(path).as_uri()],
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode == 0, result.stderr
+            assert float(result.stdout.strip()) == 124.0
+        finally:
+            os.unlink(path)
+
 
 # ── Math name mapping ─────────────────────────────────────────
 
