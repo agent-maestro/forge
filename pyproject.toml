@@ -71,6 +71,12 @@ Changelog     = "https://github.com/agent-maestro/forge/blob/master/CHANGELOG.md
 dev = [
     "pytest>=8",
     "pytest-cov>=5",
+    # pytest-xdist: -n auto in addopts parallelises the 1082-test
+    # suite across logical CPUs. Measured 8m14s → ~2-3m wallclock on
+    # a 20-core box (2026-06-11). Backend-matrix and equivalence
+    # tests dominate single-threaded; xdist parallelises them
+    # cleanly because each test writes to its own tmp_path.
+    "pytest-xdist>=3.5",
     "ruff>=0.5",
     "mypy>=1.10",
 ]
@@ -143,6 +149,13 @@ testpaths = [
     "tools",
 ]
 python_files = ["test_*.py"]
+# -n auto: pytest-xdist with one worker per logical CPU. The
+# benchmark + backend-matrix + equivalence tests are independent
+# (each one writes to its own tmp_path), so xdist scales near-linearly
+# up to ~8 workers before the longest serial test dominates. Override
+# with `pytest -n 0` for serial debugging or `pytest -p no:xdist` to
+# disable xdist entirely.
+addopts = "-n auto"
 markers = [
     "slow: cargo-build + ZK proof-generation tests; excluded from default CI via `-m 'not slow'`. Run nightly with `pytest -m slow` after `cargo build --release` in lang/zkproof/plonky2_backend/.",
 ]
