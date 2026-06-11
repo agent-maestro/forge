@@ -1199,13 +1199,20 @@ def main(argv: list[str] | None = None) -> int:
             wasm_path.write_bytes(wasm_result.wasm)
             results.append(("wasm", wasm_path, len(wasm_result.wasm)))
 
-        # Lean (only if any @verify(lean) blocks)
+        # Lean (only if any @verify(lean) blocks). The Free-tier
+        # target list claims 13 targets but Lean is opt-in via
+        # `@verify(lean, ...)` source blocks — it generates proof
+        # obligations, not a function implementation, so emitting
+        # silently makes the count look like 12. Explicit no-op
+        # notice keeps the contract honest.
         from software.verification.lean.LeanBackend import LeanBackend
         lean_src = LeanBackend(optimize=not args.no_optimize).compile_module(mod)
         if lean_src:
             lean_path = out_dir / f"{stem}.lean"
             lean_path.write_text(lean_src, encoding="utf-8")
             results.append(("lean", lean_path, len(lean_src)))
+        else:
+            results.append(("lean", Path("<no @verify(lean) blocks>"), 0))
 
         # HDL backends (only if any @target(fpga) functions) — Pro tier
         try:
@@ -1358,6 +1365,14 @@ def main(argv: list[str] | None = None) -> int:
         for target, path, nbytes in results:
             if path.name == "<skipped>":
                 print(f"  [skip] {target}")
+            elif path.name.startswith("<no @verify"):
+                # Lean (and any future verify-block-driven target) is
+                # opt-in via source-level `@verify(...)` annotations.
+                # Surface this explicitly so the Free-tier count looks
+                # right (13, not 12) and a user wondering why their
+                # `.lean` didn't appear can see the reason inline.
+                print(f"  [skip] {target:8s} (no @verify({target}, ...) blocks "
+                      f"in source — see eml-lang docs)")
             else:
                 print(f"  [ok]   {target:8s} {path}  ({nbytes:,} bytes)")
         if skipped_pro:
