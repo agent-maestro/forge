@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/pypi/pyversions/monogate-forge.svg)](https://pypi.org/project/monogate-forge/)
 
-**Forge is the EML language and compiler. Write a math kernel once, compile it to 36 targets — software, GPU shaders, FPGA RTL, manufacturing artifacts, formal-verification proofs, and safety-critical avionics — with chain-order analysis and Lean-checkable contracts on every function.**
+**Forge is the EML language and compiler. Write a math kernel once, compile it to 17 production backends — 12 software targets emit locally from the CLI, 5 hardware/manufacturing/proof targets emit through the hosted service — with chain-order analysis and Lean-checkable contracts on every function. The full catalog runs to 36 across software, GPU shaders, FPGA RTL, manufacturing artifacts, formal-verification proofs, and safety-critical avionics; the tables below show which are live today.**
 
 ---
 
@@ -78,7 +78,7 @@ Five-minute tour: [`docs/quickstart.md`](docs/quickstart.md). Full tutorial: [mo
 
 ## What you get
 
-**36 targets.** Every kernel compiles to all of these from the same source.
+**12 local. 5 hosted. The catalog runs to 36 — and we list it openly.** Twelve software backends — C, C++, Rust, Python, Go, Java, Kotlin, C#, JavaScript, MATLAB, WebAssembly, Lean 4 — emit production code from the CLI on your machine, Free tier, no account needed. Five additional Pro-tier backends — hardware, manufacturing, and formal-proof targets that need heavy toolchains best run server-side — are live today on the hosted compile service at [monogateforge.com](https://monogateforge.com/get-started). The remaining 19 targets in the tables below are scaffolded: the EML frontend parses them and the IR understands their lowering shape, but the production emitter is still under construction. We list the full catalog so you can pick a target knowing exactly what runs today — every entry below is tagged with its tier, and the per-target docs at [docs/backends.md](docs/backends.md) call out scaffold-vs-production status.
 
 ### Software (general-purpose)
 | Target | Flag | Tier |
@@ -156,7 +156,7 @@ Five-minute tour: [`docs/quickstart.md`](docs/quickstart.md). Full tutorial: [mo
 |---|---|---|
 | Plonky2 ZK circuits (research) | `--target zkproof` | Free |
 
-The Free tier — 13 targets covering general-purpose software (C, C++, Rust, Python, Go, Java, Kotlin, C#, JavaScript), web/edge runtimes (WebAssembly), MATLAB, Lean 4 proofs, and the research-tier `zkproof` target — is enough to take any EML kernel from your laptop to the browser to a formal proof without a license. A Pro license unlocks the remaining 23: hardware (Verilog, VHDL, SystemVerilog, Chisel, LLVM IR), manufacturing/circuits (spice, kicad, jlcpcb), GPU shaders (HLSL, GLSL, GLSL ES, WGSL, Metal), Apple Swift, safety-critical (Ada, AUTOSAR, AADL, ROS 2), Coq, Isabelle/HOL, Solidity, and gaming (Luau, GDScript). Get a license at [monogateforge.com/get-started](https://monogateforge.com/get-started).
+The Free tier (the 12 production-ready software targets above plus the research-tier `zkproof` backend) is enough to take any EML kernel from your laptop to the browser to a Lean 4 proof without a license or an account. A Pro license unlocks the 5 production backends live on the hosted service today — hardware, manufacturing, and formal-proof targets that need heavy toolchains best run server-side — and reserves your slot in the catalogued Pro targets that follow as their production emitters ship. The scaffolded backends keep the same EML source unchanged, so anything you write now compiles forward without a rewrite. The specific subset of Pro backends production-ready at any given time — and what each scaffolded target is waiting on — is tracked at [docs/backends.md](docs/backends.md). Get a license at [monogateforge.com/get-started](https://monogateforge.com/get-started).
 
 ---
 
