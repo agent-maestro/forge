@@ -85,7 +85,15 @@ PRO_TARGETS: frozenset[str] = frozenset({
 
 
 class LicenseError(Exception):
-    """Invalid license token (bad signature, expired, or malformed)."""
+    """Invalid license token (bad signature or malformed)."""
+
+
+class LicenseExpiredError(LicenseError):
+    """License token is well-formed and signature-valid, but past its
+    `exp` date. Treated as a soft failure: callers downgrade to the
+    Free tier (same behaviour as a missing license) instead of erroring
+    out. Loud failure was the original behaviour but caused test
+    breakage and user surprise on routine expiry."""
 
 
 @dataclass(frozen=True)
@@ -111,8 +119,18 @@ class License:
 
 def load_license() -> License | None:
     """Look in env var, then config file. Returns None when no
-    license is present (caller falls back to Free tier). Raises
-    LicenseError when a token is present but invalid."""
+    license is present OR when the license has expired (caller falls
+    back to Free tier in both cases). Raises LicenseError when a
+    token is present but tampered (bad signature) or malformed.
+
+    Expiry handling: an expired token used to raise LicenseError, but
+    that turned routine expiry into a hard CLI failure (return code
+    2) which broke test suites and surprised users. Now expired tokens
+    are silently downgraded to Free with a one-line stderr warning, so
+    a Pro user whose subscription lapsed gets a degraded but working
+    CLI rather than a broken one. Tampered tokens still fail loudly
+    because that is genuine misuse, not lapsed billing."""
+    import sys as _sys
     raw = os.environ.get("MONOGATE_LICENSE", "").strip()
     if not raw:
         cfg = Path.home() / ".monogate" / "license"
@@ -120,7 +138,11 @@ def load_license() -> License | None:
             raw = cfg.read_text(encoding="utf-8").strip()
     if not raw:
         return None
-    return verify_token(raw)
+    try:
+        return verify_token(raw)
+    except LicenseExpiredError as e:
+        print(f"warning: {e} (continuing on Free tier)", file=_sys.stderr)
+        return None
 
 
 def verify_token(token: str) -> License:
@@ -155,7 +177,7 @@ def verify_token(token: str) -> License:
         nonce=payload.get("nonce"),
     )
     if license_.is_expired():
-        raise LicenseError(
+        raise LicenseExpiredError(
             f"license expired on {license_.expires_at} -- renew at "
             f"https://monogateforge.com/get-started")
     return license_

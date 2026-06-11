@@ -18,11 +18,11 @@ private key is held only by the issuer at monogateforge.com.
 """
 
 from .verifier import (
-    FREE_TARGETS, PRO_TARGETS, License, LicenseError,
+    FREE_TARGETS, PRO_TARGETS, License, LicenseError, LicenseExpiredError,
     load_license, target_allowed,
 )
 
 __all__ = [
     "FREE_TARGETS", "PRO_TARGETS", "License", "LicenseError",
-    "load_license", "target_allowed",
+    "LicenseExpiredError", "load_license", "target_allowed",
 ]
