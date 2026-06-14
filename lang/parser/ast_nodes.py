@@ -43,6 +43,7 @@ class NodeKind(Enum):
     SINH = "sinh"
     COSH = "cosh"
     TANH = "tanh"
+    FLOOR = "floor"
 
     # Statements
     LET = "let"               # immutable; node.value = name, children=[expr]
@@ -58,6 +59,7 @@ class NodeKind(Enum):
 BUILTIN_NAMES: frozenset[str] = frozenset({
     "exp", "ln", "sin", "cos", "tan", "sqrt", "pow", "eml",
     "abs", "clamp", "asin", "acos", "atan", "sinh", "cosh", "tanh",
+    "floor",
 })
 
 BUILTIN_TO_KIND: dict[str, NodeKind] = {
@@ -67,6 +69,7 @@ BUILTIN_TO_KIND: dict[str, NodeKind] = {
     "abs": NodeKind.ABS, "clamp": NodeKind.CLAMP,
     "asin": NodeKind.ASIN, "acos": NodeKind.ACOS, "atan": NodeKind.ATAN,
     "sinh": NodeKind.SINH, "cosh": NodeKind.COSH, "tanh": NodeKind.TANH,
+    "floor": NodeKind.FLOOR,
 }
 
 

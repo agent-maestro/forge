@@ -54,6 +54,7 @@ _BUILTIN_EVAL = {
     NodeKind.ASIN:  math.asin,
     NodeKind.ACOS:  math.acos,
     NodeKind.ATAN:  math.atan,
+    NodeKind.FLOOR: math.floor,
 }
 
 

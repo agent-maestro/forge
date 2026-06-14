@@ -53,6 +53,7 @@ class _Converter:
         NodeKind.SINH:  sp.sinh,
         NodeKind.COSH:  sp.cosh,
         NodeKind.TANH:  sp.tanh,
+        NodeKind.FLOOR: sp.floor,
     }
 
     def __init__(

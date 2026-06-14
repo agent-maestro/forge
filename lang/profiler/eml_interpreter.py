@@ -68,6 +68,7 @@ _UNARY_BUILTIN_TO_PY: dict[NodeKind, Callable[[float], float]] = {
     NodeKind.SINH:  math.sinh,
     NodeKind.COSH:  math.cosh,
     NodeKind.TANH:  math.tanh,
+    NodeKind.FLOOR: math.floor,
 }
 
 

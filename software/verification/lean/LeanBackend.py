@@ -66,6 +66,7 @@ _BUILTIN_TO_LEAN: dict[NodeKind, str] = {
     NodeKind.SINH:  "Real.sinh",
     NodeKind.COSH:  "Real.cosh",
     NodeKind.TANH:  "Real.tanh",
+    NodeKind.FLOOR: "Real.floor",
 }
 
 

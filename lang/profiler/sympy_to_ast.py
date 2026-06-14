@@ -36,6 +36,7 @@ _SYMPY_TO_BUILTIN: dict[type, NodeKind] = {
     sp.sinh:  NodeKind.SINH,
     sp.cosh:  NodeKind.COSH,
     sp.tanh:  NodeKind.TANH,
+    sp.floor: NodeKind.FLOOR,
 }
 
 
